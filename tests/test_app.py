@@ -1,0 +1,110 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Fabio Campolim
+import copy
+import json
+import sys
+
+import tornado.websocket
+from tornado.testing import AsyncHTTPTestCase, gen_test
+
+from claudiu.app import make_app
+from claudiu.config import DEFAULTS
+from claudiu.sessions import SessionManager
+
+ECHO_CMD = [sys.executable, "-u", "-c",
+            "import sys\nprint('READY', flush=True)\n"
+            "for line in sys.stdin:\n"
+            "    print('echo:' + line.strip(), flush=True)\n"]
+
+
+class AppTests(AsyncHTTPTestCase):
+
+    def get_app(self):
+        cfg = copy.deepcopy(DEFAULTS)
+        cfg["claude_command"] = ECHO_CMD
+        self.manager = SessionManager(cfg)
+        return make_app(cfg, self.manager, warnings=["w1"])
+
+    def _post(self, url, body):
+        return self.fetch(url, method="POST", body=json.dumps(body),
+                          raise_error=False)
+
+    def test_sessions_lifecycle(self):
+        resp = self.fetch("/api/sessions")
+        assert json.loads(resp.body) == {"sessions": []}
+        resp = self._post("/api/sessions", {"path": "."})
+        assert resp.code == 201
+        sid = json.loads(resp.body)["id"]
+        resp = self.fetch("/api/sessions")
+        assert json.loads(resp.body)["sessions"][0]["id"] == sid
+        resp = self.fetch(f"/api/sessions/{sid}", method="PATCH",
+                          body=json.dumps({"title": "mine"}),
+                          raise_error=False)
+        assert resp.code == 200
+        resp = self.fetch("/api/sessions")
+        assert json.loads(resp.body)["sessions"][0]["title"] == "mine"
+        resp = self.fetch(f"/api/sessions/{sid}", method="DELETE",
+                          raise_error=False)
+        assert resp.code == 204
+        resp = self.fetch("/api/sessions")
+        assert json.loads(resp.body) == {"sessions": []}
+
+    def test_bad_path_is_400_with_message(self):
+        resp = self._post("/api/sessions", {"path": "Z:/does/not/exist"})
+        assert resp.code == 400
+        assert "error" in json.loads(resp.body)
+
+    def test_unknown_session_is_404(self):
+        resp = self.fetch("/api/sessions/nope", method="DELETE",
+                          raise_error=False)
+        assert resp.code == 404
+        assert "error" in json.loads(resp.body)
+
+    def test_config_endpoint(self):
+        body = json.loads(self.fetch("/api/config").body)
+        assert body["config"]["port"] == DEFAULTS["port"]
+        assert body["warnings"] == ["w1"]
+
+    def test_resume_endpoint_shape(self):
+        body = json.loads(self.fetch("/api/resume").body)
+        assert "projects" in body and "report" in body
+
+    def test_index_served(self):
+        resp = self.fetch("/")
+        assert resp.code == 200
+        assert b"CLAUDIU" in resp.body
+
+    def test_websocket_streams_output(self):
+        # self.fetch() (used by _post) runs its own io_loop.run_sync per
+        # call; nesting that inside a @gen_test coroutine on this
+        # installed Tornado/Windows combo trips the Proactor event loop's
+        # "already running" assertion. Drive the whole test body through
+        # a single self.io_loop.run_sync instead (the brief's documented
+        # fallback), using self.http_client.fetch directly so nothing
+        # else starts a nested loop. Assertions are unchanged.
+        self.io_loop.run_sync(self._websocket_streams_output, timeout=30)
+
+    async def _websocket_streams_output(self):
+        resp = await self.http_client.fetch(
+            self.get_url("/api/sessions"), method="POST",
+            body=json.dumps({"path": "."}), raise_error=False)
+        sid = json.loads(resp.body)["id"]
+        url = f"ws://127.0.0.1:{self.get_http_port()}/ws/{sid}"
+        ws = await tornado.websocket.websocket_connect(url)
+        seen = ""
+        while "READY" not in seen:
+            msg = await ws.read_message()
+            assert msg is not None, "websocket closed before READY"
+            data = json.loads(msg)
+            if data[0] == "stdout":
+                seen += data[1]
+        ws.close()
+
+    @gen_test(timeout=30)
+    async def test_websocket_unknown_session_closes_without_spawning(self):
+        url = f"ws://127.0.0.1:{self.get_http_port()}/ws/nope"
+        ws = await tornado.websocket.websocket_connect(url)
+        msg = await ws.read_message()
+        assert msg is None, "unknown session should close, not stream"
+        assert ws.close_code == 4404
+        assert self.manager.list_sessions() == []

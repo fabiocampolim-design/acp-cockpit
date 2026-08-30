@@ -45,6 +45,17 @@ class SessionManager(NamedTermManager):
         log.info("session %s started: argv=%s cwd=%s", sid, argv, cwd)
         return dict(self._meta[sid])
 
+    def get_terminal(self, term_name: str):
+        # NamedTermManager.get_terminal auto-creates an unknown-name
+        # terminal instead of raising. Left as-is, a websocket connect to
+        # an unknown session id would silently spawn a stray `claude`
+        # process. Only ever return terminals this manager already
+        # created via create_session(); anything else is a KeyError, same
+        # as rename()/kill_session() treat an unknown id.
+        if term_name not in self.terminals:
+            raise KeyError(term_name)
+        return self.terminals[term_name]
+
     def list_sessions(self) -> list:
         out = []
         for sid, term in list(self.terminals.items()):
