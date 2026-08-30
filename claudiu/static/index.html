@@ -1,2 +1,62 @@
-<!-- claudiu/static/index.html -->
-<!doctype html><meta charset="utf-8"><title>CLAUDIU</title>CLAUDIU
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CLAUDIU</title>
+<link rel="stylesheet" href="vendor/xterm.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header id="topbar">
+  <nav id="tabbar" aria-label="sessions"></nav>
+  <button id="newtab" title="New session (Alt+T)">+</button>
+</header>
+<div id="snippetbar"></div>
+<main id="panes"></main>
+
+<div class="overlay" id="launcher" hidden>
+  <div class="dialog">
+    <h2>New session</h2>
+    <h3>Projects</h3>
+    <div id="launcher-projects"></div>
+    <h3>Resume recent</h3>
+    <div id="launcher-resume"></div>
+    <h3>Any folder</h3>
+    <div class="row">
+      <input id="launcher-path" placeholder="C:\path\to\project">
+      <button id="launcher-start">Start</button>
+    </div>
+    <p class="hint">Esc closes</p>
+  </div>
+</div>
+
+<div class="overlay" id="palette" hidden>
+  <div class="dialog">
+    <input id="palette-input" placeholder="type to filter snippets…">
+    <div id="palette-list"></div>
+  </div>
+</div>
+
+<div class="overlay" id="search" hidden>
+  <div class="dialog slim">
+    <input id="search-input" placeholder="search scrollback… (Enter next, Shift+Enter prev, Esc close)">
+  </div>
+</div>
+
+<div class="overlay" id="confirm" hidden>
+  <div class="dialog slim">
+    <p id="confirm-text"></p>
+    <div class="row" id="confirm-buttons"></div>
+  </div>
+</div>
+
+<script src="vendor/xterm.js"></script>
+<script src="vendor/addon-fit.js"></script>
+<script src="vendor/addon-search.js"></script>
+<script src="vendor/addon-web-links.js"></script>
+<script src="keys.js"></script>
+<script src="ui.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

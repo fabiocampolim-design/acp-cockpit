@@ -73,6 +73,10 @@ class AppTests(AsyncHTTPTestCase):
         resp = self.fetch("/")
         assert resp.code == 200
         assert b"CLAUDIU" in resp.body
+        for asset in ("app.css", "vendor/xterm.js", "vendor/xterm.css",
+                      "vendor/addon-fit.js", "vendor/addon-search.js",
+                      "vendor/addon-web-links.js"):
+            assert self.fetch("/" + asset).code == 200, asset
 
     def test_websocket_streams_output(self):
         # self.fetch() (used by _post) runs its own io_loop.run_sync per
