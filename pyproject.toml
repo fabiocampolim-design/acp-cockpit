@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "claudiu"
+version = "0.1.0"
+description = "Tabbed browser interface for Claude Code sessions (working codename)"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+dependencies = ["tornado>=6.2", "terminado>=0.18"]
+
+[project.optional-dependencies]
+test = ["pytest>=7", "pyflakes>=3"]
+e2e = ["playwright>=1.40"]
+
+[project.scripts]
+claudiu = "claudiu.cli:main"
+
+[tool.setuptools]
+packages = ["claudiu"]
+
+[tool.setuptools.package-data]
+claudiu = ["static/*", "static/vendor/*"]
