@@ -86,6 +86,9 @@ def _validate(cfg: dict) -> None:
     for key in ("replay_chunks", "scrollback_lines", "font_size"):
         if not isinstance(cfg[key], int) or cfg[key] <= 0:
             raise ConfigError(f"{key} must be a positive integer")
+    for key in ("theme", "shortcuts"):
+        if not isinstance(cfg[key], dict):
+            raise ConfigError(f"{key} must be an object (JSON dict)")
     for i, proj in enumerate(cfg["projects"]):
         if not isinstance(proj, dict) or "name" not in proj or "path" not in proj:
             raise ConfigError(f"projects[{i}] needs 'name' and 'path'")

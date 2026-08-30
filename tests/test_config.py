@@ -76,3 +76,13 @@ def test_ensure_config_file(tmp_path):
     assert config.ensure_config_file(p) is True
     assert json.loads(p.read_text())["port"] == 8642
     assert config.ensure_config_file(p) is False
+
+
+def test_non_dict_theme_or_shortcuts_is_config_error(tmp_path):
+    p = tmp_path / "c.json"
+    p.write_text(json.dumps({"theme": "oops"}))
+    with pytest.raises(config.ConfigError):
+        config.load_config(p)
+    p.write_text(json.dumps({"shortcuts": 3}))
+    with pytest.raises(config.ConfigError):
+        config.load_config(p)
