@@ -1,0 +1,76 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Fabio Campolim
+import json
+import os
+import time
+
+from claudiu.resume import scan_recent_sessions
+
+
+def write_session(pdir, sid, records, age=0):
+    pdir.mkdir(parents=True, exist_ok=True)
+    f = pdir / f"{sid}.jsonl"
+    f.write_text("\n".join(json.dumps(r) for r in records), encoding="utf-8")
+    if age:
+        past = time.time() - age
+        os.utime(f, (past, past))
+    return f
+
+
+def user_rec(text, cwd="C:/proj"):
+    return {"type": "user", "cwd": cwd,
+            "message": {"role": "user", "content": text}}
+
+
+def test_missing_dir_is_empty_not_error(tmp_path):
+    projects, report = scan_recent_sessions(tmp_path / "absent")
+    assert projects == []
+    assert report["session_files"] == 0
+
+
+def test_finds_cwd_summary_and_sorts_newest_first(tmp_path):
+    p = tmp_path / "C--proj"
+    write_session(p, "old", [user_rec("old prompt")], age=3600)
+    write_session(p, "new", [user_rec("new prompt")])
+    projects, report = scan_recent_sessions(tmp_path)
+    assert len(projects) == 1
+    assert projects[0]["path"] == "C:/proj"
+    ids = [s["id"] for s in projects[0]["sessions"]]
+    assert ids == ["new", "old"]
+    assert projects[0]["sessions"][0]["summary"] == "new prompt"
+    assert report["session_files"] == 2
+
+
+def test_content_list_form_and_limit(tmp_path):
+    p = tmp_path / "C--proj"
+    rec = {"type": "user", "cwd": "C:/proj", "message": {
+        "role": "user",
+        "content": [{"type": "text", "text": "from a list"}]}}
+    for i in range(7):
+        write_session(p, f"s{i}", [rec], age=i)
+    projects, _ = scan_recent_sessions(tmp_path, limit_per_project=5)
+    assert len(projects[0]["sessions"]) == 5
+    assert projects[0]["sessions"][0]["summary"] == "from a list"
+
+
+def test_bad_lines_and_unknown_types_counted_not_dropped(tmp_path):
+    p = tmp_path / "C--proj"
+    f = p; p.mkdir(parents=True)
+    (f / "weird.jsonl").write_text(
+        'not json at all\n'
+        + json.dumps({"type": "worktree-state", "cwd": "C:/proj"}) + "\n"
+        + json.dumps({"type": "user", "cwd": "C:/proj",
+                      "message": {"role": "user", "content": "hi"}}),
+        encoding="utf-8")
+    projects, report = scan_recent_sessions(tmp_path)
+    assert report["bad_lines"] == 1
+    assert report["record_types"].get("worktree-state") == 1
+    assert projects[0]["sessions"][0]["summary"] == "hi"
+
+
+def test_no_user_record_still_listed(tmp_path):
+    p = tmp_path / "C--mystery"
+    write_session(p, "s1", [{"type": "system", "note": "x"}])
+    projects, _ = scan_recent_sessions(tmp_path)
+    assert projects[0]["path"] == "C--mystery"
+    assert projects[0]["sessions"][0]["summary"] == "(no prompt found)"
