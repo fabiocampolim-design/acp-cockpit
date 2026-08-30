@@ -82,6 +82,30 @@ class SessionTests(AsyncTestCase):
         await mgr.kill_session(b["id"])
 
     @gen_test(timeout=30)
+    async def test_kill_closes_pty_and_notifies_clients(self):
+        mgr = SessionManager(make_cfg())
+        info = mgr.create_session(cwd=".")
+        term = mgr.get_terminal(info["id"])
+        await wait_for(term, "READY")
+
+        class FakeClient:
+            def __init__(self):
+                self.died = False
+
+            def on_pty_died(self):
+                self.died = True
+
+        client = FakeClient()
+        term.clients.append(client)
+
+        await mgr.kill_session(info["id"])
+
+        assert client.died is True
+        assert [s["id"] for s in mgr.list_sessions()] == []
+        assert term.ptyproc.isalive() is False
+        assert getattr(term.ptyproc, "closed", True) is True
+
+    @gen_test(timeout=30)
     async def test_rename_and_unknown_ids(self):
         mgr = SessionManager(make_cfg())
         info = mgr.create_session(cwd=".")

@@ -13,7 +13,6 @@ import time
 from pathlib import Path
 
 from terminado import NamedTermManager, TermSocket
-from tornado.ioloop import IOLoop
 
 log = logging.getLogger(__name__)
 
@@ -65,23 +64,30 @@ class SessionManager(NamedTermManager):
         if sid not in self.terminals:
             raise KeyError(sid)
         term = self.terminals[sid]
+        clients = list(term.clients)
         await self.terminate(sid, force=True)
-        # NamedTermManager.on_eof() is the "normal" cleanup path, but it
-        # only runs off the IOLoop's fd-read callback once it observes
-        # EOF; on Windows (pywinpty backs the pty with a loopback socket
-        # read by a background thread) that notification can lag well
-        # past terminate() returning. Do the bookkeeping ourselves so a
-        # killed session is gone from list_sessions() immediately; guard
-        # against on_eof() having already won the race and done it first.
-        self.terminals.pop(sid, None)
-        self._meta.pop(sid, None)
+        # terminado's normal EOF path is pty_read(): on EOFError it calls
+        # on_eof() (ptys_by_fd/IOLoop-handler/terminals/_meta bookkeeping
+        # plus ptyproc.close(), via NamedTermManager.on_eof -> our
+        # override -> TermManagerBase.on_eof) and then notifies every
+        # attached client with on_pty_died(). That only runs off the
+        # IOLoop's fd-read callback once it observes EOF, and on this
+        # Windows/pywinpty backend (the pty is read via a loopback socket
+        # serviced by a background thread) that notification measurably
+        # lags past terminate() returning -- confirmed empirically. A
+        # forced kill_session() bypasses pty_read() entirely, so mirror
+        # both halves of its EOFError branch here ourselves, rather than
+        # leaving the pty's socket pair unclosed and any attached
+        # websocket client stranded with no death signal. Guard against
+        # on_eof() having already won the race and done this first (rare,
+        # but possible during terminate()'s internal sleeps).
         fd = getattr(term.ptyproc, "fd", None)
         if fd is not None and fd in self.ptys_by_fd:
-            del self.ptys_by_fd[fd]
-            try:
-                IOLoop.current().remove_handler(fd)
-            except (KeyError, ValueError, OSError):
-                pass
+            self.on_eof(term)
+            for client in clients:
+                client.on_pty_died()
+        # else: on_eof() already raced ahead of us and did all of this,
+        # client notifications included.
         log.info("session %s killed", sid)
 
     def on_eof(self, ptywclients) -> None:
