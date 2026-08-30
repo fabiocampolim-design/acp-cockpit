@@ -1,0 +1,95 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Fabio Campolim
+import copy
+import sys
+
+import tornado.gen
+from tornado.testing import AsyncTestCase, gen_test
+
+from claudiu.config import DEFAULTS
+from claudiu.sessions import SessionManager
+
+ECHO_CMD = [sys.executable, "-u", "-c",
+            "import sys\nprint('READY', flush=True)\n"
+            "for line in sys.stdin:\n"
+            "    print('echo:' + line.strip(), flush=True)\n"]
+
+
+def make_cfg(**over):
+    cfg = copy.deepcopy(DEFAULTS)
+    cfg["claude_command"] = ECHO_CMD
+    cfg.update(over)
+    return cfg
+
+
+async def wait_for(term, text, timeout=15.0):
+    for _ in range(int(timeout / 0.1)):
+        if text in "".join(term.read_buffer):
+            return
+        await tornado.gen.sleep(0.1)
+    raise AssertionError(
+        f"{text!r} not seen; buffer: {''.join(term.read_buffer)!r}")
+
+
+class SessionTests(AsyncTestCase):
+
+    @gen_test(timeout=30)
+    async def test_create_lists_alive_session(self):
+        mgr = SessionManager(make_cfg())
+        info = mgr.create_session(cwd=".", title="demo")
+        assert info["id"].startswith("s")
+        assert info["title"] == "demo"
+        term = mgr.get_terminal(info["id"])
+        await wait_for(term, "READY")
+        listed = mgr.list_sessions()
+        assert [s["id"] for s in listed] == [info["id"]]
+        assert listed[0]["alive"] is True
+        await mgr.kill_session(info["id"])
+
+    @gen_test(timeout=30)
+    async def test_replay_buffer_uses_configured_cap(self):
+        mgr = SessionManager(make_cfg(replay_chunks=7))
+        info = mgr.create_session(cwd=".")
+        term = mgr.get_terminal(info["id"])
+        assert term.read_buffer.maxlen == 7
+        await mgr.kill_session(info["id"])
+
+    @gen_test(timeout=30)
+    async def test_stdin_roundtrip(self):
+        mgr = SessionManager(make_cfg())
+        info = mgr.create_session(cwd=".")
+        term = mgr.get_terminal(info["id"])
+        await wait_for(term, "READY")
+        # Windows ConPTY's console input layer treats CR, not LF, as the
+        # "submit this line" key (POSIX ttys in canonical mode take LF).
+        # A raw "\n" here sits in ConPTY's input buffer unread; real
+        # keystrokes from xterm.js already send "\r" for Enter, so this
+        # matches production traffic on this platform.
+        term.ptyproc.write("hello\r\n")
+        await wait_for(term, "echo:hello")
+        await mgr.kill_session(info["id"])
+
+    @gen_test(timeout=30)
+    async def test_kill_removes_only_that_session(self):
+        mgr = SessionManager(make_cfg())
+        a = mgr.create_session(cwd=".")
+        b = mgr.create_session(cwd=".")
+        await wait_for(mgr.get_terminal(b["id"]), "READY")
+        await mgr.kill_session(a["id"])
+        remaining = mgr.list_sessions()
+        assert [s["id"] for s in remaining] == [b["id"]]
+        assert remaining[0]["alive"] is True
+        await mgr.kill_session(b["id"])
+
+    @gen_test(timeout=30)
+    async def test_rename_and_unknown_ids(self):
+        mgr = SessionManager(make_cfg())
+        info = mgr.create_session(cwd=".")
+        mgr.rename(info["id"], "renamed")
+        assert mgr.list_sessions()[0]["title"] == "renamed"
+        try:
+            mgr.rename("nope", "x")
+            raise AssertionError("expected KeyError")
+        except KeyError:
+            pass
+        await mgr.kill_session(info["id"])
