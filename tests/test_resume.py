@@ -74,3 +74,11 @@ def test_no_user_record_still_listed(tmp_path):
     projects, _ = scan_recent_sessions(tmp_path)
     assert projects[0]["path"] == "C--mystery"
     assert projects[0]["sessions"][0]["summary"] == "(no prompt found)"
+
+
+def test_zero_limit_does_not_crash(tmp_path):
+    p = tmp_path / "C--proj"
+    write_session(p, "s1", [user_rec("test")])
+    projects, _ = scan_recent_sessions(tmp_path, limit_per_project=0)
+    assert len(projects) == 1
+    assert projects[0]["sessions"] == []

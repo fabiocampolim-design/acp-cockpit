@@ -87,6 +87,6 @@ def scan_recent_sessions(claude_dir=None, limit_per_project=5,
         sessions.sort(key=lambda s: s["mtime"], reverse=True)
         projects.append({"path": path,
                          "sessions": sessions[:limit_per_project]})
-    projects.sort(key=lambda p: p["sessions"][0]["mtime"], reverse=True)
+    projects.sort(key=lambda p: (p["sessions"][0]["mtime"] if p["sessions"] else 0.0), reverse=True)
     report["record_types"] = dict(report["record_types"])
     return projects, report
