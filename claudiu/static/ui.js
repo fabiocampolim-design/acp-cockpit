@@ -182,10 +182,10 @@ window.ClaudiuUI = (function () {
       row.appendChild(b);
     };
     mk("Restart", "primary", async () => {
-      app.removeTab(tab.id);
       try {
         await app.openSession({ path: tab.cwd, args: tab.args,
           title: tab.title });
+        app.removeTab(tab.id);
       } catch (e) { alertBox("Restart failed: " + e.message); }
     });
     mk("Resume", "ghost", async () => {
@@ -196,9 +196,9 @@ window.ClaudiuUI = (function () {
           alertBox("No recent session found for " + tab.cwd);
           return;
         }
-        app.removeTab(tab.id);
         await app.openSession({ path: tab.cwd,
           args: ["--resume", proj.sessions[0].id], title: tab.title });
+        app.removeTab(tab.id);
       } catch (e) { alertBox("Resume failed: " + e.message); }
     });
     mk("Close", "ghost", () => app.removeTab(tab.id));
