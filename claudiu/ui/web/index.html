@@ -1,1 +1,38 @@
-<!-- UI lands in Task 15 -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CLAUDIU</title>
+<link rel="stylesheet" href="/ui/style.css">
+</head>
+<body>
+<div id="launcher">
+  <h1>CLAUDIU</h1>
+  <label>Agent <select id="profile"></select></label>
+  <label>Project directory <input id="cwd" spellcheck="false"></label>
+  <button id="start">Start session</button>
+  <ul id="caveats"></ul>
+</div>
+<div id="workspace" hidden>
+  <div id="status"><span class="state">starting</span><span class="mode"></span>
+    <span class="drift-chip" hidden>drift</span>
+    <span class="anomaly-chip" hidden>anomalies</span></div>
+  <div id="conversation"></div>
+  <div id="plan" hidden></div>
+  <div id="composer">
+    <textarea id="prompt-input" rows="3"
+      placeholder="Prompt — Enter sends, Shift+Enter for newline"></textarea>
+    <button id="send">Send</button>
+    <button id="cancel" hidden>Stop</button>
+    <select id="mode" hidden></select>
+  </div>
+</div>
+<dialog id="permission">
+  <h2>Approval request</h2>
+  <pre id="perm-tool"></pre>
+  <div id="perm-options"></div>
+</dialog>
+<script src="/ui/app.js"></script>
+</body>
+</html>
