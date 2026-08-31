@@ -34,9 +34,9 @@ def _assistant(stop, usage=None, parts=("text",)):
 
 
 def test_slug_matches_claude_code_layout():
-    assert (project_slug(r"C:\Users\x\claude\githubify\CLAUDIU")
-            == "C--Users-x-claude-githubify-CLAUDIU")
-    assert project_slug("/home/x/.claude/proj") == "-home-x--claude-proj"
+    assert (project_slug(r"D:\work\a-project")
+            == "D--work-a-project")
+    assert project_slug("/srv/x/.local/proj") == "-srv-x--local-proj"
 
 
 def test_transcript_path_under_claude_dir(tmp_path):
