@@ -47,8 +47,8 @@ CI).
 
 ## How it was built
 
-Designed and implemented with Claude Code; the approved design spec lives
-at `docs/superpowers/specs/`.
+Designed and implemented with Claude Code from a written specification and
+an implementation plan (both kept in `docs/`).
 
 ## Licence
 
@@ -68,5 +68,4 @@ This project is independent and not affiliated with, endorsed by, or
 supported by Anthropic. "Claude" and "Claude Code" are used only to
 identify the software this tool talks to.
 
-*(Badges are added at publication time, per the GITHUBIFY playbook's Phase
-4-5 — recorded decision.)*
+*(Badges are added at publication time — recorded decision.)*

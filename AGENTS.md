@@ -116,7 +116,7 @@ claudiu/resume.py           ~/.claude/projects scanner for --resume lists
 claudiu/static/           index.html, app.js, ui.js, keys.js, app.css
 claudiu/static/vendor/    pinned xterm.js + addons (see VENDORED.md)
 docs/USER_MANUAL.md       human-oriented manual
-docs/superpowers/         design spec and implementation plan
+docs/superpowers/         design specification and implementation plan (historical record)
 tests/                    unit, integration, e2e, docs/licence guard tests
 run_claudiu.bat           Windows double-click launcher
 ```
