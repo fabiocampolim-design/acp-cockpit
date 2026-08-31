@@ -9,6 +9,7 @@ import urllib.parse
 from pathlib import Path
 
 import tornado.web
+from tornado.ioloop import IOLoop
 
 from claudiu.resume import scan_recent_sessions
 from claudiu.sessions import ClaudiuTermSocket
@@ -20,6 +21,22 @@ log = logging.getLogger(__name__)
 # this set are refused -- see APIHandler.prepare() and
 # TermSocketHandler.check_origin() below.
 ALLOWED_HOSTS = {"127.0.0.1", "localhost", "::1"}
+
+
+def _api_error(status: int, detail) -> tornado.web.HTTPError:
+    """Build an HTTPError whose reason is safe to put on the status line.
+
+    `reason` becomes literal bytes in the HTTP status line; a reason built
+    from user-derived text (a submitted path, a caught exception's message)
+    could contain a CR/LF that breaks header flushing, or be unbounded in
+    length. Strip line breaks and cap the length before it ever reaches
+    HTTPError.
+    """
+    text = str(detail).replace("\r", " ").replace("\n", " ")
+    if len(text) > 200:
+        text = text[:200] + "..."
+    return tornado.web.HTTPError(status, reason=text)
+
 
 ROUTES = {
     "GET /api/sessions": "list live sessions",
@@ -81,8 +98,7 @@ class SessionsHandler(APIHandler):
         body = self.body_json()
         path = body.get("path")
         if not isinstance(path, str) or not Path(path).is_dir():
-            raise tornado.web.HTTPError(
-                400, reason=f"not an existing directory: {path!r}")
+            raise _api_error(400, f"not an existing directory: {path!r}")
         args = body.get("args", [])
         if not isinstance(args, list) or not all(isinstance(a, str) for a in args):
             raise tornado.web.HTTPError(400, reason="args must be a list of strings")
@@ -90,8 +106,7 @@ class SessionsHandler(APIHandler):
             info = self.manager.create_session(path, args, body.get("title"))
         except Exception as exc:  # exception wall: one bad spawn, not a dead server
             log.exception("session spawn failed")
-            raise tornado.web.HTTPError(
-                500, reason=f"could not start session: {exc}")
+            raise _api_error(500, f"could not start session: {exc}")
         self.set_status(201)
         self.write(info)
 
@@ -129,12 +144,17 @@ class ConfigHandler(APIHandler):
 
 
 class ResumeHandler(APIHandler):
-    def get(self):
+    async def get(self):
         try:
-            projects, report = scan_recent_sessions()
+            # scan_recent_sessions() does blocking file I/O over every
+            # recent Claude Code session file; running it inline would
+            # stall the IOLoop (and every other tab's websocket) for the
+            # duration of the scan.
+            projects, report = await IOLoop.current().run_in_executor(
+                None, scan_recent_sessions)
         except Exception as exc:  # scanner must never blank the page
             log.exception("resume scan failed")
-            raise tornado.web.HTTPError(500, reason=f"resume scan failed: {exc}")
+            raise _api_error(500, f"resume scan failed: {exc}")
         self.write({"projects": projects, "report": report})
 
 
