@@ -8,11 +8,15 @@ from __future__ import annotations
 
 import collections
 import itertools
+import json
 import logging
 import time
+import uuid
 from pathlib import Path
 
 from terminado import NamedTermManager, TermSocket
+
+from .status import find_transcript, read_status, unknown_status
 
 log = logging.getLogger(__name__)
 
@@ -40,11 +44,13 @@ NESTED_SESSION_MARKERS = (
 class SessionManager(NamedTermManager):
     """One named terminal per Claude session, with a capped replay buffer."""
 
-    def __init__(self, config: dict):
+    def __init__(self, config: dict, claude_dir=None):
         super().__init__(shell_command=list(config["claude_command"]))
         self._config = config
         self._meta: dict = {}
         self._ids = itertools.count(1)
+        self._claude_dir = claude_dir  # None: the real ~/.claude
+        self._status_cache: dict = {}  # sid -> ((mtime, size), status)
 
     def make_term_env(self, *args, **kwargs) -> dict:
         env = super().make_term_env(*args, **kwargs)
@@ -52,8 +58,42 @@ class SessionManager(NamedTermManager):
             env.pop(name, None)
         return env
 
+    def build_argv(self, args=()) -> tuple:
+        """(argv, session_id) for a new session.
+
+        Claude Code only tells us its session id indirectly (the transcript
+        file name), so unless the caller already pins one (``--session-id``,
+        ``--resume <id>``) a fresh UUID is passed in -- that is what lets
+        the status strip find the transcript. ``--continue`` picks a session
+        we cannot name in advance: no id, status stays unknown.
+        The configured Claude theme is added via ``--settings`` unless the
+        caller passes its own settings.
+        """
+        args = list(args)
+        session_id = None
+        inject_id = True
+        for i, a in enumerate(args):
+            nxt = args[i + 1] if i + 1 < len(args) else ""
+            if a in ("--session-id", "--resume", "-r"):
+                inject_id = False
+                if nxt and not nxt.startswith("-"):
+                    session_id = nxt
+            elif a.startswith("--session-id=") or a.startswith("--resume="):
+                inject_id = False
+                session_id = a.split("=", 1)[1] or None
+            elif a in ("--continue", "-c"):
+                inject_id = False
+        if inject_id:
+            session_id = str(uuid.uuid4())
+            args += ["--session-id", session_id]
+        theme = self._config.get("claude_theme") or ""
+        if theme and not any(a == "--settings" or a.startswith("--settings=")
+                             for a in args):
+            args += ["--settings", json.dumps({"theme": theme})]
+        return list(self._config["claude_command"]) + args, session_id
+
     def create_session(self, cwd, args=(), title=None) -> dict:
-        argv = list(self._config["claude_command"]) + list(args)
+        argv, session_id = self.build_argv(args)
         sid = f"s{next(self._ids)}"
         term = self.new_terminal(shell_command=argv, cwd=str(cwd))
         term.term_name = sid
@@ -73,6 +113,7 @@ class SessionManager(NamedTermManager):
             "cwd": str(resolved),
             "args": list(args),
             "created": time.time(),
+            "session_id": session_id,
         }
         log.info("session %s started: argv=%s cwd=%s", sid, argv, cwd)
         return dict(self._meta[sid])
@@ -98,6 +139,39 @@ class SessionManager(NamedTermManager):
                 info["alive"] = False
             out.append(info)
         out.sort(key=lambda i: i.get("created", 0))
+        return out
+
+    def status_all(self) -> dict:
+        """{sid: status} for every live session -- blocking file I/O, run it
+        off the IOLoop. A transcript is looked up until it appears, then read
+        only when its mtime/size changed."""
+        out = {}
+        cfg = self._config
+        for sid in list(self.terminals):
+            meta = self._meta.get(sid)
+            if not meta or not meta.get("session_id"):
+                out[sid] = unknown_status()
+                continue
+            path = meta.get("transcript")
+            if path is None:
+                path = find_transcript(meta["cwd"], meta["session_id"],
+                                       self._claude_dir)
+                if path is None:
+                    out[sid] = unknown_status()
+                    continue
+                meta["transcript"] = path
+            try:
+                st = path.stat()
+                key = (st.st_mtime, st.st_size)
+            except OSError:
+                key = None
+            cached = self._status_cache.get(sid)
+            if cached and key is not None and cached[0] == key:
+                out[sid] = cached[1]
+                continue
+            status = read_status(path, cfg["context_window_tokens"])
+            self._status_cache[sid] = (key, status)
+            out[sid] = status
         return out
 
     def rename(self, sid: str, title: str) -> None:
@@ -134,6 +208,7 @@ class SessionManager(NamedTermManager):
         log.info("session %s killed", sid)
 
     def on_eof(self, ptywclients) -> None:
+        self._status_cache.pop(getattr(ptywclients, "term_name", None), None)
         sid = getattr(ptywclients, "term_name", None)
         super().on_eof(ptywclients)
         self._meta.pop(sid, None)

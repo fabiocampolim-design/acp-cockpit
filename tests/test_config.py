@@ -96,3 +96,22 @@ def test_non_dict_theme_or_shortcuts_is_config_error(tmp_path):
     p.write_text(json.dumps({"shortcuts": 3}))
     with pytest.raises(config.ConfigError):
         config.load_config(p)
+
+
+def test_context_thresholds_validated(tmp_path):
+    import json
+    import pytest
+    from claudiu.config import ConfigError, load_config
+    f = tmp_path / "c.json"
+    f.write_text(json.dumps({"context_warn_pct": 90, "context_danger_pct": 50}),
+                 encoding="utf-8")
+    with pytest.raises(ConfigError, match="context_warn_pct"):
+        load_config(f)
+    f.write_text(json.dumps({"context_danger_pct": 101}), encoding="utf-8")
+    with pytest.raises(ConfigError, match="between 0 and 100"):
+        load_config(f)
+    f.write_text(json.dumps({"claude_theme": "", "status_poll_ms": 500}),
+                 encoding="utf-8")
+    cfg, warnings = load_config(f)
+    assert cfg["claude_theme"] == "" and cfg["status_poll_ms"] == 500
+    assert warnings == []

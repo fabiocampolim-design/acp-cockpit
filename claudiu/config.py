@@ -17,17 +17,32 @@ DEFAULTS: dict = {
     "scrollback_lines": 10000,
     "font_size": 16,
     "font_family": "Consolas, 'Cascadia Mono', monospace",
+    # Soft, low-contrast palette. Sessions are spawned with Claude Code's
+    # "dark-ansi" theme (see claude_theme) so *every* colour it prints goes
+    # through these sixteen entries; the bright variants are deliberately
+    # not brighter, only a shade lighter, so bold text stays calm.
     "theme": {
         "background": "#14161a", "foreground": "#c9c4b8",
         "cursor": "#c9c4b8", "selectionBackground": "#3a3f4b",
-        "black": "#14161a", "red": "#c8746e", "green": "#8aa87a",
-        "yellow": "#c2a86c", "blue": "#7a93b8", "magenta": "#a884a8",
-        "cyan": "#7aa8a0", "white": "#c9c4b8",
-        "brightBlack": "#565e6a", "brightRed": "#d99790",
-        "brightGreen": "#a5bf97", "brightYellow": "#d4bf8e",
-        "brightBlue": "#9cb2d1", "brightMagenta": "#c0a2c0",
-        "brightCyan": "#9cc2bb", "brightWhite": "#e0dbd0",
+        "black": "#14161a", "red": "#b57d78", "green": "#8da287",
+        "yellow": "#b5a47e", "blue": "#7f93ad", "magenta": "#9f8fa4",
+        "cyan": "#83a19d", "white": "#c9c4b8",
+        "brightBlack": "#7a8088", "brightRed": "#bf8983",
+        "brightGreen": "#98ad91", "brightYellow": "#c4b288",
+        "brightBlue": "#8b9eb6", "brightMagenta": "#aa9aae",
+        "brightCyan": "#8fada9", "brightWhite": "#d8d3c8",
     },
+    # Claude Code theme forced on spawned sessions ("" keeps the user's own):
+    # the *-ansi themes are the only ones that use the 16-colour palette
+    # above instead of hard-coded truecolor.
+    "claude_theme": "dark-ansi",
+    # Status strip: poll interval and the context gauge thresholds
+    # (percent of context_window_tokens at which the gauge turns
+    # amber, then red).
+    "status_poll_ms": 2000,
+    "context_window_tokens": 200000,
+    "context_warn_pct": 50,
+    "context_danger_pct": 75,
     "shortcuts": {
         "tab_1": "Alt+1", "tab_2": "Alt+2", "tab_3": "Alt+3",
         "tab_4": "Alt+4", "tab_5": "Alt+5", "tab_6": "Alt+6",
@@ -84,9 +99,17 @@ def _validate(cfg: dict) -> None:
     if (not isinstance(cfg["claude_command"], list) or not cfg["claude_command"]
             or not all(isinstance(p, str) for p in cfg["claude_command"])):
         raise ConfigError("claude_command must be a non-empty list of strings")
-    for key in ("replay_chunks", "scrollback_lines", "font_size"):
+    for key in ("replay_chunks", "scrollback_lines", "font_size",
+                "status_poll_ms", "context_window_tokens"):
         if not isinstance(cfg[key], int) or cfg[key] <= 0:
             raise ConfigError(f"{key} must be a positive integer")
+    for key in ("context_warn_pct", "context_danger_pct"):
+        if not isinstance(cfg[key], int) or not 0 <= cfg[key] <= 100:
+            raise ConfigError(f"{key} must be an integer between 0 and 100")
+    if cfg["context_warn_pct"] > cfg["context_danger_pct"]:
+        raise ConfigError("context_warn_pct must not exceed context_danger_pct")
+    if not isinstance(cfg["claude_theme"], str):
+        raise ConfigError('claude_theme must be a string ("" to leave it alone)')
     for key in ("theme", "shortcuts"):
         if not isinstance(cfg[key], dict):
             raise ConfigError(f"{key} must be an object (JSON dict)")

@@ -155,3 +155,60 @@ class ChildEnvTests(AsyncTestCase):
                 assert env[name] == "4096"
             else:
                 assert name not in env, f"{name} leaked into the session"
+
+
+class ArgvTests(AsyncTestCase):
+    """Session id and theme injection (no process is spawned here)."""
+
+    def test_fresh_session_gets_a_uuid_and_the_theme(self):
+        mgr = SessionManager(make_cfg(claude_theme="dark-ansi"))
+        argv, sid = mgr.build_argv([])
+        assert argv[:len(ECHO_CMD)] == ECHO_CMD
+        assert argv[len(ECHO_CMD):len(ECHO_CMD) + 2] == ["--session-id", sid]
+        assert len(sid) == 36
+        assert argv[-2:] == ["--settings", '{"theme": "dark-ansi"}']
+
+    def test_resume_keeps_the_given_id_and_own_settings_win(self):
+        mgr = SessionManager(make_cfg(claude_theme="dark-ansi"))
+        argv, sid = mgr.build_argv(["--resume", "abc", "--settings", "x.json"])
+        assert sid == "abc"
+        assert "--session-id" not in argv
+        assert argv.count("--settings") == 1
+        argv, sid = mgr.build_argv(["--session-id=zzz"])
+        assert sid == "zzz" and argv.count("--session-id=zzz") == 1
+
+    def test_continue_and_empty_theme_inject_nothing(self):
+        mgr = SessionManager(make_cfg(claude_theme=""))
+        argv, sid = mgr.build_argv(["--continue"])
+        assert sid is None
+        assert argv == ECHO_CMD + ["--continue"]
+        argv, sid = mgr.build_argv(["--resume"])  # bare: interactive picker
+        assert sid is None and "--session-id" not in argv
+
+    @gen_test(timeout=30)
+    async def test_status_all_reads_the_transcript_when_it_appears(self):
+        import json
+        import tempfile
+        from claudiu.status import transcript_path
+        with tempfile.TemporaryDirectory() as tmp:
+            mgr = SessionManager(make_cfg(context_window_tokens=1000),
+                                 claude_dir=tmp)
+            info = mgr.create_session(cwd=".", title="demo")
+            sid = info["id"]
+            assert info["session_id"]
+            assert mgr.status_all()[sid]["state"] == "unknown"
+            path = transcript_path(info["cwd"], info["session_id"], tmp)
+            path.parent.mkdir(parents=True)
+            path.write_text(json.dumps({
+                "type": "assistant", "message": {
+                    "stop_reason": "end_turn", "content": [],
+                    "usage": {"input_tokens": 500}}}) + "\n"
+                + json.dumps({"type": "last-prompt", "lastPrompt": "hi"}) + "\n",
+                encoding="utf-8")
+            st = mgr.status_all()[sid]
+            assert st["state"] == "ready" and st["last_prompt"] == "hi"
+            assert st["context_pct"] == 50.0
+            # unchanged file -> cached object
+            assert mgr.status_all()[sid] is st
+            await mgr.kill_session(sid)
+            assert mgr.status_all() == {}

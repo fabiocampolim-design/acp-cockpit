@@ -92,6 +92,16 @@ class AppTests(AsyncHTTPTestCase):
         assert body["config"]["port"] == DEFAULTS["port"]
         assert body["warnings"] == ["w1"]
 
+    def test_status_endpoint_shape(self):
+        created = json.loads(self._post("/api/sessions", {"path": "."}).body)
+        resp = self.fetch("/api/status")
+        assert resp.code == 200
+        sessions = json.loads(resp.body)["sessions"]
+        st = sessions[created["id"]]
+        assert st["state"] == "unknown" and st["last_prompt"] is None
+        assert set(st) >= {"exists", "state", "last_prompt",
+                           "context_tokens", "context_pct"}
+
     def test_resume_endpoint_shape(self):
         body = json.loads(self.fetch("/api/resume").body)
         assert "projects" in body and "report" in body

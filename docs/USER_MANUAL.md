@@ -43,8 +43,21 @@ machines) and opens it in your default browser automatically.
 - **Scrollback search** — search within a tab's capped scrollback, with
   highlighting.
 - **Rename by double-click** — double-click a tab's label to rename it.
+- **Status strip** — above each terminal, a one-line box shows the last
+  prompt you typed in that session (click it to expand long prompts).
+  Each tab carries a small light — pulsing while Claude is working,
+  steady once it is waiting for you — and a context gauge that fills as
+  the conversation grows and shifts from green through amber to red as it
+  approaches the point where auto-compaction starts hurting. A tab whose
+  turn finishes while you are looking elsewhere gets the "unseen" dot.
+  All three read Claude Code's own session transcript; nothing is guessed
+  from terminal output (see "How the status strip works" below).
 - **Calm dark theme** — near-black background, warm-gray foreground, muted
   ANSI colors, steady non-blinking cursor; every color is a config value.
+  Sessions start with Claude Code's `dark-ansi` theme so *all* of its
+  colours come from that palette (Claude Code's default themes print
+  hard-coded truecolor that no terminal palette can soften); bold text
+  keeps its colour instead of jumping to the bright variant.
 
 ## Configuration
 
@@ -65,6 +78,11 @@ startup warning, never rejected.
 | `font_size` | `16` | default terminal font size in pixels |
 | `font_family` | `"Consolas, 'Cascadia Mono', monospace"` | terminal font stack |
 | `theme` | a 16-color dark theme object | background, foreground, cursor, selection background, and the 16 ANSI colors |
+| `claude_theme` | `"dark-ansi"` | Claude Code theme passed to every spawned session via `--settings`; `""` leaves Claude Code's own setting alone (its default themes bypass `theme` with truecolor) |
+| `status_poll_ms` | `2000` | how often the page refreshes the status strip, light and gauge |
+| `context_window_tokens` | `200000` | the model's context window, denominator of the context gauge |
+| `context_warn_pct` | `50` | gauge turns amber at this percentage of the context window |
+| `context_danger_pct` | `75` | gauge turns red at this percentage (must be ≥ `context_warn_pct`) |
 | `shortcuts` | see the Shortcuts table below | interface keyboard shortcut map |
 | `projects` | `[]` | launcher entries: `{"name", "path", "args": []}` |
 | `snippets` | `[]` | snippet-bar entries: `{"name", "text", "send": false}` |
@@ -74,6 +92,29 @@ lines: each chunk is up to 64 KiB (the pty is read in 64 KiB blocks), so
 the worst-case memory a single session's replay buffer can hold is
 `replay_chunks × 64 KiB` — 2000 × 64 KiB ≈ 125 MiB at the default. Raise
 or lower `replay_chunks` to trade replay depth against memory per session.
+
+### How the status strip works
+
+Claude Code writes every session's transcript to
+`~/.claude/projects/<project-slug>/<session-id>.jsonl` as it runs. CLAUDIU
+starts each session with an explicit `--session-id`, so it knows which
+file belongs to which tab, and reads only the *tail* of that file (a few
+hundred KB at most) every `status_poll_ms`:
+
+- **last prompt** — the transcript's `last-prompt` record (or the last
+  user message you typed, never text injected by skills or hooks);
+- **busy / ready** — the last assistant record's `stop_reason`: a finished
+  turn means ready; a pending tool call, or a prompt with no answer yet,
+  means busy. "Busy" therefore also covers "waiting for your permission
+  on a tool call" — look at the terminal;
+- **context gauge** — the last assistant record's token usage (input +
+  cache-creation + cache-read), divided by `context_window_tokens`.
+
+Sessions started with `--continue` have no id CLAUDIU can know in
+advance; their tab shows a dim light and no gauge. Sessions resumed with
+`--resume <id>` use that id. If the transcript cannot be found or read,
+the strip stays empty and the light stays dim — the terminal itself is
+never affected.
 
 ### Worked example: adding a project and a snippet
 
@@ -150,6 +191,7 @@ the launcher and rename dialogs rely on.
 | `DELETE /api/sessions/<id>` | kill a session |
 | `GET /api/config` | effective config plus load warnings |
 | `GET /api/resume` | recent resumable Claude sessions |
+| `GET /api/status` | per-session status: last prompt, busy/ready, context use |
 | `WS /ws/<id>` | terminal stream (terminado protocol) |
 
 `GET /api/resume` scans the real `~/.claude/projects` directory of the
@@ -236,6 +278,11 @@ as `CLAUDE_CODE_MAX_OUTPUT_TOKENS` is passed through untouched.
   browser's `localStorage` is each tab's remembered font size — nothing
   else about a session lives in the browser; the browser is a disposable
   view onto server-side sessions.
+- **The status strip is read from Claude Code's transcript files.** It
+  depends on their current record shapes (`last-prompt`, `stop_reason`,
+  `usage`); a future Claude Code release that changes them degrades the
+  strip to "unknown" (dim light, no gauge, no prompt) — never to a wrong
+  answer, and never to a broken terminal.
 - **Keystrokes during a reconnect gap are dropped.** If you type while a
   tab's websocket is reconnecting (the "reconnecting…" strip is visible),
   those keystrokes are not queued and are lost — wait for the strip to

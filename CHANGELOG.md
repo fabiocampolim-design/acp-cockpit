@@ -4,6 +4,22 @@ All notable changes to CLAUDIU are documented in this file.
 
 ## Unreleased
 
+- Status strip: each pane shows the last prompt typed in that session
+  (click to expand); each tab carries a busy/ready light and a context
+  gauge (green → amber → red at `context_warn_pct` / `context_danger_pct`
+  of `context_window_tokens`). Read from the tail of Claude Code's own
+  transcript via a new `GET /api/status` route, polled every
+  `status_poll_ms`; sessions are spawned with an explicit `--session-id`
+  so the transcript is known.
+- Soft colours: sessions start with Claude Code's `dark-ansi` theme
+  (`claude_theme`, `""` to opt out) so every colour it prints goes through
+  the 16-entry `theme` palette instead of hard-coded truecolor; that
+  palette is further muted (bright variants only a shade lighter) and bold
+  text no longer switches to the bright colours.
+- Terminal sizing: every terminal resizes through one debounced
+  ResizeObserver path, a hidden pane is never fitted, and unchanged sizes
+  are not resent -- the pty sees one final size per resize instead of a
+  burst, which is what left Claude's UI drawn in only part of the pane.
 - Shortcut discoverability: a `?` button in the tab bar and `Alt+h` open a
   help overlay rendered from the live `shortcuts` config; tab tooltips
   name their switch key; the launcher footer hints at tab switching and

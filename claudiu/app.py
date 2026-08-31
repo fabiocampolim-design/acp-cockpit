@@ -45,6 +45,7 @@ ROUTES = {
     "DELETE /api/sessions/<id>": "kill a session",
     "GET /api/config": "effective config plus load warnings",
     "GET /api/resume": "recent resumable Claude sessions",
+    "GET /api/status": "per-session status: last prompt, busy/ready, context use",
     "WS /ws/<id>": "terminal stream (terminado protocol)",
 }
 
@@ -158,6 +159,22 @@ class ResumeHandler(APIHandler):
         self.write({"projects": projects, "report": report})
 
 
+class StatusHandler(APIHandler):
+    def initialize(self, manager):
+        self.manager = manager
+
+    async def get(self):
+        try:
+            # transcript tails are small reads, but they are still file I/O
+            # on every poll: keep them off the IOLoop like the resume scan
+            sessions = await IOLoop.current().run_in_executor(
+                None, self.manager.status_all)
+        except Exception as exc:  # a broken transcript must not blank a tab
+            log.exception("status read failed")
+            raise _api_error(500, f"status read failed: {exc}")
+        self.write({"sessions": sessions})
+
+
 class TermSocketHandler(ClaudiuTermSocket):
     """ClaudiuTermSocket with the same Origin/Host checks as the REST API.
 
@@ -183,6 +200,7 @@ def make_app(config, manager, warnings=()) -> tornado.web.Application:
             (r"/api/config", ConfigHandler,
              {"config": config, "warnings": list(warnings)}),
             (r"/api/resume", ResumeHandler),
+            (r"/api/status", StatusHandler, {"manager": manager}),
             (r"/ws/([A-Za-z0-9_-]+)", TermSocketHandler,
              {"term_manager": manager}),
             # browsers ask for /favicon.ico unprompted; point them at the

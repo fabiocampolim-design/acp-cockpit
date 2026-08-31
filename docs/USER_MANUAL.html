@@ -102,6 +102,7 @@ user manual</a>
 <li><a href="#features" id="toc-features">Features</a></li>
 <li><a href="#configuration" id="toc-configuration">Configuration</a>
 <ul>
+<li><a href="#how-the-status-strip-works" id="toc-how-the-status-strip-works">How the status strip works</a></li>
 <li><a href="#worked-example-adding-a-project-and-a-snippet" id="toc-worked-example-adding-a-project-and-a-snippet">Worked example:
 adding a project and a snippet</a></li>
 </ul></li>
@@ -161,9 +162,23 @@ adjustable and remembered independently.</li>
 scrollback, with highlighting.</li>
 <li><strong>Rename by double-click</strong> — double-click a tab’s label
 to rename it.</li>
+<li><strong>Status strip</strong> — above each terminal, a one-line box
+shows the last prompt you typed in that session (click it to expand long
+prompts). Each tab carries a small light — pulsing while Claude is
+working, steady once it is waiting for you — and a context gauge that
+fills as the conversation grows and shifts from green through amber to
+red as it approaches the point where auto-compaction starts hurting. A
+tab whose turn finishes while you are looking elsewhere gets the
+“unseen” dot. All three read Claude Code’s own session transcript;
+nothing is guessed from terminal output (see “How the status strip
+works” below).</li>
 <li><strong>Calm dark theme</strong> — near-black background, warm-gray
 foreground, muted ANSI colors, steady non-blinking cursor; every color
-is a config value.</li>
+is a config value. Sessions start with Claude Code’s
+<code>dark-ansi</code> theme so <em>all</em> of its colours come from
+that palette (Claude Code’s default themes print hard-coded truecolor
+that no terminal palette can soften); bold text keeps its colour instead
+of jumping to the bright variant.</li>
 </ul>
 <h2 id="configuration">Configuration</h2>
 <p>One human-editable JSON file. Default location
@@ -226,6 +241,35 @@ startup warning, never rejected.</p>
 ANSI colors</td>
 </tr>
 <tr>
+<td><code>claude_theme</code></td>
+<td><code>&quot;dark-ansi&quot;</code></td>
+<td>Claude Code theme passed to every spawned session via
+<code>--settings</code>; <code>&quot;&quot;</code> leaves Claude Code’s own
+setting alone (its default themes bypass <code>theme</code> with
+truecolor)</td>
+</tr>
+<tr>
+<td><code>status_poll_ms</code></td>
+<td><code>2000</code></td>
+<td>how often the page refreshes the status strip, light and gauge</td>
+</tr>
+<tr>
+<td><code>context_window_tokens</code></td>
+<td><code>200000</code></td>
+<td>the model’s context window, denominator of the context gauge</td>
+</tr>
+<tr>
+<td><code>context_warn_pct</code></td>
+<td><code>50</code></td>
+<td>gauge turns amber at this percentage of the context window</td>
+</tr>
+<tr>
+<td><code>context_danger_pct</code></td>
+<td><code>75</code></td>
+<td>gauge turns red at this percentage (must be ≥
+<code>context_warn_pct</code>)</td>
+</tr>
+<tr>
 <td><code>shortcuts</code></td>
 <td>see the Shortcuts table below</td>
 <td>interface keyboard shortcut map</td>
@@ -250,6 +294,31 @@ replay buffer can hold is <code>replay_chunks × 64 KiB</code> — 2000 ×
 64 KiB ≈ 125 MiB at the default. Raise or lower
 <code>replay_chunks</code> to trade replay depth against memory per
 session.</p>
+<h3 id="how-the-status-strip-works">How the status strip works</h3>
+<p>Claude Code writes every session’s transcript to
+<code>~/.claude/projects/&lt;project-slug&gt;/&lt;session-id&gt;.jsonl</code>
+as it runs. CLAUDIU starts each session with an explicit
+<code>--session-id</code>, so it knows which file belongs to which tab,
+and reads only the <em>tail</em> of that file (a few hundred KB at most)
+every <code>status_poll_ms</code>:</p>
+<ul>
+<li><strong>last prompt</strong> — the transcript’s
+<code>last-prompt</code> record (or the last user message you typed,
+never text injected by skills or hooks);</li>
+<li><strong>busy / ready</strong> — the last assistant record’s
+<code>stop_reason</code>: a finished turn means ready; a pending tool
+call, or a prompt with no answer yet, means busy. “Busy” therefore also
+covers “waiting for your permission on a tool call” — look at the
+terminal;</li>
+<li><strong>context gauge</strong> — the last assistant record’s token
+usage (input + cache-creation + cache-read), divided by
+<code>context_window_tokens</code>.</li>
+</ul>
+<p>Sessions started with <code>--continue</code> have no id CLAUDIU can
+know in advance; their tab shows a dim light and no gauge. Sessions
+resumed with <code>--resume &lt;id&gt;</code> use that id. If the
+transcript cannot be found or read, the strip stays empty and the light
+stays dim — the terminal itself is never affected.</p>
 <h3 id="worked-example-adding-a-project-and-a-snippet">Worked example:
 adding a project and a snippet</h3>
 <p>Edit <code>~/.claudiu/config.json</code> (or the file
@@ -383,6 +452,10 @@ would suppress the dialog-closing <code>Escape</code> handler that the
 launcher and rename dialogs rely on.</p>
 <h2 id="restws-api">REST/WS API</h2>
 <table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
 <thead>
 <tr>
 <th>Route</th>
@@ -413,6 +486,10 @@ launcher and rename dialogs rely on.</p>
 <tr>
 <td><code>GET /api/resume</code></td>
 <td>recent resumable Claude sessions</td>
+</tr>
+<tr>
+<td><code>GET /api/status</code></td>
+<td>per-session status: last prompt, busy/ready, context use</td>
 </tr>
 <tr>
 <td><code>WS /ws/&lt;id&gt;</code></td>
@@ -538,6 +615,12 @@ thing CLAUDIU stores in the browser’s <code>localStorage</code> is each
 tab’s remembered font size — nothing else about a session lives in the
 browser; the browser is a disposable view onto server-side
 sessions.</li>
+<li><strong>The status strip is read from Claude Code’s transcript
+files.</strong> It depends on their current record shapes
+(<code>last-prompt</code>, <code>stop_reason</code>,
+<code>usage</code>); a future Claude Code release that changes them
+degrades the strip to “unknown” (dim light, no gauge, no prompt) — never
+to a wrong answer, and never to a broken terminal.</li>
 <li><strong>Keystrokes during a reconnect gap are dropped.</strong> If
 you type while a tab’s websocket is reconnecting (the “reconnecting…”
 strip is visible), those keystrokes are not queued and are lost — wait

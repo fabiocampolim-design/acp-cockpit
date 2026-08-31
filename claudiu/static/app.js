@@ -43,7 +43,9 @@ window.Claudiu = {
     const C = this;
     const el = document.createElement("button");
     el.className = "tab";
-    el.innerHTML = '<span class="title"></span><span class="dot"></span>';
+    el.innerHTML = '<span class="light"></span><span class="title"></span>' +
+      '<span class="gauge" hidden><i></i></span><span class="pct"></span>' +
+      '<span class="dot"></span>';
     el.querySelector(".title").textContent = info.title || info.id;
     el.addEventListener("click", () => C.activate(info.id));
     el.addEventListener("dblclick", () => window.ClaudiuUI?.renameTab(tab));
@@ -52,8 +54,9 @@ window.Claudiu = {
     const pane = document.createElement("div");
     pane.className = "pane";
     pane.innerHTML = '<div class="strip reconnect">reconnecting…</div>' +
+      '<div class="promptstrip" hidden title="your last prompt — click to expand">' +
+      '<span class="mark">❯</span><span class="text"></span></div>' +
       '<div class="termhost"></div><div class="endstate"></div>';
-    pane.querySelector(".termhost").style.height = "100%";
     document.getElementById("panes").appendChild(pane);
 
     let fontSize = this.cfg.font_size;
@@ -69,6 +72,9 @@ window.Claudiu = {
       scrollback: this.cfg.scrollback_lines,
       cursorBlink: false,
       cursorStyle: "bar",
+      // bold text keeps its own colour instead of jumping to the bright
+      // variant -- part of keeping the palette calm
+      drawBoldTextInBrightColors: false,
     });
     const fit = new FitAddon.FitAddon();
     const search = new SearchAddon.SearchAddon();
@@ -79,11 +85,22 @@ window.Claudiu = {
     const tab = {
       id: info.id, title: info.title || info.id, cwd: info.cwd,
       args: info.args || [], ended: false, term, fit, search,
-      ws: null, el, pane, attempts: 0,
+      ws: null, el, pane, attempts: 0, state: "unknown", lastSize: "",
     };
     this.tabs.set(info.id, tab);
     this.updateTabHints();
     term.open(pane.querySelector(".termhost"));
+    // Every change of the terminal's box -- window resize, the prompt
+    // strip appearing, the pane becoming visible -- goes through one
+    // debounced path, so the pty sees the final size once instead of a
+    // burst of intermediate ones (ConPTY repaints badly under a burst,
+    // leaving Claude's UI drawn in only part of the pane).
+    tab.observer = new ResizeObserver(() => C.scheduleResize(tab));
+    tab.observer.observe(pane.querySelector(".termhost"));
+    const strip = pane.querySelector(".promptstrip");
+    strip.addEventListener("click", () => {
+      strip.classList.toggle("expanded");
+    });
     term.onData((d) => {
       if (tab.ws && tab.ws.readyState === WebSocket.OPEN) {
         tab.ws.send(JSON.stringify(["stdin", d]));
@@ -107,7 +124,7 @@ window.Claudiu = {
       // until it's had time to land.
       tab.replaying = true;
       setTimeout(() => { tab.replaying = false; }, 250);
-      C.sendSize(tab);
+      C.sendSize(tab, true); // a fresh connection always needs the size
     };
     ws.onmessage = (ev) => {
       let msg;
@@ -131,12 +148,79 @@ window.Claudiu = {
     };
   },
 
-  sendSize(tab) {
+  scheduleResize(tab) {
+    clearTimeout(tab.resizeTimer);
+    tab.resizeTimer = setTimeout(() => this.sendSize(tab), 120);
+  },
+
+  sendSize(tab, force) {
+    // A hidden pane (display:none) proposes no dimensions; fitting it
+    // would shrink the terminal to its minimum and resize the pty to
+    // match -- exactly the half-drawn screen this guards against.
+    const dims = tab.fit.proposeDimensions();
+    if (!dims || !dims.rows || !dims.cols) return;
     tab.fit.fit();
+    const size = tab.term.rows + "x" + tab.term.cols;
+    if (!force && size === tab.lastSize) return;
     if (tab.ws && tab.ws.readyState === WebSocket.OPEN) {
+      tab.lastSize = size;
       tab.ws.send(JSON.stringify(["set_size", tab.term.rows, tab.term.cols,
         tab.pane.clientHeight, tab.pane.clientWidth]));
     }
+  },
+
+  // ---- status strip: last prompt, busy/ready light, context gauge ----
+  applyStatus(tab, st) {
+    const prev = tab.state;
+    tab.state = st.state;
+    for (const s of ["busy", "ready", "unknown"]) {
+      tab.el.classList.toggle("state-" + s, st.state === s);
+    }
+    // a turn finishing off-screen is the moment worth flagging
+    if (prev === "busy" && st.state === "ready" && this.activeId !== tab.id) {
+      tab.el.classList.add("unseen");
+    }
+    const strip = tab.pane.querySelector(".promptstrip");
+    if (st.last_prompt) {
+      strip.querySelector(".text").textContent = st.last_prompt;
+      strip.hidden = false;
+    } else {
+      strip.hidden = true;
+    }
+    const gauge = tab.el.querySelector(".gauge");
+    const pctEl = tab.el.querySelector(".pct");
+    if (st.context_pct === null || st.context_pct === undefined) {
+      gauge.hidden = true;
+      pctEl.textContent = "";
+      return;
+    }
+    const pct = Math.max(0, Math.min(100, st.context_pct));
+    const level = pct >= this.cfg.context_danger_pct ? "danger"
+      : pct >= this.cfg.context_warn_pct ? "warn" : "ok";
+    gauge.className = "gauge ctx-" + level;
+    gauge.hidden = false;
+    gauge.querySelector("i").style.width = pct + "%";
+    pctEl.textContent = Math.round(pct) + "%";
+    const used = Math.round((st.context_tokens || 0) / 1000);
+    const total = Math.round(this.cfg.context_window_tokens / 1000);
+    gauge.title = pctEl.title =
+      `context ${st.context_pct}% — ${used}k of ${total}k tokens`;
+  },
+
+  startStatusPolling() {
+    const tick = async () => {
+      if (!document.hidden && this.tabs.size) {
+        try {
+          const data = await this.api("/api/status");
+          for (const [id, st] of Object.entries(data.sessions || {})) {
+            const tab = this.tabs.get(id);
+            if (tab && !tab.ended) this.applyStatus(tab, st);
+          }
+        } catch (e) { /* next tick retries; the terminal itself is unaffected */ }
+      }
+      setTimeout(tick, this.cfg.status_poll_ms);
+    };
+    tick();
   },
 
   markEnded(tab, code) {
@@ -174,6 +258,8 @@ window.Claudiu = {
     if (!tab) return;
     tab.ended = true; // stop reconnect attempts
     if (tab.ws) tab.ws.close();
+    if (tab.observer) tab.observer.disconnect();
+    clearTimeout(tab.resizeTimer);
     tab.term.dispose();
     tab.el.remove();
     tab.pane.remove();
@@ -251,15 +337,13 @@ window.Claudiu = {
     this.applyTheme();
     window.ClaudiuUI?.init(this, data.warnings || []);
     window.addEventListener("keydown", (ev) => this.handleShortcut(ev), true);
-    window.addEventListener("resize", () => {
-      const tab = this.tabs.get(this.activeId);
-      if (tab) this.sendSize(tab);
-    });
+    // window resizes reach each terminal through its ResizeObserver
     document.getElementById("newtab").addEventListener("click",
       () => window.ClaudiuUI?.openLauncher());
     const listed = await this.api("/api/sessions");
     for (const info of listed.sessions) this.openTab(info);
     if (!listed.sessions.length) window.ClaudiuUI?.openLauncher();
+    this.startStatusPolling();
   },
 };
 

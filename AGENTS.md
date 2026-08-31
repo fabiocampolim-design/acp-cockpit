@@ -43,6 +43,11 @@ Every key of `claudiu.config.DEFAULTS`:
 | `font_size` | `16` | default terminal font size in px |
 | `font_family` | `"Consolas, 'Cascadia Mono', monospace"` | terminal font stack |
 | `theme` | 16-color xterm theme object | background/foreground/cursor/selection and the 16 ANSI colors, all CSS-color strings |
+| `claude_theme` | `"dark-ansi"` | appended to every spawn as `--settings {"theme": ...}` unless the caller passes `--settings`; `""` disables. Only the `*-ansi` Claude Code themes route through `theme` -- the others print truecolor |
+| `status_poll_ms` | `2000` | browser poll interval for `GET /api/status` |
+| `context_window_tokens` | `200000` | denominator of the context gauge |
+| `context_warn_pct` | `50` | gauge amber threshold (percent) |
+| `context_danger_pct` | `75` | gauge red threshold (percent), must be >= `context_warn_pct` |
 | `shortcuts` | see Shortcuts table below | interface keyboard shortcut map |
 | `projects` | `[]` | list of `{"name", "path", "args": []}` launcher entries |
 | `snippets` | `[]` | list of `{"name", "text", "send": false}` prompt-snippet entries |
@@ -50,7 +55,9 @@ Every key of `claudiu.config.DEFAULTS`:
 Validation (`claudiu.config._validate`): `port` must be an int in
 1–65535; `claude_command` a non-empty list of strings (a bare string is
 coerced to a one-element list); `replay_chunks`, `scrollback_lines`,
-`font_size` positive ints; `theme` and `shortcuts` must be JSON objects;
+`font_size`, `status_poll_ms`, `context_window_tokens` positive ints;
+`context_warn_pct` <= `context_danger_pct`, both ints in 0-100;
+`claude_theme` a string; `theme` and `shortcuts` must be JSON objects;
 each `projects[i]` needs `name` and `path` (`args` defaults to `[]`); each
 `snippets[i]` needs `name` and `text` (`send` defaults to `false`).
 
@@ -83,10 +90,22 @@ dialog-closing `Escape` handler in `static/ui.js`.
 | `DELETE /api/sessions/<id>` | kill a session |
 | `GET /api/config` | effective config plus load warnings |
 | `GET /api/resume` | recent resumable Claude sessions |
+| `GET /api/status` | per-session status: last prompt, busy/ready, context use |
 | `WS /ws/<id>` | terminal stream (terminado protocol) |
 
 `GET /api/resume` scans the real `~/.claude/projects` directory of the
 user running the server — not a fixture, not the browser's user.
+
+`GET /api/status` returns `{"sessions": {<id>: status}}` for live sessions,
+where status is `{exists, state: busy|ready|unknown, last_prompt,
+context_tokens, context_pct, mtime}` read by `claudiu.status.read_status`
+from the tail of the session's transcript
+(`~/.claude/projects/<slug>/<session_id>.jsonl`). `SessionManager.build_argv`
+pins that id by appending `--session-id <uuid4>` to every spawn that does
+not already carry `--session-id`/`--resume <id>`/`--continue`; the file is
+located lazily (`find_transcript`) and re-read only when its mtime/size
+changes. The slug is the absolute cwd with every non-alphanumeric character
+replaced by `-` (`claudiu.status.project_slug`).
 
 Everything else (`GET /(.*)`) is served as a static file from
 `claudiu/static/`, `index.html` as the default document.
@@ -113,6 +132,7 @@ claudiu/cli.py            argument parsing, audit logging, server startup
 claudiu/app.py             Tornado application, ROUTES, REST handlers
 claudiu/sessions.py       SessionManager: ConPTYs, replay buffers, metadata
 claudiu/resume.py           ~/.claude/projects scanner for --resume lists
+claudiu/status.py           transcript-tail reader: last prompt, busy/ready, context use
 claudiu/static/           index.html, app.js, ui.js, keys.js, app.css
 claudiu/static/vendor/    pinned xterm.js + addons (see VENDORED.md)
 docs/USER_MANUAL.md       human-oriented manual

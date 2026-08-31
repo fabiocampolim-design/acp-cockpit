@@ -32,6 +32,9 @@ browser.
   offers `claude --resume` for every recent project.
 - **One dead session never disturbs another** — every session's I/O is
   exception-walled.
+- **You can see where every session stands** — each tab shows your last
+  prompt, whether Claude is working or waiting, and how full its context
+  is (green → amber → red), all read from Claude Code's own transcript.
 - **Everything reachable by keyboard** — remappable shortcuts, a snippet
   palette, and a project launcher, all one action away.
 - **Every visual parameter is a committed config line** — theme colors,
@@ -42,7 +45,7 @@ See `docs/USER_MANUAL.md` for the full feature list, configuration
 reference, and known limitations, and `AGENTS.md` for the machine-oriented
 reference (every config key, route, and CLI flag).
 
-Verified by 64 checks (pytest + pyflakes, Windows/Linux/macOS CI) plus two
+Verified by 81 checks (pytest + pyflakes, Windows/Linux/macOS CI) plus two
 Playwright end-to-end checks.
 
 ## How it was built
