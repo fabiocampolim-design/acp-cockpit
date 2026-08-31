@@ -46,11 +46,20 @@ def test_manual_has_limitations_section():
 
 
 def test_readme_states_true_check_count(request):
-    m = re.search(r"(\d+)-check test suite", README)
-    assert m, "README must state the '<N>-check test suite'"
-    total = len(request.session.items)
+    # tests/test_e2e.py is skipped at collection (pytest.importorskip) when
+    # playwright is not importable -- CI's `test` job installs `.[test]`
+    # only, so that module never becomes a session item there. Counting it
+    # here would make the guard's total depend on which matrix cell ran it,
+    # so it is excluded from the count and called out separately in the
+    # README sentence instead.
+    m = re.search(r"(\d+) checks.*?plus one Playwright end-to-end check",
+                  " ".join(README.split()))
+    assert m, ("README must state '<N> checks ... plus one Playwright "
+               "end-to-end check'")
+    total = sum(1 for item in request.session.items
+                if not item.nodeid.split("::", 1)[0].endswith("test_e2e.py"))
     assert int(m.group(1)) == total, (
-        f"README says {m.group(1)} checks, suite has {total}")
+        f"README says {m.group(1)} checks, suite has {total} (excl. e2e)")
 
 
 def test_version_consistent_with_pyproject():
