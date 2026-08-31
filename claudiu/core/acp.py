@@ -186,5 +186,125 @@ class AcpSession:
                         "frame": update}, ref)
 
     def _on_request(self, msg_id, method, params):
-        self._conn.error(msg_id, -32601, f"unsupported method: {method}")
+        ref = self._last_raw_ref
+        if method == "session/request_permission":
+            self._pending_perms[msg_id] = params.get("options") or []
+            self._emit("permission_request", {
+                "request": msg_id,
+                "tool_call": params.get("toolCall") or {},
+                "options": params.get("options") or []}, ref)
+            return  # answered later by answer_permission / fail_safe_reject
+        if method in ("fs/read_text_file", "fs/write_text_file"):
+            self._handle_fs(msg_id, method, params, ref)
+        else:
+            self._conn.error(msg_id, -32601, f"unsupported method: {method}")
+        self._flush()
+
+    def _handle_fs(self, msg_id, method, params, ref):
+        op = "read" if method == "fs/read_text_file" else "write"
+        path = params.get("path", "")
+        ok = self.policy.allowed(path)
+        self._emit("fs_request", {"op": op, "path": path, "allowed": ok}, ref)
+        self.recorder.append({"dir": "client", "action": "fs_decision",
+                              "op": op, "path": path, "allowed": ok,
+                              "policy": self.policy.describe()})
+        if not ok:
+            self._conn.error(msg_id, -32602,
+                             "path outside the session boundary")
+            return
+        try:
+            if op == "read":
+                self._conn.respond(msg_id,
+                                   {"content": self.files.read_text(path)})
+            else:
+                self.files.write_text(path, params.get("content", ""))
+                self._conn.respond(msg_id, None)
+        except OSError as exc:
+            self._conn.error(msg_id, -32603, f"fs failure: {exc}")
+
+    # ---- permissions ----------------------------------------------------
+    def pending_permissions(self):
+        return sorted(self._pending_perms)
+
+    def _resolve_permission(self, request_id, outcome, option_id, source):
+        if request_id not in self._pending_perms:
+            raise StateError(f"no pending permission {request_id}")
+        del self._pending_perms[request_id]
+        self._conn.respond(request_id, {"outcome": outcome})
+        self.recorder.append({"dir": "client", "action": "permission",
+                              "request": request_id, "option": option_id,
+                              "source": source})
+        self._emit("permission_resolved", {"request": request_id,
+                   "option": option_id, "source": source})
+        self._flush()
+
+    def answer_permission(self, request_id: int, option_id: str) -> None:
+        self._resolve_permission(
+            request_id, {"outcome": "selected", "optionId": option_id},
+            option_id, "user")
+
+    def fail_safe_reject(self, request_id: int) -> None:
+        options = self._pending_perms.get(request_id) or []
+        reject = next((o for o in options
+                       if o.get("kind") == "reject_once"), None)
+        if reject is None:
+            reject = next((o for o in options
+                           if str(o.get("kind", "")).startswith("reject")),
+                          None)
+        if reject:
+            self._resolve_permission(
+                request_id,
+                {"outcome": "selected", "optionId": reject["optionId"]},
+                reject["optionId"], "failsafe")
+        else:
+            self._resolve_permission(
+                request_id, {"outcome": "cancelled"}, None, "failsafe")
+
+    # ---- more user actions ---------------------------------------------
+    def cancel(self) -> None:
+        if self.state != "turn":
+            return
+        self.recorder.append({"dir": "client", "action": "cancel"})
+        self._conn.notify("session/cancel",
+                          {"sessionId": self.acp_session_id})
+        self._flush()
+
+    def set_mode(self, mode_id: str) -> None:
+        self.recorder.append({"dir": "client", "action": "set_mode",
+                              "mode": mode_id})
+
+        def done(result, error):
+            if error:
+                self._emit("anomaly", {"category": "set-mode-error",
+                                       "detail": str(error)})
+            else:
+                self._emit("mode", {"current": mode_id, "available": []})
+        self._conn.request("session/set_mode",
+                           {"sessionId": self.acp_session_id,
+                            "modeId": mode_id}, done)
+        self._flush()
+
+    def load(self, acp_session_id: str, cwd: str) -> None:
+        if self.state != "starting":
+            raise StateError("load only from a fresh session")
+        self._cwd = cwd
+        self._load_target = acp_session_id
+        self._conn.request("initialize", {
+            "protocolVersion": self.PROTOCOL_VERSION,
+            "clientCapabilities": self.caps}, self._on_initialized_for_load)
+        self._flush()
+
+    def _on_initialized_for_load(self, result, error):
+        if error or (result or {}).get("protocolVersion") != \
+                self.PROTOCOL_VERSION:
+            return self._fail(f"initialize for load failed: {error}")
+
+        def done(res, err):
+            if err:
+                return self._fail(f"session/load failed: {err}")
+            self.acp_session_id = self._load_target
+            self._set_state("ready")
+        self._conn.request("session/load", {
+            "sessionId": self._load_target, "cwd": self._cwd,
+            "mcpServers": []}, done)
         self._flush()
