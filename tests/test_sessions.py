@@ -125,3 +125,33 @@ class SessionTests(AsyncTestCase):
         except KeyError:
             pass
         await mgr.kill_session(info["id"])
+
+
+class ChildEnvTests(AsyncTestCase):
+    """A session spawned by CLAUDIU is a top-level Claude session, not a
+    child of whatever Claude Code session happened to launch the server.
+    Inherited nesting markers make the CLI disable transcript saving."""
+
+    def test_nested_claude_markers_are_stripped_from_child_env(self):
+        import os
+        from unittest import mock
+        leaked = {
+            "CLAUDECODE": "1",
+            "CLAUDE_CODE_CHILD_SESSION": "1",
+            "CLAUDE_CODE_SESSION_ID": "abc",
+            "CLAUDE_PID": "123",
+            "CLAUDE_CODE_MESSAGING_SOCKET": "x",
+            "CLAUDE_CODE_MESSAGING_TOKEN": "y",
+            "CLAUDE_CODE_BRIDGE_SESSION_ID": "z",
+            "CLAUDE_CODE_ENTRYPOINT": "cli",
+            "CLAUDE_CODE_EXECPATH": "p",
+            # user-level configuration must survive the scrub
+            "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "4096",
+        }
+        with mock.patch.dict(os.environ, leaked):
+            env = SessionManager(make_cfg()).make_term_env()
+        for name in leaked:
+            if name == "CLAUDE_CODE_MAX_OUTPUT_TOKENS":
+                assert env[name] == "4096"
+            else:
+                assert name not in env, f"{name} leaked into the session"

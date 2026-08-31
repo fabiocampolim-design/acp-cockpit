@@ -16,6 +16,26 @@ from terminado import NamedTermManager, TermSocket
 
 log = logging.getLogger(__name__)
 
+# Environment variables a running Claude Code session injects into its
+# children. If CLAUDIU itself was launched from inside such a session (a
+# Claude Code shell tool, a hook), every `claude` it spawns would inherit
+# them, treat itself as a nested child session and turn transcript saving
+# off ("Transcript saving is off -- inherited CLAUDE_CODE_CHILD_SESSION
+# marker"). Sessions started here are top-level sessions, so the markers
+# are dropped. User configuration (CLAUDE_CODE_MAX_OUTPUT_TOKENS,
+# CLAUDE_CODE_USE_BEDROCK, ...) is deliberately left alone.
+NESTED_SESSION_MARKERS = (
+    "CLAUDECODE",
+    "CLAUDE_CODE_CHILD_SESSION",
+    "CLAUDE_CODE_SESSION_ID",
+    "CLAUDE_PID",
+    "CLAUDE_CODE_MESSAGING_SOCKET",
+    "CLAUDE_CODE_MESSAGING_TOKEN",
+    "CLAUDE_CODE_BRIDGE_SESSION_ID",
+    "CLAUDE_CODE_ENTRYPOINT",
+    "CLAUDE_CODE_EXECPATH",
+)
+
 
 class SessionManager(NamedTermManager):
     """One named terminal per Claude session, with a capped replay buffer."""
@@ -25,6 +45,12 @@ class SessionManager(NamedTermManager):
         self._config = config
         self._meta: dict = {}
         self._ids = itertools.count(1)
+
+    def make_term_env(self, *args, **kwargs) -> dict:
+        env = super().make_term_env(*args, **kwargs)
+        for name in NESTED_SESSION_MARKERS:
+            env.pop(name, None)
+        return env
 
     def create_session(self, cwd, args=(), title=None) -> dict:
         argv = list(self._config["claude_command"]) + list(args)
