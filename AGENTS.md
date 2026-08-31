@@ -145,6 +145,12 @@ python -m pyflakes claudiu tests
 Playwright end-to-end tests (`tests/test_e2e.py`) additionally require
 `pip install -e .[e2e]` and `playwright install chromium`.
 
+`tests/conformance.py` is a byte-identical vendored copy of an external
+publication-conformance checker; `tests/test_githubify_conformance.py`
+runs it against the repo and, when the canonical copy is reachable (via a
+gitignored `.githubify-rules` pointer file at the repo root), asserts the
+two are identical. Never edit the vendored file — re-copy it.
+
 ## Hard rules
 
 - Never commit a `config.json` containing personal paths (project

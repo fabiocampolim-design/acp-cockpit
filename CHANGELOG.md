@@ -15,6 +15,8 @@ All notable changes to CLAUDIU are documented in this file.
   marker").
 - Favicon (`favicon.svg`); `/favicon.ico` redirects to it instead of
   logging a 404 warning on every page load.
+- Tests: vendored publication-conformance checker (`tests/conformance.py`)
+  with a wiring test that runs it against the repo in CI.
 
 ## 0.1.0 — 2026-08-30
 

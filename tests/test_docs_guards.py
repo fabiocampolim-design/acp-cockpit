@@ -103,8 +103,13 @@ def test_no_personal_paths_in_tracked_docs():
 
 def test_no_internal_nomenclature():
     banned = "GITHUB" + "IFY"  # split so this guard doesn't trip on itself
+    # tests/conformance.py is a byte-identical vendored copy of an external
+    # checker (its wiring test enforces the identity), so neither it nor the
+    # wiring test can be edited to satisfy this guard.
+    exempt = {"test_docs_guards.py", "conformance.py",
+              "test_githubify_conformance.py"}
     code_files = list((ROOT / "claudiu").glob("*.py")) + [
-        p for p in (ROOT / "tests").glob("*.py") if p.name != "test_docs_guards.py"
+        p for p in (ROOT / "tests").glob("*.py") if p.name not in exempt
     ]
     for path in DOC_FILES + code_files:
         text = path.read_text(encoding="utf-8")
