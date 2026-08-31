@@ -2,3 +2,8 @@ CLAUDIU (working name)
 Copyright 2026 Fabio Campolim
 
 Licensed under the Apache License, Version 2.0.
+
+Vendored data:
+- vendor/acp/schema.json: the Agent Client Protocol JSON schema, from
+  https://github.com/agentclientprotocol/agent-client-protocol
+  (Apache License 2.0); pinned release recorded in vendor/acp/VERSION.
