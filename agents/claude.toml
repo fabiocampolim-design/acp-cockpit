@@ -1,0 +1,22 @@
+# Agent profile: Claude Code over the claude-code-acp adapter.
+# Everything Claude-specific lives HERE, not in the engine.
+id = "claude"
+name = "Claude Code"
+command = ["claude-code-acp"]
+install_hint = "npm install -g @zed-industries/claude-code-acp"
+
+# Nested-session guard: the Claude SDK refuses to start when these are set.
+env_scrub = ["CLAUDECODE", "CLAUDE_CODE_*"]
+
+# Vendor _meta extension names the adapter is known to use (surfaced, not interpreted).
+extensions = []
+
+[env_set]
+
+[[caveats]]
+id = "model-picker"
+text = "The interactive /model picker has no ACP equivalent; model choice follows the underlying claude configuration."
+
+[[caveats]]
+id = "terminal-unadvertised"
+text = "This client does not advertise the terminal capability in v1; the agent runs commands through its own executor instead. Nothing is lost, output arrives as tool calls."
