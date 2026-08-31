@@ -76,12 +76,44 @@ window.Claudiu = {
     document.getElementById("tabbar").appendChild(el);
 
     const pane = document.createElement("div");
-    pane.className = "pane";
+    pane.className = "pane";  // default: conversation view; .rawterm shows the pty
     pane.innerHTML = '<div class="strip reconnect">reconnecting…</div>' +
-      '<div class="promptstrip" hidden title="your last prompt — click to expand">' +
-      '<span class="mark">❯</span><span class="text"></span></div>' +
-      '<div class="termhost"></div>' +
-      '<button class="jump" hidden title="scroll to the latest output">↓ latest</button>' +
+      '<div class="convo">' +
+        '<div class="convo-head">' +
+          '<span class="cwd-frame" title="working directory"></span>' +
+          '<input class="title-box" readonly title="Claude\'s window title" ' +
+                 'placeholder="(no title yet)">' +
+          '<span class="model-frame" title="model · context"></span>' +
+          '<span class="state-frame"></span>' +
+        '</div>' +
+        '<div class="convo-lanes">' +
+          '<label><input type="checkbox" class="lane" data-lane="thinking" checked> thinking</label>' +
+          '<label><input type="checkbox" class="lane" data-lane="tool" checked> tools</label>' +
+          '<label><input type="checkbox" class="lane" data-lane="event" checked> events</label>' +
+          '<label><input type="checkbox" class="lane" data-lane="sub" checked> subagents</label>' +
+          '<input type="search" class="convo-search" placeholder="search…">' +
+        '</div>' +
+        '<div class="convo-body" tabindex="0"></div>' +
+        '<button class="convo-jump" hidden title="scroll to the latest">↓ latest</button>' +
+        '<div class="convo-cmd">' +
+          '<div class="perm" hidden></div>' +
+          '<div class="composer">' +
+            '<textarea class="composer-input" rows="1" ' +
+              'placeholder="Message Claude…  (Enter to send · Shift+Enter for a newline)"></textarea>' +
+            '<button class="composer-send primary">Send</button>' +
+          '</div>' +
+          '<div class="cmd-actions">' +
+            '<button class="ghost show-term" title="reveal the raw terminal for menus and pickers">▤ Show terminal</button>' +
+            '<button class="ghost esc-btn" title="interrupt Claude (Esc)">Esc</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="termwrap">' +
+        '<div class="promptstrip" hidden title="your last prompt — click to expand">' +
+        '<span class="mark">❯</span><span class="text"></span></div>' +
+        '<div class="termhost"></div>' +
+        '<button class="jump" hidden title="scroll to the latest output">↓ latest</button>' +
+      '</div>' +
       '<div class="endstate"></div>';
     document.getElementById("panes").appendChild(pane);
 
@@ -132,6 +164,7 @@ window.Claudiu = {
     const jump = pane.querySelector(".jump");
     jump.addEventListener("click", () => { term.scrollToBottom(); });
     term.onScroll(() => C.updateJump(tab));
+    window.ClaudiuConvo?.init(C, tab);  // wire the controlled conversation view
     term.onData((d) => {
       if (tab.ws && tab.ws.readyState === WebSocket.OPEN) {
         tab.ws.send(JSON.stringify(["stdin", d]));
@@ -227,6 +260,14 @@ window.Claudiu = {
     } else {
       strip.hidden = true;
     }
+    // mirror the state into the conversation header
+    const LABEL = { busy: "working…", waiting: "waiting for you",
+      ready: "ready", unknown: "" };
+    const sf = tab.pane.querySelector(".state-frame");
+    if (sf) {
+      sf.textContent = LABEL[st.state] || "";
+      sf.className = "state-frame sf-" + st.state;
+    }
     const gauge = tab.el.querySelector(".gauge");
     const pctEl = tab.el.querySelector(".pct");
     if (st.context_pct === null || st.context_pct === undefined) {
@@ -259,6 +300,15 @@ window.Claudiu = {
             if (tab && !tab.ended) this.applyStatus(tab, st);
           }
         } catch (e) { /* next tick retries; the terminal itself is unaffected */ }
+        // The conversation view is heavier, so only the visible tab is
+        // polled -- background tabs still get their light/gauge above.
+        const active = this.tabs.get(this.activeId);
+        if (active && !active.ended) {
+          try {
+            const conv = await this.api("/api/conversation?id=" + active.id);
+            window.ClaudiuConvo?.update(this, active, conv);
+          } catch (e) { /* transient; the raw terminal is unaffected */ }
+        }
       }
       setTimeout(tick, this.cfg.status_poll_ms);
     };
@@ -282,7 +332,17 @@ window.Claudiu = {
       t.pane.classList.toggle("active", t.id === id);
     }
     tab.el.classList.remove("unseen");
-    requestAnimationFrame(() => { this.sendSize(tab); tab.term.focus(); });
+    requestAnimationFrame(() => {
+      this.sendSize(tab);
+      // focus the composer in conversation mode, the terminal when raw
+      if (tab.pane.classList.contains("rawterm")) tab.term.focus();
+      else tab.pane.querySelector(".composer-input")?.focus();
+    });
+    // fetch this tab's conversation now so switching feels instant
+    this.api("/api/conversation?id=" + id)
+      .then((conv) => { if (this.activeId === id)
+        window.ClaudiuConvo?.update(this, tab, conv); })
+      .catch(() => { /* the poller will retry */ });
   },
 
   // tooltips carry each tab's switch key (positions shift when tabs close)
@@ -329,6 +389,14 @@ window.Claudiu = {
     if (!tab || !tab.ws || tab.ws.readyState !== WebSocket.OPEN) return;
     tab.ws.send(JSON.stringify(["stdin", text + (send ? "\r" : "")]));
     tab.term.focus();
+  },
+
+  // Send raw bytes to a specific tab's pty (the conversation composer,
+  // permission buttons and Esc use this; the terminal stays hidden).
+  sendToPty(tab, data) {
+    if (tab && tab.ws && tab.ws.readyState === WebSocket.OPEN) {
+      tab.ws.send(JSON.stringify(["stdin", data]));
+    }
   },
 
   setFont(tab, delta) {

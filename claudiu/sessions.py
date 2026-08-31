@@ -16,8 +16,9 @@ from pathlib import Path
 
 from terminado import NamedTermManager, TermSocket
 
-from .status import (apply_permission, find_transcript, read_status,
-                     unknown_status)
+from .conversation import parse_conversation
+from .status import (apply_permission, find_transcript, parse_permission,
+                     read_status, unknown_status, window_title)
 
 log = logging.getLogger(__name__)
 
@@ -55,6 +56,7 @@ class SessionManager(NamedTermManager):
         # kept apart from _meta: _meta is what list_sessions() serialises
         # to JSON, and a Path is not JSON
         self._transcripts: dict = {}  # sid -> Path
+        self._conv_cache: dict = {}   # sid -> ((mtime, size), parsed conversation)
 
     def make_term_env(self, *args, **kwargs) -> dict:
         env = super().make_term_env(*args, **kwargs)
@@ -181,6 +183,42 @@ class SessionManager(NamedTermManager):
                                         cfg.get("permission_patterns", []))
         return out
 
+    def conversation(self, sid: str) -> dict:
+        """The controlled conversation model for one session: parsed
+        transcript turns + meta, the pty window title, and any pending
+        permission prompt. Parsing is cached by the transcript's
+        (mtime, size); the pty-derived fields are always fresh."""
+        meta = self._meta.get(sid)
+        if not meta or not meta.get("session_id"):
+            return {"exists": False, "meta": {}, "turns": [],
+                    "title": None, "permission": None}
+        path = self._transcripts.get(sid)
+        if path is None:
+            path = find_transcript(meta["cwd"], meta["session_id"],
+                                   self._claude_dir)
+            if path is not None:
+                self._transcripts[sid] = path
+        window = self._config["context_window_tokens"]
+        parsed = {"exists": False, "meta": {}, "turns": []}
+        if path is not None:
+            try:
+                st = path.stat()
+                key = (st.st_mtime, st.st_size)
+            except OSError:
+                key = None
+            cached = self._conv_cache.get(sid)
+            if cached and key is not None and cached[0] == key:
+                parsed = cached[1]
+            else:
+                parsed = parse_conversation(path, window)
+                self._conv_cache[sid] = (key, parsed)
+        tail = self._pty_tail(sid)
+        patterns = self._config.get("permission_patterns", [])
+        out = dict(parsed)
+        out["title"] = window_title(tail)
+        out["permission"] = parse_permission(tail, patterns)
+        return out
+
     def _pty_tail(self, sid: str, chunks: int = 40) -> str:
         """Recent terminal output for a session (last few replay chunks),
         used to spot a permission prompt Claude Code is blocked on."""
@@ -226,6 +264,7 @@ class SessionManager(NamedTermManager):
     def on_eof(self, ptywclients) -> None:
         gone = getattr(ptywclients, "term_name", None)
         self._status_cache.pop(gone, None)
+        self._conv_cache.pop(gone, None)
         self._transcripts.pop(gone, None)
         sid = getattr(ptywclients, "term_name", None)
         super().on_eof(ptywclients)

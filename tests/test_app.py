@@ -107,6 +107,15 @@ class AppTests(AsyncHTTPTestCase):
         assert set(st) >= {"exists", "state", "last_prompt",
                            "context_tokens", "context_pct"}
 
+    def test_conversation_endpoint_shape_and_404(self):
+        created = json.loads(self._post("/api/sessions", {"path": "."}).body)
+        resp = self.fetch("/api/conversation?id=" + created["id"])
+        assert resp.code == 200
+        data = json.loads(resp.body)
+        assert set(data) >= {"exists", "meta", "turns", "title", "permission"}
+        assert isinstance(data["turns"], list)
+        assert self.fetch("/api/conversation?id=nope").code == 404
+
     def test_launching_records_a_recent_folder(self):
         cwd = os.getcwd()
         assert self._post("/api/sessions", {"path": cwd}).code == 201

@@ -32,6 +32,11 @@ browser.
   offers `claude --resume` for every recent project.
 - **One dead session never disturbs another** — every session's I/O is
   exception-walled.
+- **A conversation you can actually read** — by default each session
+  renders as a clean, stable conversation (from Claude Code's transcript
+  JSON), not the raw redrawing terminal: collapsible tool output and
+  thinking, lane filters, a composer, permission prompts as buttons. The
+  real terminal is one click away for menus.
 - **You can see where every session stands** — each tab shows your last
   prompt, whether Claude is working, waiting for your input, or done, and
   how full its context is (green → amber → red), read from Claude Code's
@@ -49,7 +54,7 @@ See `docs/USER_MANUAL.md` for the full feature list, configuration
 reference, and known limitations, and `AGENTS.md` for the machine-oriented
 reference (every config key, route, and CLI flag).
 
-Verified by 94 checks (pytest + pyflakes, Windows/Linux/macOS CI) plus two
+Verified by 103 checks (pytest + pyflakes, Windows/Linux/macOS CI) plus two
 Playwright end-to-end checks.
 
 ## How it was built

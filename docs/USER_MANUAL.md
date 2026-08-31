@@ -58,6 +58,18 @@ machines) and opens it in your default browser automatically.
   the interface between following your OS (`system`), `light`, and `dark`;
   the choice is remembered per browser. Set the default with `ui_theme`.
   (The terminal keeps its own `theme` colours in every mode.)
+- **Conversation view (controlled)** — by default a session shows a clean,
+  CLAUDIU-rendered conversation instead of Claude Code's raw terminal:
+  the working directory and Claude's window title on top, the exchange in
+  a scrollable frame (PageUp/PageDown, a jump-to-latest button, collapsible
+  tool output and thinking), lane checkboxes (**thinking · tools · events
+  · subagents**) and a search box, the model and token/context count, the
+  live state, and a composer to type into. It is read from Claude Code's
+  transcript JSON and refreshed about once a second — stable, no reflow.
+  A permission prompt appears as **Yes/No buttons**. When you need a menu
+  the view can't model (slash-command autocomplete, `/model`, the plan or
+  file pickers), **Show terminal** reveals the real terminal, and hides it
+  again. See "The conversation view" below.
 - **Redesigned launcher** — the new-session window opens with "Any folder"
   on top (type a path, pick a recently used one from the dropdown, or
   **Browse** the filesystem and **New folder** to create one), and two
@@ -108,6 +120,28 @@ lines: each chunk is up to 64 KiB (the pty is read in 64 KiB blocks), so
 the worst-case memory a single session's replay buffer can hold is
 `replay_chunks × 64 KiB` — 2000 × 64 KiB ≈ 125 MiB at the default. Raise
 or lower `replay_chunks` to trade replay depth against memory per session.
+
+### The conversation view
+
+Each session shows two things over the same live process:
+
+1. the **conversation view** (default) — rendered by CLAUDIU from the
+   session's transcript JSON, refreshed ~1 s. It never shows Claude Code's
+   raw terminal drawing, so it does not reflow or flicker. Tool output and
+   thinking are collapsible; the lane checkboxes hide whole categories; the
+   search box filters; PageUp/PageDown and a jump-to-latest button move
+   through it. The composer at the bottom sends what you type to the
+   session, and a detected permission prompt is offered as buttons.
+2. the **raw terminal** — hidden by default, revealed by **Show terminal**.
+   Use it for the interactive surfaces the JSON cannot represent
+   (slash-command autocomplete, `/model`, the plan selector, the `@`-file
+   picker, arrow-key menus). It is the same live session; toggling the
+   view changes nothing about it.
+
+Updates are polled, not streamed token-by-token — a reply appears when the
+turn lands, which is the calm behaviour this view is for. If a future
+Claude Code release changes the transcript schema the view degrades to
+empty rather than wrong, and the raw terminal is always one click away.
 
 ### How the status strip works
 
@@ -211,6 +245,7 @@ the launcher and rename dialogs rely on.
 | `GET /api/config` | effective config plus load warnings |
 | `GET /api/resume` | recent resumable Claude sessions |
 | `GET /api/status` | per-session status: last prompt, busy/ready, context use |
+| `GET /api/conversation` | controlled conversation model for a session (query: `id`) |
 | `GET /api/recent` | recently launched folders (`~/.claudiu/recent.json`) |
 | `GET /api/dirs` | list sub-directories of a path (launcher folder picker) |
 | `POST /api/mkdir` | create a folder (body: `parent`, `name`) |

@@ -95,6 +95,7 @@ dialog-closing `Escape` handler in `static/ui.js`.
 | `GET /api/config` | effective config plus load warnings |
 | `GET /api/resume` | recent resumable Claude sessions |
 | `GET /api/status` | per-session status: last prompt, busy/ready, context use |
+| `GET /api/conversation` | controlled conversation model for a session (query: id) |
 | `GET /api/recent` | recently launched folders (`~/.claudiu/recent.json`) |
 | `GET /api/dirs` | list sub-directories of a path (launcher folder picker) |
 | `POST /api/mkdir` | create a folder (body: parent, name) |
@@ -113,6 +114,16 @@ not already carry `--session-id`/`--resume <id>`/`--continue`; the file is
 located lazily (`find_transcript`) and re-read only when its mtime/size
 changes. The slug is the absolute cwd with every non-alphanumeric character
 replaced by `-` (`claudiu.status.project_slug`).
+
+`GET /api/conversation?id=<sid>` (`claudiu.sessions.conversation` ->
+`claudiu.conversation.parse_conversation`) returns `{exists, meta, turns,
+title, permission}`: turns are typed (`human`/`assistant`/`thinking`/`tool`/
+`event`/`compact`, tool turns paired with their result by `tool_use_id`,
+sidechain turns flagged `sub`), parsing is cached by (mtime,size), and the
+pty-derived `title` (OSC 0/2 via `status.window_title`) and `permission`
+(`status.parse_permission`) are always fresh. The browser renders it in
+`static/convo.js`; the raw xterm terminal is hidden behind a "Show terminal"
+toggle and only drives stdin + the escape hatch.
 
 `GET /api/dirs?path=` (`claudiu.browse.list_dirs`) lists a folder's
 sub-directories plus its parent; an empty path lists drive roots on
@@ -149,10 +160,11 @@ claudiu/cli.py            argument parsing, audit logging, server startup
 claudiu/app.py             Tornado application, ROUTES, REST handlers
 claudiu/sessions.py       SessionManager: ConPTYs, replay buffers, metadata
 claudiu/resume.py           ~/.claude/projects scanner for --resume lists
-claudiu/status.py           transcript-tail reader: last prompt, busy/ready/waiting, context use
+claudiu/status.py           transcript-tail reader: last prompt, busy/ready/waiting, context; OSC title; permission parse
+claudiu/conversation.py     full transcript parser -> typed turns for the conversation view
 claudiu/recent.py           recently launched folders (~/.claudiu/recent.json)
 claudiu/browse.py           launcher folder picker: list_dirs + make_dir
-claudiu/static/           index.html, app.js, ui.js, keys.js, app.css
+claudiu/static/           index.html, app.js, ui.js, convo.js, keys.js, app.css
 claudiu/static/vendor/    pinned xterm.js + addons (see VENDORED.md)
 docs/USER_MANUAL.md       human-oriented manual
 docs/build_manual.py       renders USER_MANUAL.md to USER_MANUAL.html/.pdf

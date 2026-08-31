@@ -4,6 +4,17 @@ All notable changes to CLAUDIU are documented in this file.
 
 ## Unreleased
 
+- Controlled conversation view (new default per session): CLAUDIU renders
+  the conversation from Claude Code's transcript JSON
+  (`GET /api/conversation`, `claudiu/conversation.py`, `static/convo.js`)
+  instead of the raw terminal -- working dir + window title (OSC 0/2)
+  header, a scrollable frame with collapsible tool output and thinking,
+  lane checkboxes (thinking/tools/events/subagents) + search, model +
+  tokens, live state, a composer, and permission prompts as Yes/No
+  buttons. Polled ~1s; the raw terminal is hidden behind a "Show terminal"
+  escape hatch for menus/pickers the JSON can't represent. Design:
+  `docs/superpowers/specs/2026-08-31-conversation-view-design.md`.
+
 - Third session state: **waiting for your input**. When a session is busy
   and its terminal shows a permission/confirmation prompt (matched against
   the new `permission_patterns` config), its tab light switches to a faster

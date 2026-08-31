@@ -46,6 +46,54 @@ def awaiting_permission(pty_tail: str, patterns) -> bool:
     return any(p.lower() in text for p in patterns if p)
 
 
+_OSC_TITLE = re.compile(r"\x1b\][02];([^\x07\x1b]*)(?:\x07|\x1b\\)")
+# a numbered option line in a Claude Code prompt, e.g. " ❯ 1. Yes" / "  2. No"
+_OPTION = re.compile(r"^[\s>❯▶*·]*([0-9])[.)]\s+(.{1,80}?)\s*$")
+
+
+def window_title(pty_tail: str):
+    """The most recent terminal window title (OSC 0/2) Claude Code set, or
+    None. Claude Code writes the working context here; the transcript has no
+    equivalent, so it is read from the pty stream."""
+    if not pty_tail:
+        return None
+    matches = _OSC_TITLE.findall(pty_tail)
+    for title in reversed(matches):
+        title = title.strip()
+        if title:
+            return title
+    return None
+
+
+def parse_permission(pty_tail: str, patterns):
+    """When the terminal shows a permission/confirmation prompt, return
+    ``{"prompt": <line>, "options": [{"key": "1", "label": "Yes"}, ...]}``
+    so the browser can offer buttons; otherwise None. The keystroke to send
+    is the option's number."""
+    if not awaiting_permission(pty_tail, patterns):
+        return None
+    lines = strip_ansi(pty_tail).splitlines()
+    prompt = ""
+    for p in patterns:
+        for ln in lines:
+            if p and p.lower() in ln.lower():
+                prompt = ln.strip()
+                break
+        if prompt:
+            break
+    options = []
+    seen = set()
+    for ln in lines:
+        m = _OPTION.match(ln)
+        if m and m.group(1) not in seen:
+            seen.add(m.group(1))
+            options.append({"key": m.group(1), "label": m.group(2).strip()})
+    if not options:
+        return None
+    return {"prompt": prompt or "Claude is asking for confirmation",
+            "options": options}
+
+
 def apply_permission(status: dict, pty_tail: str, patterns) -> dict:
     """Upgrade a busy session to 'waiting' when its terminal shows a prompt.
     Returns a new dict; the input (which may be a cache entry) is untouched."""

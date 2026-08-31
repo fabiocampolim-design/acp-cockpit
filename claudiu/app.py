@@ -48,6 +48,7 @@ ROUTES = {
     "GET /api/config": "effective config plus load warnings",
     "GET /api/resume": "recent resumable Claude sessions",
     "GET /api/status": "per-session status: last prompt, busy/ready, context use",
+    "GET /api/conversation": "controlled conversation model for a session (body: id)",
     "GET /api/recent": "recently launched folders (~/.claudiu/recent.json)",
     "GET /api/dirs": "list sub-directories of a path (launcher folder picker)",
     "POST /api/mkdir": "create a folder (body: parent, name)",
@@ -214,6 +215,24 @@ class StatusHandler(APIHandler):
         self.write({"sessions": sessions})
 
 
+class ConversationHandler(APIHandler):
+    def initialize(self, manager):
+        self.manager = manager
+
+    async def get(self):
+        sid = self.get_query_argument("id", "")
+        if sid not in self.manager.terminals:
+            raise tornado.web.HTTPError(404, reason=f"no session {sid!r}")
+        try:
+            # parsing a transcript is blocking file I/O: keep it off the loop
+            data = await IOLoop.current().run_in_executor(
+                None, self.manager.conversation, sid)
+        except Exception as exc:  # a broken transcript must not blank the view
+            log.exception("conversation parse failed")
+            raise _api_error(500, f"conversation parse failed: {exc}")
+        self.write(data)
+
+
 class TermSocketHandler(ClaudiuTermSocket):
     """ClaudiuTermSocket with the same Origin/Host checks as the REST API.
 
@@ -244,6 +263,7 @@ def make_app(config, manager, warnings=(), config_dir=None) -> tornado.web.Appli
              {"config": config, "warnings": list(warnings)}),
             (r"/api/resume", ResumeHandler),
             (r"/api/status", StatusHandler, {"manager": manager}),
+            (r"/api/conversation", ConversationHandler, {"manager": manager}),
             (r"/api/recent", RecentHandler, {"config_dir": config_dir}),
             (r"/api/dirs", DirsHandler),
             (r"/api/mkdir", MkdirHandler),

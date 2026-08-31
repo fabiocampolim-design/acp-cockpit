@@ -85,6 +85,10 @@ def test_full_roundtrip_rendered_in_browser(server):
         # an unscoped ".choice" click is ambiguous under Playwright's
         # strict mode once that happens.
         page.click("#launcher-projects .choice")
+        # the controlled conversation view is the default; the raw terminal
+        # (where the echo command's output shows) is behind "Show terminal"
+        page.wait_for_selector(".composer-input")
+        page.click(".show-term")
         page_has(page, "READY")
         # keystrokes reach the pty and the echo renders back
         page.keyboard.type("roundtrip")
@@ -95,6 +99,8 @@ def test_full_roundtrip_rendered_in_browser(server):
         page_has(page, "echo:hello-from-snippet")
         # reload: session survives, scrollback replays (spec: resilience)
         page.reload()
+        page.wait_for_selector(".show-term")
+        page.click(".show-term")  # reload returns to the conversation view
         page_has(page, "echo:roundtrip")
         browser.close()
 
@@ -110,7 +116,7 @@ def test_shortcuts_are_discoverable(server):
         # the auto-opened launcher already hints at the help key
         page_has(page, "Alt+H")
         page.click("#launcher-projects .choice")
-        page_has(page, "READY")
+        page.wait_for_selector(".tab")  # session started
         # the tab tooltip names its switch key
         assert "Alt+1" in page.get_attribute(".tab", "title")
         # the help overlay opens by key and by button, lists real bindings
@@ -121,10 +127,16 @@ def test_shortcuts_are_discoverable(server):
         page.click("#helpbtn")
         page.wait_for_selector("#help", state="visible")
         page_has(page, "Ctrl+Shift+F")
-        # Escape must also close the launcher while a terminal is focused
-        # (xterm.js swallows Escape unless the handler runs in capture)
         page.keyboard.press("Escape")
         page.wait_for_selector("#help", state="hidden")
+        # Escape must close an overlay even while the raw terminal is focused
+        # (xterm.js swallows Escape unless the handler runs in capture)
+        page.click(".show-term")
+        page.keyboard.press("Alt+h")
+        page.wait_for_selector("#help", state="visible")
+        page.keyboard.press("Escape")
+        page.wait_for_selector("#help", state="hidden")
+        # and Escape closes the launcher too
         page.keyboard.press("Alt+t")
         page.wait_for_selector("#launcher", state="visible")
         page.keyboard.press("Escape")
