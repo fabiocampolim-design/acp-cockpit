@@ -42,16 +42,24 @@ async function startSession() {
   connect();
 }
 
+const sendQueue = [];
+
 function connect() {
   ws = new WebSocket(`ws://${location.host}/ws/sessions/${sid}`);
+  ws.onopen = () => {
+    while (sendQueue.length) ws.send(sendQueue.shift());
+  };
   ws.onmessage = (m) => handleEvent(JSON.parse(m.data));
   ws.onclose = () => setState("disconnected");
 }
 
+let uiState = "starting";
+
 function setState(s) {
+  uiState = s;
   $("#status .state").textContent = s;
   turnActive = (s === "turn");
-  $("#send").disabled = turnActive;
+  $("#send").disabled = (s !== "ready");
   $("#cancel").hidden = !turnActive;
 }
 
@@ -187,11 +195,15 @@ function showPermission(ev) {
   $("#permission").showModal();
 }
 
-function send(obj) { ws.send(JSON.stringify(obj)); }
+function send(obj) {
+  const wire = JSON.stringify(obj);
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(wire);
+  else sendQueue.push(wire);   // flushed by ws.onopen
+}
 
 function sendPrompt() {
   const text = $("#prompt-input").value.trim();
-  if (!text || turnActive) return;
+  if (!text || uiState !== "ready") return;
   agg.currentKey = null;
   addBlock("message_chunk", "user", text);
   agg.currentKey = null;
