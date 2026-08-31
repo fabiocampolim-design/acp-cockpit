@@ -14,7 +14,11 @@ window.Claudiu = {
     }, opts));
     if (resp.status === 204) return null;
     const body = await resp.json().catch(() => ({}));
-    if (!resp.ok) throw new Error(body.error || `HTTP ${resp.status}`);
+    if (!resp.ok) {
+      const err = new Error(body.error || `HTTP ${resp.status}`);
+      err.status = resp.status;
+      throw err;
+    }
     return body;
   },
 
@@ -106,7 +110,7 @@ window.Claudiu = {
         tab.term.write(msg[1]);
         if (C.activeId !== tab.id) tab.el.classList.add("unseen");
       } else if (msg[0] === "disconnect") {
-        C.markEnded(tab);
+        C.markEnded(tab, msg[1]);
       }
     };
     ws.onclose = (ev) => {
@@ -129,8 +133,9 @@ window.Claudiu = {
     }
   },
 
-  markEnded(tab) {
+  markEnded(tab, code) {
     tab.ended = true;
+    tab.exitCode = code === undefined ? null : code;
     tab.pane.classList.remove("reconnecting");
     tab.pane.classList.add("ended");
     window.ClaudiuUI?.fillEndState(tab);
@@ -163,8 +168,14 @@ window.Claudiu = {
   },
 
   async killSession(id) {
-    try { await this.api(`/api/sessions/${id}`, { method: "DELETE" }); }
-    catch (e) { /* already gone is fine */ }
+    try {
+      await this.api(`/api/sessions/${id}`, { method: "DELETE" });
+    } catch (e) {
+      if (e.status !== 404) { // anything but "already gone" keeps the tab
+        window.ClaudiuUI?.alertBox("Could not kill session: " + e.message);
+        return;
+      }
+    }
     this.removeTab(id);
   },
 

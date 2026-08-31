@@ -62,7 +62,10 @@ window.ClaudiuUI = (function () {
     try {
       const data = await app.api("/api/resume");
       resBox.textContent = "";
-      for (const proj of data.projects.slice(0, 8)) {
+      // Skip projects whose directory no longer exists -- --resume would
+      // just spawn `claude` nowhere usable.
+      const found = data.projects.filter((p) => p.exists !== false);
+      for (const proj of found.slice(0, 8)) {
         for (const s of proj.sessions.slice(0, 2)) {
           resBox.appendChild(choice(s.summary, proj.path, () =>
             startSession({ path: proj.path, args: ["--resume", s.id] })));
@@ -86,13 +89,22 @@ window.ClaudiuUI = (function () {
     input.focus();
   }
 
+  function fuzzyMatch(filter, text) {
+    // Subsequence match: every char of filter appears in text, in order.
+    let i = 0;
+    for (const ch of text) {
+      if (i < filter.length && ch === filter[i]) i++;
+    }
+    return i === filter.length;
+  }
+
   function renderPalette(filter) {
     const list = el("palette-list");
     list.textContent = "";
     const f = filter.toLowerCase();
     for (const s of app.cfg.snippets) {
-      if (f && !s.name.toLowerCase().includes(f) &&
-          !s.text.toLowerCase().includes(f)) continue;
+      if (f && !fuzzyMatch(f, s.name.toLowerCase()) &&
+          !fuzzyMatch(f, s.text.toLowerCase())) continue;
       list.appendChild(choice(s.name, s.text.slice(0, 60), () => {
         hideAll();
         app.sendText(s.text, s.send);
@@ -154,7 +166,10 @@ window.ClaudiuUI = (function () {
             method: "PATCH", body: JSON.stringify({ title }),
           });
           tab.title = title;
-        } catch (e) { span.textContent = tab.title; }
+        } catch (e) {
+          span.textContent = tab.title;
+          alertBox("Rename failed: " + e.message);
+        }
       } else {
         span.textContent = tab.title;
       }
@@ -170,7 +185,10 @@ window.ClaudiuUI = (function () {
     const box = tab.pane.querySelector(".endstate");
     box.textContent = "";
     const p = document.createElement("p");
-    p.textContent = `session "${tab.title}" ended`;
+    const code = tab.exitCode;
+    p.textContent = (code === null || code === undefined)
+      ? `session "${tab.title}" ended`
+      : `session "${tab.title}" ended (exit ${code})`;
     box.appendChild(p);
     const row = document.createElement("div");
     row.className = "row";
@@ -232,5 +250,5 @@ window.ClaudiuUI = (function () {
   }
 
   return { init, openLauncher, openPalette, openSearch, confirmClose,
-    renameTab, fillEndState };
+    renameTab, fillEndState, alertBox };
 })();
