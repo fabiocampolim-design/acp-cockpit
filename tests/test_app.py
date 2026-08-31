@@ -4,6 +4,7 @@ import copy
 import json
 import sys
 
+import tornado.gen
 import tornado.websocket
 from tornado.testing import AsyncHTTPTestCase, gen_test
 
@@ -129,6 +130,36 @@ class AppTests(AsyncHTTPTestCase):
             data = json.loads(msg)
             if data[0] == "stdout":
                 seen += data[1]
+        ws.close()
+
+    def test_set_size_resizes_pty(self):
+        # Same nested-run_sync constraint as test_websocket_streams_output.
+        self.io_loop.run_sync(self._set_size_resizes_pty, timeout=30)
+
+    async def _set_size_resizes_pty(self):
+        resp = await self.http_client.fetch(
+            self.get_url("/api/sessions"), method="POST",
+            body=json.dumps({"path": "."}),
+            headers={"Content-Type": "application/json"}, raise_error=False)
+        sid = json.loads(resp.body)["id"]
+        url = f"ws://127.0.0.1:{self.get_http_port()}/ws/{sid}"
+        ws = await tornado.websocket.websocket_connect(url)
+        seen = ""
+        while "READY" not in seen:
+            msg = await ws.read_message()
+            assert msg is not None, "websocket closed before READY"
+            data = json.loads(msg)
+            if data[0] == "stdout":
+                seen += data[1]
+        ws.write_message(json.dumps(["set_size", 30, 100, 0, 0]))
+        ptyproc = self.manager.get_terminal(sid).ptyproc
+        winsize = None
+        for _ in range(50):
+            winsize = ptyproc.getwinsize()
+            if winsize == (30, 100):
+                break
+            await tornado.gen.sleep(0.1)
+        assert winsize == (30, 100)
         ws.close()
 
     @gen_test(timeout=30)
