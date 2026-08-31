@@ -51,6 +51,9 @@ class SessionManager(NamedTermManager):
         self._ids = itertools.count(1)
         self._claude_dir = claude_dir  # None: the real ~/.claude
         self._status_cache: dict = {}  # sid -> ((mtime, size), status)
+        # kept apart from _meta: _meta is what list_sessions() serialises
+        # to JSON, and a Path is not JSON
+        self._transcripts: dict = {}  # sid -> Path
 
     def make_term_env(self, *args, **kwargs) -> dict:
         env = super().make_term_env(*args, **kwargs)
@@ -152,14 +155,14 @@ class SessionManager(NamedTermManager):
             if not meta or not meta.get("session_id"):
                 out[sid] = unknown_status()
                 continue
-            path = meta.get("transcript")
+            path = self._transcripts.get(sid)
             if path is None:
                 path = find_transcript(meta["cwd"], meta["session_id"],
                                        self._claude_dir)
                 if path is None:
                     out[sid] = unknown_status()
                     continue
-                meta["transcript"] = path
+                self._transcripts[sid] = path
             try:
                 st = path.stat()
                 key = (st.st_mtime, st.st_size)
@@ -208,7 +211,9 @@ class SessionManager(NamedTermManager):
         log.info("session %s killed", sid)
 
     def on_eof(self, ptywclients) -> None:
-        self._status_cache.pop(getattr(ptywclients, "term_name", None), None)
+        gone = getattr(ptywclients, "term_name", None)
+        self._status_cache.pop(gone, None)
+        self._transcripts.pop(gone, None)
         sid = getattr(ptywclients, "term_name", None)
         super().on_eof(ptywclients)
         self._meta.pop(sid, None)

@@ -76,6 +76,7 @@ kbd { font: inherit; font-size: 12px; padding: 1px 6px; border-radius: 3px;
   margin: 6px 6px 0 0; padding: 4px 10px; border-radius: 4px;
   background: var(--bg-raised); border: 1px solid var(--border);
   color: var(--fg-dim); font-size: 12px; cursor: pointer; }
+.promptstrip[hidden] { display: none; }
 .promptstrip .mark { color: var(--accent); flex: none; }
 .promptstrip .text { flex: 1; min-width: 0; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis; }

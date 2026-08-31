@@ -208,6 +208,9 @@ class ArgvTests(AsyncTestCase):
             st = mgr.status_all()[sid]
             assert st["state"] == "ready" and st["last_prompt"] == "hi"
             assert st["context_pct"] == 50.0
+            # the located transcript must not leak into the JSON listing
+            # (it did once: a WindowsPath in _meta made /api/sessions a 500)
+            json.dumps(mgr.list_sessions())
             # unchanged file -> cached object
             assert mgr.status_all()[sid] is st
             await mgr.kill_session(sid)

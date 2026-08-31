@@ -209,7 +209,9 @@ window.Claudiu = {
 
   startStatusPolling() {
     const tick = async () => {
-      if (!document.hidden && this.tabs.size) {
+      // no visibility gate: Chrome already throttles background timers,
+      // and gating on document.hidden left tabs frozen in some windows
+      if (this.tabs.size) {
         try {
           const data = await this.api("/api/status");
           for (const [id, st] of Object.entries(data.sessions || {})) {
