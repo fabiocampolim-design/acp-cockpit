@@ -62,7 +62,7 @@ def setup_logging(log_dir, verbose: bool, quiet: bool) -> Path:
 
 def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
-    cfg_path = (Path(args.config) if args.config
+    cfg_path = (Path(args.config) if args.config is not None
                 else config_mod.config_path())
     created = config_mod.ensure_config_file(cfg_path)
     try:
@@ -70,33 +70,49 @@ def main(argv=None) -> int:
     except config_mod.ConfigError as exc:
         print(f"config error: {exc}", file=sys.stderr)
         return 2
-    if args.port:
+    if args.port is not None:
         cfg["port"] = args.port
     log_dir = Path(args.log_dir) if args.log_dir else cfg_path.parent / "logs"
     log_file = setup_logging(log_dir, args.verbose, args.quiet)
-    import terminado
-    import tornado
-    import tornado.ioloop
-    log.info("claudiu %s | python %s | tornado %s | terminado %s",
-             VERSION, platform.python_version(),
-             tornado.version, terminado.__version__)
-    log.info("argv: %s | config: %s%s", sys.argv, cfg_path,
-             " (created with defaults)" if created else "")
-    for w in warnings:
-        log.warning("config: %s", w)
-    manager = SessionManager(cfg)
-    app = make_app(cfg, manager, warnings)
-    app.listen(cfg["port"], address="127.0.0.1")
-    url = f"http://127.0.0.1:{cfg['port']}/"
-    print(f"CLAUDIU {VERSION} running at {url}  (Ctrl+C stops; log: {log_file})")
-    if not args.no_browser:
-        webbrowser.open(url)
+    # Below here the double-click launcher (run_claudiu.bat) has no
+    # console the user is watching for a traceback -- any failure must be
+    # logged AND printed (a batch file's window closes on exit, so the
+    # user only gets to read stdout/stderr if run_claudiu.bat pauses on
+    # error, which it does on a non-zero exit code) rather than left to
+    # propagate as an unhandled exception the window never shows.
     try:
-        tornado.ioloop.IOLoop.current().start()
-    except KeyboardInterrupt:
-        log.info("stopped by user")
-        print("stopped.")
-    return 0
+        import terminado
+        import tornado.ioloop
+        log.info("claudiu %s | python %s | tornado %s | terminado %s",
+                 VERSION, platform.python_version(),
+                 tornado.version, terminado.__version__)
+        log.info("argv: %s | config: %s%s", sys.argv, cfg_path,
+                 " (created with defaults)" if created else "")
+        for w in warnings:
+            log.warning("config: %s", w)
+        manager = SessionManager(cfg)
+        app = make_app(cfg, manager, warnings)
+        try:
+            app.listen(cfg["port"], address="127.0.0.1")
+        except OSError as exc:
+            log.error("could not bind port %s: %s", cfg["port"], exc)
+            print(f"port {cfg['port']} is already in use -- is CLAUDIU "
+                  f"already running? Open http://127.0.0.1:{cfg['port']}/ "
+                  "or use --port")
+            return 1
+        url = f"http://127.0.0.1:{cfg['port']}/"
+        print(f"CLAUDIU {VERSION} running at {url}  (Ctrl+C stops; log: {log_file})")
+        if not args.no_browser:
+            webbrowser.open(url)
+        try:
+            tornado.ioloop.IOLoop.current().start()
+        except KeyboardInterrupt:
+            log.info("stopped by user")
+            print("stopped.")
+        return 0
+    except Exception:
+        log.exception("fatal")
+        return 1
 
 
 if __name__ == "__main__":
