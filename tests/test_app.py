@@ -114,6 +114,8 @@ class AppTests(AsyncHTTPTestCase):
         data = json.loads(resp.body)
         assert set(data) >= {"exists", "meta", "turns", "title", "permission"}
         assert isinstance(data["turns"], list)
+        # permission options are parsed client-side now; the server sends none
+        assert data["permission"] is None
         assert self.fetch("/api/conversation?id=nope").code == 404
 
     def test_launching_records_a_recent_folder(self):

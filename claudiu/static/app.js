@@ -78,12 +78,16 @@ window.Claudiu = {
     const pane = document.createElement("div");
     pane.className = "pane";  // default: conversation view; .rawterm shows the pty
     pane.innerHTML = '<div class="strip reconnect">reconnecting…</div>' +
+      // pane-level so it is reachable in BOTH views (it used to live inside
+      // .convo, which is hidden in raw-terminal mode -> no way back)
+      '<button class="term-toggle ghost" title="switch between the conversation view and the raw terminal">▤ Terminal</button>' +
       '<div class="convo">' +
         '<div class="convo-head">' +
           '<span class="cwd-frame" title="working directory"></span>' +
           '<input class="title-box" readonly title="Claude\'s window title" ' +
                  'placeholder="(no title yet)">' +
           '<span class="model-frame" title="model · context"></span>' +
+          '<span class="fidelity" hidden></span>' +
           '<span class="state-frame"></span>' +
         '</div>' +
         '<div class="convo-lanes">' +
@@ -103,7 +107,6 @@ window.Claudiu = {
             '<button class="composer-send primary">Send</button>' +
           '</div>' +
           '<div class="cmd-actions">' +
-            '<button class="ghost show-term" title="reveal the raw terminal for menus and pickers">▤ Show terminal</button>' +
             '<button class="ghost esc-btn" title="interrupt Claude (Esc)">Esc</button>' +
           '</div>' +
         '</div>' +
@@ -387,7 +390,10 @@ window.Claudiu = {
   sendText(text, send) {
     const tab = this.tabs.get(this.activeId);
     if (!tab || !tab.ws || tab.ws.readyState !== WebSocket.OPEN) return;
-    tab.ws.send(JSON.stringify(["stdin", text + (send ? "\r" : "")]));
+    // send the text, then Enter as a SEPARATE frame -- "text\r" in one
+    // burst is treated as a paste by Claude Code and does not submit
+    tab.ws.send(JSON.stringify(["stdin", text]));
+    if (send) tab.ws.send(JSON.stringify(["stdin", "\r"]));
     tab.term.focus();
   },
 

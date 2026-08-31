@@ -66,7 +66,9 @@ machines) and opens it in your default browser automatically.
   · subagents**) and a search box, the model and token/context count, the
   live state, and a composer to type into. It is read from Claude Code's
   transcript JSON and refreshed about once a second — stable, no reflow.
-  A permission prompt appears as **Yes/No buttons**. When you need a menu
+  A permission prompt appears as **buttons** matching the prompt's real
+options (parsed from the rendered screen, shown only when unambiguous;
+otherwise CLAUDIU tells you to open the terminal rather than guess). When you need a menu
   the view can't model (slash-command autocomplete, `/model`, the plan or
   file pickers), **Show terminal** reveals the real terminal, and hides it
   again. See "The conversation view" below.
@@ -137,6 +139,13 @@ Each session shows two things over the same live process:
    (slash-command autocomplete, `/model`, the plan selector, the `@`-file
    picker, arrow-key menus). It is the same live session; toggling the
    view changes nothing about it.
+
+Every keystroke CLAUDIU sends to a session (composer, a permission
+button, Esc, snippets) is written to the audit log
+(`~/.claudiu/logs/`, logger `claudiu.audit`) so there is a complete record
+of what was issued. If a Claude Code update adds a transcript record type
+CLAUDIU does not recognise, the header shows a small "unrecognized
+record(s)" warning instead of quietly dropping it.
 
 Updates are polled, not streamed token-by-token — a reply appears when the
 turn lands, which is the calm behaviour this view is for. If a future

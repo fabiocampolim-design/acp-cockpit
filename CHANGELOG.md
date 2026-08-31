@@ -4,6 +4,22 @@ All notable changes to CLAUDIU are documented in this file.
 
 ## Unreleased
 
+- Permission buttons hardened for safety: options are now parsed
+  client-side from xterm's rendered buffer (the raw pty byte stream
+  mis-parsed a real 3-option prompt down to one wrong option), shown only
+  when the parse is an unambiguous contiguous set and stable across two
+  polls, and re-verified against the live buffer at click time; when the
+  parse is uncertain the view refuses to guess and points to the terminal.
+- Input audit log: every stdin frame sent to a session is logged at one
+  choke point (`claudiu.audit`) with length, control-char count and a
+  bounded preview -- an auditable record of everything issued.
+- Fidelity accounting: the conversation parser reports any unrecognised
+  transcript record type in `meta.unaccounted`, and the view shows a
+  warning chip, so a Claude Code schema change is visible, never silent.
+- Fixed the terminal toggle vanishing in raw-terminal mode (it now lives
+  at pane level, reachable from both views).
+- Manual & fidelity test plan added: `docs/TESTPLAN.md`.
+
 - Controlled conversation view (new default per session): CLAUDIU renders
   the conversation from Claude Code's transcript JSON
   (`GET /api/conversation`, `claudiu/conversation.py`, `static/convo.js`)

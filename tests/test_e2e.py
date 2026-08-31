@@ -88,7 +88,7 @@ def test_full_roundtrip_rendered_in_browser(server):
         # the controlled conversation view is the default; the raw terminal
         # (where the echo command's output shows) is behind "Show terminal"
         page.wait_for_selector(".composer-input")
-        page.click(".show-term")
+        page.click(".term-toggle")
         page_has(page, "READY")
         # keystrokes reach the pty and the echo renders back
         page.keyboard.type("roundtrip")
@@ -99,8 +99,8 @@ def test_full_roundtrip_rendered_in_browser(server):
         page_has(page, "echo:hello-from-snippet")
         # reload: session survives, scrollback replays (spec: resilience)
         page.reload()
-        page.wait_for_selector(".show-term")
-        page.click(".show-term")  # reload returns to the conversation view
+        page.wait_for_selector(".term-toggle")
+        page.click(".term-toggle")  # reload returns to the conversation view
         page_has(page, "echo:roundtrip")
         browser.close()
 
@@ -131,7 +131,7 @@ def test_shortcuts_are_discoverable(server):
         page.wait_for_selector("#help", state="hidden")
         # Escape must close an overlay even while the raw terminal is focused
         # (xterm.js swallows Escape unless the handler runs in capture)
-        page.click(".show-term")
+        page.click(".term-toggle")
         page.keyboard.press("Alt+h")
         page.wait_for_selector("#help", state="visible")
         page.keyboard.press("Escape")

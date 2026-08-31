@@ -91,12 +91,25 @@ _EVENT_BADGE = {
     "bridge_status": "remote", "compact_boundary": None,
 }
 
+# Top-level record types that legitimately produce no conversation turn.
+# A record whose type is neither rendered (user/assistant/system) nor listed
+# here is counted in meta["unaccounted"] so a future Claude Code schema
+# change surfaces as a visible warning instead of a silent drop -- the whole
+# point being that the view must never quietly omit part of the conversation.
+_KNOWN_IGNORED = {
+    "last-prompt", "mode", "permission-mode", "attachment", "ai-title",
+    "file-history-snapshot", "file-history-delta", "queue-operation",
+    "atis-latch", "bridge-session", "cost-state", "frame-link", "agent-name",
+    "artifact-comment-monitor", "artifact-autoreact-ledger", "relocated",
+    "worktree-state", "summary",
+}
+
 
 def parse_conversation(path, context_window: int = 0) -> dict:
     path = Path(path)
     meta = {"cwd": None, "gitBranch": None, "model": None,
             "context_tokens": None, "context_pct": None,
-            "counts": {}, "bad_lines": 0}
+            "counts": {}, "bad_lines": 0, "unaccounted": {}}
     turns: list = []
     by_tool_id: dict = {}
     seq = 0
@@ -124,6 +137,17 @@ def parse_conversation(path, context_window: int = 0) -> dict:
             ts = rec.get("timestamp")
             side = bool(rec.get("isSidechain"))
             rtype = rec.get("type")
+
+            # fidelity accounting: flag any record type we do not handle
+            if rtype not in ("assistant", "user", "system") \
+                    and rtype not in _KNOWN_IGNORED:
+                key = str(rtype)
+                meta["unaccounted"][key] = meta["unaccounted"].get(key, 0) + 1
+            elif rtype == "system":
+                sub = rec.get("subtype")
+                if sub not in _EVENT_BADGE:
+                    key = "system:" + str(sub)
+                    meta["unaccounted"][key] = meta["unaccounted"].get(key, 0) + 1
 
             if rtype == "assistant":
                 msg = rec.get("message")

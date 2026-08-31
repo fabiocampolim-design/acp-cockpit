@@ -17,8 +17,8 @@ from pathlib import Path
 from terminado import NamedTermManager, TermSocket
 
 from .conversation import parse_conversation
-from .status import (apply_permission, find_transcript, parse_permission,
-                     read_status, unknown_status, window_title)
+from .status import (apply_permission, find_transcript, read_status,
+                     unknown_status, window_title)
 
 log = logging.getLogger(__name__)
 
@@ -213,10 +213,14 @@ class SessionManager(NamedTermManager):
                 parsed = parse_conversation(path, window)
                 self._conv_cache[sid] = (key, parsed)
         tail = self._pty_tail(sid)
-        patterns = self._config.get("permission_patterns", [])
         out = dict(parsed)
         out["title"] = window_title(tail)
-        out["permission"] = parse_permission(tail, patterns)
+        # Permission options are parsed CLIENT-side from xterm's rendered
+        # buffer, not here: scraping the raw pty byte stream (full of cursor
+        # redraws) mis-parsed a real prompt down to a single wrong option,
+        # and issuing the wrong key could approve a destructive action. The
+        # server keeps only the coarse "waiting" light (apply_permission).
+        out["permission"] = None
         return out
 
     def _pty_tail(self, sid: str, chunks: int = 40) -> str:
@@ -272,6 +276,23 @@ class SessionManager(NamedTermManager):
         log.info("session %s ended (eof)", sid)
 
 
+audit = logging.getLogger("claudiu.audit")
+
+
+def _audit_stdin(sid, data: str) -> None:
+    """Record every keystroke/text injected into a session's pty. This is
+    the single choke point for input (terminal typing, the composer,
+    permission buttons, snippets, Esc), so the log is a complete, auditable
+    trail of everything ever *issued* to a live agent -- the guard against
+    an action being wrongly sent. A bounded, control-char-visible preview
+    is logged, never unbounded content."""
+    n = len(data)
+    ctrl = sum(1 for c in data if ord(c) < 32)
+    preview = data if n <= 80 else data[:80] + "…"
+    preview = preview.replace("\r", "\\r").replace("\n", "\\n").replace("\x1b", "\\e")
+    audit.info("stdin session=%s len=%d ctrl=%d data=%r", sid, n, ctrl, preview)
+
+
 class ClaudiuTermSocket(TermSocket):
     """TermSocket that closes cleanly when the session id is unknown."""
 
@@ -281,6 +302,18 @@ class ClaudiuTermSocket(TermSocket):
         except KeyError:
             log.warning("websocket for unknown session %r", url_component)
             self.close(4404, "no such session")
+
+    def on_message(self, message):
+        # audit stdin before terminado forwards it to the pty
+        try:
+            import json as _json
+            msg = _json.loads(message)
+            if isinstance(msg, list) and len(msg) >= 2 and msg[0] == "stdin":
+                sid = getattr(getattr(self, "terminal", None), "term_name", "?")
+                _audit_stdin(sid, msg[1])
+        except Exception:
+            pass  # auditing must never drop a keystroke
+        super().on_message(message)
 
     def on_pty_died(self) -> None:
         # TermSocket.on_pty_died() hardcodes ["disconnect", 1]; send the

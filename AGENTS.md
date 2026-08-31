@@ -122,8 +122,26 @@ title, permission}`: turns are typed (`human`/`assistant`/`thinking`/`tool`/
 sidechain turns flagged `sub`), parsing is cached by (mtime,size), and the
 pty-derived `title` (OSC 0/2 via `status.window_title`) and `permission`
 (`status.parse_permission`) are always fresh. The browser renders it in
-`static/convo.js`; the raw xterm terminal is hidden behind a "Show terminal"
-toggle and only drives stdin + the escape hatch.
+`static/convo.js`; the raw xterm terminal is hidden behind a pane-level
+"Terminal/Conversation" toggle and only drives stdin + the escape hatch.
+
+Safety-critical details:
+- **Permission buttons are parsed CLIENT-side from xterm's rendered buffer**
+  (`term.buffer.active`), not from the pty byte stream: the raw stream is
+  full of cursor redraws and mis-parses options (a real 3-option prompt
+  scraped down to one wrong option). Buttons render only when the parse is
+  a clean contiguous 1..n set AND repeats across two polls; the click
+  handler re-verifies key->label against the current buffer before sending;
+  otherwise a fail-safe tells the user to open the terminal. The server
+  sends `permission: null` (it keeps only the coarse `waiting` light).
+- **Every stdin frame is audit-logged** at one choke point
+  (`ClaudiuTermSocket.on_message` -> `claudiu.sessions._audit_stdin`,
+  logger `claudiu.audit`): session, length, control-char count, bounded
+  preview. This is the auditable record of everything issued to a session.
+- **Fidelity**: `parse_conversation` counts any record type it does not
+  render or know-to-ignore into `meta["unaccounted"]`; the header shows a
+  warning chip when it is non-empty, so a Claude Code schema change is
+  visible, never a silent drop. `_KNOWN_IGNORED` lists the no-turn types.
 
 `GET /api/dirs?path=` (`claudiu.browse.list_dirs`) lists a folder's
 sub-directories plus its parent; an empty path lists drive roots on
@@ -192,6 +210,10 @@ Markdown renderer for the HTML otherwise (never fails on a missing tool).
 python -m pytest tests -v
 python -m pyflakes claudiu tests
 ```
+
+Manual & fidelity test plan: `docs/TESTPLAN.md` (conversation accuracy,
+the permission-button safety cases, input integrity, escape hatch). Some
+cases need a human; run them after changing the conversation view.
 
 Playwright end-to-end tests (`tests/test_e2e.py`) additionally require
 `pip install -e .[e2e]` and `playwright install chromium`.

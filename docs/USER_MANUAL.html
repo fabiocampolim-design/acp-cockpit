@@ -190,10 +190,13 @@ checkboxes (<strong>thinking · tools · events · subagents</strong>) and
 a search box, the model and token/context count, the live state, and a
 composer to type into. It is read from Claude Code’s transcript JSON and
 refreshed about once a second — stable, no reflow. A permission prompt
-appears as <strong>Yes/No buttons</strong>. When you need a menu the
-view can’t model (slash-command autocomplete, <code>/model</code>, the
-plan or file pickers), <strong>Show terminal</strong> reveals the real
-terminal, and hides it again. See “The conversation view” below.</li>
+appears as <strong>buttons</strong> matching the prompt’s real options
+(parsed from the rendered screen, shown only when unambiguous; otherwise
+CLAUDIU tells you to open the terminal rather than guess). When you need
+a menu the view can’t model (slash-command autocomplete,
+<code>/model</code>, the plan or file pickers), <strong>Show
+terminal</strong> reveals the real terminal, and hides it again. See
+“The conversation view” below.</li>
 <li><strong>Redesigned launcher</strong> — the new-session window opens
 with “Any folder” on top (type a path, pick a recently used one from the
 dropdown, or <strong>Browse</strong> the filesystem and <strong>New
@@ -359,6 +362,13 @@ the plan selector, the <code>@</code>-file picker, arrow-key menus). It
 is the same live session; toggling the view changes nothing about
 it.</li>
 </ol>
+<p>Every keystroke CLAUDIU sends to a session (composer, a permission
+button, Esc, snippets) is written to the audit log
+(<code>~/.claudiu/logs/</code>, logger <code>claudiu.audit</code>) so
+there is a complete record of what was issued. If a Claude Code update
+adds a transcript record type CLAUDIU does not recognise, the header
+shows a small “unrecognized record(s)” warning instead of quietly
+dropping it.</p>
 <p>Updates are polled, not streamed token-by-token — a reply appears
 when the turn lands, which is the calm behaviour this view is for. If a
 future Claude Code release changes the transcript schema the view

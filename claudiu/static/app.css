@@ -288,3 +288,13 @@ button.danger { background: var(--danger); color: var(--bg); border: none;
 .composer-send { align-self: stretch; }
 .cmd-actions { display: flex; gap: 8px; margin-top: 6px; }
 .cmd-actions button { padding: 3px 10px; font-size: 12px; }
+
+/* pane-level terminal toggle: reachable in both views (top-right of pane) */
+.pane .term-toggle { position: absolute; top: 6px; right: 10px; z-index: 7;
+  padding: 3px 10px; font-size: 12px; }
+.fidelity { font-size: 11px; color: var(--bad); white-space: nowrap;
+  cursor: help; }
+.fidelity[hidden] { display: none; }
+/* the terminal toggle overlaps the convo header's right edge; keep the
+   window-title box clear of it */
+.convo-head { padding-right: 96px; }

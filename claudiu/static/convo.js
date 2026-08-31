@@ -37,7 +37,11 @@ window.ClaudiuConvo = (function () {
       const ta = q(tab, ".composer-input");
       const text = ta.value;
       if (!text.trim()) return;
-      app.sendToPty(tab, text + "\r");
+      // Text and the submitting Enter MUST be separate frames: Claude Code
+      // treats "text\r" arriving as one burst as a bracketed paste and
+      // inserts a newline instead of submitting (verified live).
+      app.sendToPty(tab, text);
+      app.sendToPty(tab, "\r");
       ta.value = "";
       ta.style.height = "auto";
     };
@@ -51,15 +55,116 @@ window.ClaudiuConvo = (function () {
       ta.style.height = Math.min(ta.scrollHeight, 160) + "px";
     });
 
-    q(tab, ".show-term").addEventListener("click", () => toggleTerminal(app, tab));
+    q(tab, ".term-toggle").addEventListener("click", () => toggleTerminal(app, tab));
     q(tab, ".esc-btn").addEventListener("click", () => app.sendToPty(tab, "\x1b"));
+    tab.perm = { sig: null, stable: null };
   }
 
   function toggleTerminal(app, tab) {
     const raw = tab.pane.classList.toggle("rawterm");
-    q(tab, ".show-term").textContent = raw ? "▤ Hide terminal"
-      : "▤ Show terminal";
+    q(tab, ".term-toggle").textContent = raw ? "▤ Conversation" : "▤ Terminal";
     if (raw) { app.sendSize(tab, true); tab.term.focus(); }
+    else tab.pane.querySelector(".composer-input")?.focus();
+  }
+
+  // ---- permission prompt, parsed from xterm's RENDERED buffer -----------
+  // The raw pty byte stream is full of cursor-move redraws, so "lines" there
+  // are not visual lines and options parse wrong (a real Yes/No/… prompt
+  // once yielded only "3. No"). xterm has already resolved the redraws into
+  // a grid, so we read the options from there. We only ever render buttons
+  // when the parse is unambiguous AND stable across two polls, and we
+  // re-verify at click time -- otherwise we tell the user to open the
+  // terminal. Sending the wrong key here could approve a destructive action.
+  const PROMPT_RE = /(do you want to|would you like to|do you want to proceed)/i;
+  const OPT_RE = /^\s*[❯>▶*·-]?\s*([1-9])[.)]\s+(.+?)\s*$/;
+  const FOOTER_RE = /(esc to cancel|tab to amend|shift\+tab)/i;
+
+  function readPermission(tab) {
+    const b = tab.term && tab.term.buffer && tab.term.buffer.active;
+    if (!b) return null;
+    const rows = [];
+    for (let i = Math.max(0, b.length - 60); i < b.length; i++) {
+      rows.push(b.getLine(i).translateToString(true));
+    }
+    let pi = -1;
+    for (let i = rows.length - 1; i >= 0; i--) {
+      if (PROMPT_RE.test(rows[i])) { pi = i; break; }
+    }
+    if (pi < 0) return null;
+    const options = [];
+    for (let i = pi + 1; i < rows.length; i++) {
+      const m = rows[i].match(OPT_RE);
+      if (m) options.push({ key: m[1], label: m[2].trim() });
+    }
+    // must be a clean, contiguous 1..n set of at least two options
+    if (options.length < 2) return null;
+    for (let k = 0; k < options.length; k++) {
+      if (options[k].key !== String(k + 1)) return null;
+    }
+    const prompt = rows[pi].trim();
+    const sig = prompt + "||" + options.map((o) => o.key + ":" + o.label).join("|");
+    return { prompt, options, sig };
+  }
+
+  function renderPermission(app, tab) {
+    const box = q(tab, ".perm");
+    const now = readPermission(tab);
+    // stability: only trust a parse seen identically twice in a row
+    const stable = now && now.sig === tab.perm.sig ? now : null;
+    tab.perm.sig = now ? now.sig : null;
+    tab.perm.stable = stable;
+
+    if (stable) {
+      if (box.dataset.sig === stable.sig) { box.hidden = false; return; }
+      box.dataset.sig = stable.sig;
+      box.textContent = "";
+      const p = document.createElement("div");
+      p.className = "perm-q"; p.textContent = stable.prompt;
+      box.appendChild(p);
+      const row = document.createElement("div");
+      row.className = "perm-row";
+      for (const opt of stable.options) {
+        const b = document.createElement("button");
+        b.className = opt.key === "1" ? "primary" : "ghost";
+        b.textContent = opt.key + ". " + opt.label;
+        b.addEventListener("click", () => answerPermission(app, tab, opt));
+        row.appendChild(b);
+      }
+      box.appendChild(row);
+      box.hidden = false;
+      return;
+    }
+    // a prompt is up (server says waiting) but we can't parse it safely:
+    // never guess -- send the user to the terminal
+    box.dataset.sig = "";
+    if (tab.state === "waiting") {
+      box.innerHTML = "";
+      const w = document.createElement("div");
+      w.className = "perm-q";
+      w.textContent = "⚠ Claude is asking for confirmation. Open the terminal to answer:";
+      box.appendChild(w);
+      const t = document.createElement("button");
+      t.className = "primary"; t.textContent = "▤ Open terminal";
+      t.addEventListener("click", () => {
+        if (!tab.pane.classList.contains("rawterm")) toggleTerminal(app, tab);
+      });
+      box.appendChild(t);
+      box.hidden = false;
+    } else {
+      box.hidden = true;
+    }
+  }
+
+  function answerPermission(app, tab, opt) {
+    // re-verify against the CURRENT buffer: the key must still map to the
+    // same label, or we refuse to send and fall back to the terminal
+    const fresh = readPermission(tab);
+    const match = fresh && fresh.options.find((o) => o.key === opt.key);
+    if (!match || match.label !== opt.label) {
+      renderPermission(app, tab);  // re-render (will show fallback/new options)
+      return;
+    }
+    app.sendToPty(tab, opt.key);  // digit only; the menu confirms on the number
   }
 
   function applyLanes(tab) {
@@ -100,7 +205,21 @@ window.ClaudiuConvo = (function () {
       model.textContent = bits.join("  ·  ");
     } else { model.textContent = ""; }
 
-    renderPermission(app, tab, data.permission);
+    renderPermission(app, tab);  // parsed client-side from xterm's buffer
+
+    // surface any transcript records the parser did not recognise, so a
+    // future Claude Code schema change is visible, never a silent drop
+    const warn = q(tab, ".fidelity");
+    const un = meta.unaccounted && Object.keys(meta.unaccounted).length;
+    if (warn) {
+      if (un) {
+        warn.hidden = false;
+        warn.textContent = "⚠ " + Object.values(meta.unaccounted)
+          .reduce((a, b) => a + b, 0) + " unrecognized record(s)";
+        warn.title = "record types not rendered: "
+          + Object.keys(meta.unaccounted).join(", ");
+      } else { warn.hidden = true; }
+    }
 
     const body = q(tab, ".convo-body");
     for (const turn of data.turns || []) {
@@ -118,30 +237,6 @@ window.ClaudiuConvo = (function () {
     if (tab.convo.filter) applyFilter(tab);
     if (tab.convo.atBottom) body.scrollTop = body.scrollHeight;
     else q(tab, ".convo-jump").hidden = false;
-  }
-
-  function renderPermission(app, tab, perm) {
-    const box = q(tab, ".perm");
-    if (!perm) { box.hidden = true; box.textContent = ""; return; }
-    if (box.dataset.prompt === perm.prompt &&
-        box.dataset.n === String(perm.options.length)) return;  // unchanged
-    box.dataset.prompt = perm.prompt;
-    box.dataset.n = String(perm.options.length);
-    box.textContent = "";
-    const p = document.createElement("div");
-    p.className = "perm-q"; p.textContent = perm.prompt;
-    box.appendChild(p);
-    const row = document.createElement("div");
-    row.className = "perm-row";
-    for (const opt of perm.options) {
-      const b = document.createElement("button");
-      b.className = opt.key === "1" ? "primary" : "ghost";
-      b.textContent = opt.key + ". " + opt.label;
-      b.addEventListener("click", () => app.sendToPty(tab, opt.key + "\r"));
-      row.appendChild(b);
-    }
-    box.appendChild(row);
-    box.hidden = false;
   }
 
   function turnLabel(turn) {

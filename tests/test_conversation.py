@@ -112,6 +112,42 @@ def test_long_result_is_truncated_and_flagged(tmp_path):
     assert tool["result"].endswith("…") and len(tool["result"]) <= 4001
 
 
+def test_fidelity_accounts_for_every_record_type(tmp_path):
+    # a spread of real record types: rendered, known-ignored, and two the
+    # parser has never seen. Nothing rendered should be silently dropped;
+    # only the genuinely-unknown types land in meta["unaccounted"].
+    f = _write(tmp_path / "s.jsonl", [
+        {"type": "user", "message": {"content": "hi"}},
+        _asst({"type": "text", "text": "hello"}),
+        {"type": "system", "subtype": "turn_duration", "durationMs": 5},
+        {"type": "last-prompt", "lastPrompt": "hi"},
+        {"type": "attachment"},
+        {"type": "file-history-snapshot"},
+        {"type": "ai-title", "aiTitle": "t"},
+        {"type": "cost-state"},
+        {"type": "brand-new-2027"},                       # unknown top-level
+        {"type": "system", "subtype": "brand-new-sub"},   # unknown subtype
+    ])
+    d = parse_conversation(f, 0)
+    assert d["meta"]["unaccounted"] == {"brand-new-2027": 1,
+                                        "system:brand-new-sub": 1}
+    # the known-ignored records did not become turns, and the real ones did
+    assert [t["kind"] for t in d["turns"]] == ["human", "assistant"]
+
+
+def test_no_turn_text_is_empty(tmp_path):
+    # a defence against rendering blank turns from whitespace-only content
+    f = _write(tmp_path / "s.jsonl", [
+        {"type": "user", "message": {"content": "   "}},
+        _asst({"type": "text", "text": ""},
+              {"type": "thinking", "thinking": "  "},
+              {"type": "text", "text": "real"}),
+    ])
+    d = parse_conversation(f, 0)
+    assert [t["kind"] for t in d["turns"]] == ["assistant"]
+    assert all(t.get("text", "x").strip() for t in d["turns"])
+
+
 def test_window_title_takes_the_last_osc(tmp_path):
     assert window_title("\x1b]0;first\x07 mid \x1b]2;second\x1b\\") == "second"
     assert window_title("no title here") is None
