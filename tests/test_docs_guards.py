@@ -52,10 +52,10 @@ def test_readme_states_true_check_count(request):
     # here would make the guard's total depend on which matrix cell ran it,
     # so it is excluded from the count and called out separately in the
     # README sentence instead.
-    m = re.search(r"(\d+) checks.*?plus one Playwright end-to-end check",
-                  " ".join(README.split()))
-    assert m, ("README must state '<N> checks ... plus one Playwright "
-               "end-to-end check'")
+    m = re.search(r"(\d+) checks.*?plus (?:one|two|\d+) Playwright "
+                  r"end-to-end checks?", " ".join(README.split()))
+    assert m, ("README must state '<N> checks ... plus <M> Playwright "
+               "end-to-end check(s)'")
     total = sum(1 for item in request.session.items
                 if not item.nodeid.split("::", 1)[0].endswith("test_e2e.py"))
     assert int(m.group(1)) == total, (

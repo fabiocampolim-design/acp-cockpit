@@ -110,6 +110,8 @@ adding a project and a snippet</a></li>
 <li><a href="#command-line" id="toc-command-line">Command line</a></li>
 <li><a href="#logs" id="toc-logs">Logs</a></li>
 <li><a href="#rebuilding-this-manual" id="toc-rebuilding-this-manual">Rebuilding this manual</a></li>
+<li><a href="#launching-from-inside-claude-code" id="toc-launching-from-inside-claude-code">Launching from inside Claude
+Code</a></li>
 <li><a href="#known-limitations" id="toc-known-limitations">Known
 limitations</a></li>
 </ul></li>
@@ -358,8 +360,18 @@ needs explicit confirmation)</td>
 <td><code>snippet_palette</code></td>
 <td><code>Ctrl+k</code> — open the fuzzy-searchable snippet palette</td>
 </tr>
+<tr>
+<td><code>help</code></td>
+<td><code>Alt+h</code> — show the shortcut list (also the <code>?</code>
+button in the tab bar)</td>
+</tr>
 </tbody>
 </table>
+<p>You do not need this table open while working: the <code>?</code>
+button at the right of the tab bar (or <code>Alt+h</code>) shows the
+live bindings — including any you remapped — every tab’s tooltip names
+its switch key, and the new-session launcher’s footer repeats the two
+you need most.</p>
 <p><strong>Why Alt-based defaults:</strong> Chrome reserves
 <code>Ctrl+T</code>, <code>Ctrl+W</code>, <code>Ctrl+Tab</code>, and
 <code>Ctrl+1</code>…<code>Ctrl+9</code> at the browser level — a web
@@ -488,6 +500,21 @@ otherwise falls back to a small stdlib-only Markdown renderer for the
 HTML and prints that the PDF was skipped. Always exits 0.
 <code>--src</code> and <code>--outdir</code> override the input file and
 output directory.</p>
+<h2 id="launching-from-inside-claude-code">Launching from inside Claude
+Code</h2>
+<p>If you start <code>claudiu</code> from a Claude Code session (a shell
+tool, a hook, a sub-agent), the server inherits that session’s
+environment, and every <code>claude</code> it spawned would otherwise
+inherit it too — the CLI then treats itself as a nested child session
+and turns transcript saving off (“Transcript saving is off — inherited
+CLAUDE_CODE_CHILD_SESSION marker”). CLAUDIU strips the nesting markers
+(<code>CLAUDECODE</code>, <code>CLAUDE_CODE_CHILD_SESSION</code>,
+<code>CLAUDE_CODE_SESSION_ID</code>, <code>CLAUDE_PID</code>, the
+messaging/bridge/entrypoint/execpath variables) from each session’s
+environment, so sessions started here are ordinary top-level sessions
+with normal transcript saving and <code>--resume</code> behaviour. User
+configuration such as <code>CLAUDE_CODE_MAX_OUTPUT_TOKENS</code> is
+passed through untouched.</p>
 <h2 id="known-limitations">Known limitations</h2>
 <ul>
 <li><strong>Windows-first.</strong> Development and hand-testing happen

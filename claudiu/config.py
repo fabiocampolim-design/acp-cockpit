@@ -36,6 +36,7 @@ DEFAULTS: dict = {
         "new_session": "Alt+t", "close_tab": "Alt+w",
         "font_bigger": "Alt+=", "font_smaller": "Alt+-", "font_reset": "Alt+0",
         "search": "Ctrl+Shift+f", "snippet_palette": "Ctrl+k",
+        "help": "Alt+h",
     },
     "projects": [],
     "snippets": [],

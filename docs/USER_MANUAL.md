@@ -125,6 +125,12 @@ config key. They never intercept keys the CLI itself needs (plain
 | `font_reset` | `Alt+0` — reset this tab's font size |
 | `search` | `Ctrl+Shift+f` — search this tab's scrollback |
 | `snippet_palette` | `Ctrl+k` — open the fuzzy-searchable snippet palette |
+| `help` | `Alt+h` — show the shortcut list (also the `?` button in the tab bar) |
+
+You do not need this table open while working: the `?` button at the
+right of the tab bar (or `Alt+h`) shows the live bindings — including any
+you remapped — every tab's tooltip names its switch key, and the
+new-session launcher's footer repeats the two you need most.
 
 **Why Alt-based defaults:** Chrome reserves `Ctrl+T`, `Ctrl+W`, `Ctrl+Tab`,
 and `Ctrl+1`…`Ctrl+9` at the browser level — a web page cannot intercept
@@ -195,6 +201,20 @@ Uses `pandoc` for the HTML and `pandoc` + `xelatex` for the PDF when both
 are on `PATH`; otherwise falls back to a small stdlib-only Markdown
 renderer for the HTML and prints that the PDF was skipped. Always exits 0.
 `--src` and `--outdir` override the input file and output directory.
+
+## Launching from inside Claude Code
+
+If you start `claudiu` from a Claude Code session (a shell tool, a hook, a
+sub-agent), the server inherits that session's environment, and every
+`claude` it spawned would otherwise inherit it too — the CLI then treats
+itself as a nested child session and turns transcript saving off
+("Transcript saving is off — inherited CLAUDE_CODE_CHILD_SESSION marker").
+CLAUDIU strips the nesting markers (`CLAUDECODE`,
+`CLAUDE_CODE_CHILD_SESSION`, `CLAUDE_CODE_SESSION_ID`, `CLAUDE_PID`, the
+messaging/bridge/entrypoint/execpath variables) from each session's
+environment, so sessions started here are ordinary top-level sessions with
+normal transcript saving and `--resume` behaviour. User configuration such
+as `CLAUDE_CODE_MAX_OUTPUT_TOKENS` is passed through untouched.
 
 ## Known limitations
 

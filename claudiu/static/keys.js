@@ -18,5 +18,13 @@ window.ClaudiuKeys = (function () {
     return ev.altKey === n.alt && ev.ctrlKey === n.ctrl &&
       ev.shiftKey === n.shift && ev.key.toLowerCase() === n.key;
   }
-  return { normalize, matches };
+  // display form: "Alt+h" -> "Alt+H" (single-letter keys are matched
+  // case-insensitively, shown upper-case like every keyboard legend)
+  function pretty(spec) {
+    const parts = spec.split("+");
+    const key = parts.pop();
+    parts.push(key.length === 1 ? key.toUpperCase() : key);
+    return parts.join("+");
+  }
+  return { normalize, matches, pretty };
 })();

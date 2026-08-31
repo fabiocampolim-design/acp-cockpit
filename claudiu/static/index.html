@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CLAUDIU</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="vendor/xterm.css">
 <link rel="stylesheet" href="app.css">
 </head>
@@ -11,6 +12,7 @@
 <header id="topbar">
   <nav id="tabbar" aria-label="sessions"></nav>
   <button id="newtab" title="New session (Alt+T)">+</button>
+  <button id="helpbtn" title="Keyboard shortcuts (Alt+H)">?</button>
 </header>
 <div id="snippetbar"></div>
 <main id="panes"></main>
@@ -27,7 +29,15 @@
       <input id="launcher-path" placeholder="C:\path\to\project">
       <button id="launcher-start">Start</button>
     </div>
-    <p class="hint">Esc closes</p>
+    <p class="hint" id="launcher-hint">Esc closes</p>
+  </div>
+</div>
+
+<div class="overlay" id="help" hidden>
+  <div class="dialog" id="help-dialog" tabindex="-1">
+    <h2>Keyboard shortcuts</h2>
+    <table id="help-table"></table>
+    <p class="hint">Remap any of these under <code>"shortcuts"</code> in config.json. Esc closes</p>
   </div>
 </div>
 

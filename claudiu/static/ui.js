@@ -7,10 +7,10 @@ window.ClaudiuUI = (function () {
 
   function el(id) { return document.getElementById(id); }
   function show(id) { el(id).hidden = false; }
+  const OVERLAYS = ["launcher", "palette", "search", "confirm", "help"];
+
   function hideAll() {
-    for (const id of ["launcher", "palette", "search", "confirm"]) {
-      el(id).hidden = true;
-    }
+    for (const id of OVERLAYS) el(id).hidden = true;
     const tab = app && app.tabs.get(app.activeId);
     if (tab) tab.term.focus();
   }
@@ -78,6 +78,51 @@ window.ClaudiuUI = (function () {
       resBox.innerHTML = '<small class="hint"></small>';
       resBox.querySelector("small").textContent = "scan failed: " + e.message;
     }
+  }
+
+  // human labels for the config "shortcuts" keys; tab_1..tab_9 collapse
+  // into one row.
+  const SHORTCUT_LABELS = [
+    ["tab_1", "switch to tab 1 … 9"], ["tab_prev", "previous tab"],
+    ["tab_next", "next tab"], ["new_session", "new session"],
+    ["close_tab", "close tab"], ["search", "search scrollback"],
+    ["snippet_palette", "snippet palette"], ["font_bigger", "font bigger"],
+    ["font_smaller", "font smaller"], ["font_reset", "font reset"],
+    ["help", "this list"],
+  ];
+
+  function shortcutRows() {
+    const sc = app.cfg.shortcuts;
+    const pretty = window.ClaudiuKeys.pretty;
+    return SHORTCUT_LABELS
+      .filter(([name]) => sc[name])
+      .map(([name, label]) => {
+        const keys = name === "tab_1" && sc.tab_9
+          ? [pretty(sc.tab_1), "…", pretty(sc.tab_9)] : [pretty(sc[name])];
+        return { label, keys };
+      });
+  }
+
+  function openHelp() {
+    hideAll();
+    const table = el("help-table");
+    table.textContent = "";
+    for (const row of shortcutRows()) {
+      const tr = document.createElement("tr");
+      const keysTd = document.createElement("td");
+      for (const k of row.keys) {
+        if (k === "…") { keysTd.append(" … "); continue; }
+        const kbd = document.createElement("kbd");
+        kbd.textContent = k;
+        keysTd.appendChild(kbd);
+      }
+      const labelTd = document.createElement("td");
+      labelTd.textContent = row.label;
+      tr.append(keysTd, labelTd);
+      table.appendChild(tr);
+    }
+    show("help");
+    el("help-dialog").focus(); // keystrokes must not fall through to the pty
   }
 
   function openPalette() {
@@ -234,6 +279,21 @@ window.ClaudiuUI = (function () {
       b.addEventListener("click", () => app.sendText(s.text, s.send));
       bar.appendChild(b);
     }
+    // discoverability: the launcher auto-opens on first load, so it is the
+    // one place every user sees; the title bar buttons reflect remaps too.
+    const sc = app.cfg.shortcuts;
+    const pretty = window.ClaudiuKeys.pretty;
+    const hint = ["Esc closes"];
+    if (sc.tab_1 && sc.tab_9) {
+      hint.push(`${pretty(sc.tab_1)}…${pretty(sc.tab_9)} switch tabs`);
+    }
+    if (sc.help) hint.push(`${pretty(sc.help)} lists every shortcut`);
+    el("launcher-hint").textContent = hint.join(" · ");
+    if (sc.new_session) {
+      el("newtab").title = `New session (${pretty(sc.new_session)})`;
+    }
+    if (sc.help) el("helpbtn").title = `Keyboard shortcuts (${pretty(sc.help)})`;
+    el("helpbtn").addEventListener("click", openHelp);
     el("palette-input").addEventListener("input",
       (ev) => renderPalette(ev.target.value));
     el("launcher-start").addEventListener("click", () => {
@@ -243,12 +303,19 @@ window.ClaudiuUI = (function () {
     el("launcher-path").addEventListener("keydown", (ev) => {
       if (ev.key === "Enter") el("launcher-start").click();
     });
+    // Capture phase: with a terminal focused, xterm.js handles Escape on
+    // its textarea and stops propagation, so a bubble-phase listener
+    // would never see it and no overlay could be closed by key.
     window.addEventListener("keydown", (ev) => {
-      if (ev.key === "Escape") hideAll();
-    });
+      if (ev.key !== "Escape") return;
+      if (!OVERLAYS.some((id) => !el(id).hidden)) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      hideAll();
+    }, true);
     for (const w of warnings) console.warn("[claudiu config]", w);
   }
 
-  return { init, openLauncher, openPalette, openSearch, confirmClose,
-    renameTab, fillEndState, alertBox };
+  return { init, openLauncher, openPalette, openSearch, openHelp,
+    confirmClose, renameTab, fillEndState, alertBox };
 })();

@@ -170,3 +170,28 @@ class AppTests(AsyncHTTPTestCase):
         assert msg is None, "unknown session should close, not stream"
         assert ws.close_code == 4404
         assert self.manager.list_sessions() == []
+
+
+class FaviconTests(AsyncHTTPTestCase):
+    """Browsers request /favicon.ico on every load; without one the log
+    fills with 404 warnings and the tab shows a blank icon."""
+
+    def get_app(self):
+        cfg = copy.deepcopy(DEFAULTS)
+        cfg["claude_command"] = ECHO_CMD
+        return make_app(cfg, SessionManager(cfg))
+
+    def test_favicon_svg_served(self):
+        resp = self.fetch("/favicon.svg")
+        assert resp.code == 200
+        assert resp.headers["Content-Type"].startswith("image/svg+xml")
+
+    def test_favicon_ico_is_not_a_404(self):
+        resp = self.fetch("/favicon.ico", follow_redirects=False,
+                          raise_error=False)
+        assert resp.code in (301, 302)
+        assert resp.headers["Location"].endswith("/favicon.svg")
+
+    def test_page_links_the_icon(self):
+        resp = self.fetch("/")
+        assert b'rel="icon"' in resp.body

@@ -185,6 +185,10 @@ def make_app(config, manager, warnings=()) -> tornado.web.Application:
             (r"/api/resume", ResumeHandler),
             (r"/ws/([A-Za-z0-9_-]+)", TermSocketHandler,
              {"term_manager": manager}),
+            # browsers ask for /favicon.ico unprompted; point them at the
+            # SVG so the log does not fill with 404 warnings
+            (r"/favicon\.ico", tornado.web.RedirectHandler,
+             {"url": "/favicon.svg", "permanent": True}),
             (r"/(.*)", tornado.web.StaticFileHandler,
              {"path": str(static), "default_filename": "index.html"}),
         ],

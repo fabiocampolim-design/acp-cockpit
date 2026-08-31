@@ -2,6 +2,20 @@
 
 All notable changes to CLAUDIU are documented in this file.
 
+## Unreleased
+
+- Shortcut discoverability: a `?` button in the tab bar and `Alt+h` open a
+  help overlay rendered from the live `shortcuts` config; tab tooltips
+  name their switch key; the launcher footer hints at tab switching and
+  the help key. Single-letter keys display upper-case (`Alt+H`).
+- Sessions spawned by CLAUDIU no longer inherit Claude Code's nested-session
+  environment markers when the server itself was launched from inside a
+  Claude Code session, so the CLI keeps transcript saving on (it used to
+  warn "Transcript saving is off — inherited CLAUDE_CODE_CHILD_SESSION
+  marker").
+- Favicon (`favicon.svg`); `/favicon.ico` redirects to it instead of
+  logging a 404 warning on every page load.
+
 ## 0.1.0 — 2026-08-30
 
 Initial release.

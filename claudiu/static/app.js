@@ -82,6 +82,7 @@ window.Claudiu = {
       ws: null, el, pane, attempts: 0,
     };
     this.tabs.set(info.id, tab);
+    this.updateTabHints();
     term.open(pane.querySelector(".termhost"));
     term.onData((d) => {
       if (tab.ws && tab.ws.readyState === WebSocket.OPEN) {
@@ -158,6 +159,16 @@ window.Claudiu = {
     requestAnimationFrame(() => { this.sendSize(tab); tab.term.focus(); });
   },
 
+  // tooltips carry each tab's switch key (positions shift when tabs close)
+  updateTabHints() {
+    const sc = this.cfg.shortcuts;
+    this.tabList().forEach((t, i) => {
+      const key = sc["tab_" + (i + 1)];
+      t.el.title = (key ? window.ClaudiuKeys.pretty(key) + " · " : "") +
+        "double-click to rename";
+    });
+  },
+
   removeTab(id) { // removes the view only; the session keeps running
     const tab = this.tabs.get(id);
     if (!tab) return;
@@ -167,6 +178,7 @@ window.Claudiu = {
     tab.el.remove();
     tab.pane.remove();
     this.tabs.delete(id);
+    this.updateTabHints();
     const rest = this.tabList();
     if (rest.length) this.activate(rest[rest.length - 1].id);
     else this.activeId = null;
@@ -218,6 +230,7 @@ window.Claudiu = {
       font_reset: () => this.setFont(active, 0),
       search: () => active && window.ClaudiuUI?.openSearch(active),
       snippet_palette: () => window.ClaudiuUI?.openPalette(),
+      help: () => window.ClaudiuUI?.openHelp(),
     };
     for (let n = 1; n <= 9; n++) {
       acts["tab_" + n] = () => list[n - 1] && this.activate(list[n - 1].id);

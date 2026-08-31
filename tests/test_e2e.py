@@ -97,3 +97,36 @@ def test_full_roundtrip_rendered_in_browser(server):
         page.reload()
         page_has(page, "echo:roundtrip")
         browser.close()
+
+
+def test_shortcuts_are_discoverable(server):
+    """Rule of the smoke test: nobody reads the manual before pressing
+    keys. The launcher, the tab tooltip and a help overlay must all reveal
+    the bindings."""
+    with sync_api.sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        page = browser.new_page()
+        page.goto(server)
+        # the auto-opened launcher already hints at the help key
+        page_has(page, "Alt+H")
+        page.click("#launcher-projects .choice")
+        page_has(page, "READY")
+        # the tab tooltip names its switch key
+        assert "Alt+1" in page.get_attribute(".tab", "title")
+        # the help overlay opens by key and by button, lists real bindings
+        page.keyboard.press("Alt+h")
+        page_has(page, "Alt+ArrowRight")
+        page.keyboard.press("Escape")
+        page.wait_for_selector("#help", state="hidden")
+        page.click("#helpbtn")
+        page.wait_for_selector("#help", state="visible")
+        page_has(page, "Ctrl+Shift+F")
+        # Escape must also close the launcher while a terminal is focused
+        # (xterm.js swallows Escape unless the handler runs in capture)
+        page.keyboard.press("Escape")
+        page.wait_for_selector("#help", state="hidden")
+        page.keyboard.press("Alt+t")
+        page.wait_for_selector("#launcher", state="visible")
+        page.keyboard.press("Escape")
+        page.wait_for_selector("#launcher", state="hidden")
+        browser.close()
