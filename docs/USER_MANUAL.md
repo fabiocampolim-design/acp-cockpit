@@ -60,7 +60,7 @@ startup warning, never rejected.
 |---|---|---|
 | `port` | `8642` | TCP port the server listens on (bound to 127.0.0.1 only) |
 | `claude_command` | `["claude"]` | argv used to spawn each session |
-| `replay_chunks` | `2000` | max buffered output chunks per session kept for replay on (re)connect |
+| `replay_chunks` | `2000` | max buffered output *chunks* per session kept for replay on (re)connect (each chunk up to 64 KiB; see below) |
 | `scrollback_lines` | `10000` | scrollback cap shown in the browser terminal |
 | `font_size` | `16` | default terminal font size in pixels |
 | `font_family` | `"Consolas, 'Cascadia Mono', monospace"` | terminal font stack |
@@ -68,6 +68,12 @@ startup warning, never rejected.
 | `shortcuts` | see the Shortcuts table below | interface keyboard shortcut map |
 | `projects` | `[]` | launcher entries: `{"name", "path", "args": []}` |
 | `snippets` | `[]` | snippet-bar entries: `{"name", "text", "send": false}` |
+
+`replay_chunks` caps the number of buffered output *chunks*, not bytes or
+lines: each chunk is up to 64 KiB (the pty is read in 64 KiB blocks), so
+the worst-case memory a single session's replay buffer can hold is
+`replay_chunks × 64 KiB` — 2000 × 64 KiB ≈ 125 MiB at the default. Raise
+or lower `replay_chunks` to trade replay depth against memory per session.
 
 ### Worked example: adding a project and a snippet
 
@@ -86,10 +92,11 @@ add to the `projects` and `snippets` lists:
 }
 ```
 
-Restart the server (or refresh the page after a `GET /api/config`-driven
-reload) to pick up the change. "My App" now appears in the project
-launcher, and "run tests" appears as a button in the snippets bar and in
-the `Ctrl+k` palette; because `send` is `true`, choosing it types the text
+Restart the server to pick up the change (config is loaded once at
+startup; refreshing the page alone does not reload it). "My App" now
+appears in the project launcher, and "run tests" appears as a button in
+the snippets bar and in the `Ctrl+k` palette; because `send` is `true`,
+choosing it types the text
 and presses Enter.
 
 ## Shortcuts
@@ -141,7 +148,9 @@ the launcher and rename dialogs rely on.
 
 `GET /api/resume` scans the real `~/.claude/projects` directory of the
 user running the server — the resume list you see is your own Claude Code
-history on that machine, in that account.
+history on that machine, in that account. Each project entry includes an
+`exists` flag (`true`/`false`) so the launcher can skip projects whose
+directory has since moved or been deleted.
 
 ## Command line
 

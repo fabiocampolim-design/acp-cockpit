@@ -199,8 +199,8 @@ startup warning, never rejected.</p>
 <tr>
 <td><code>replay_chunks</code></td>
 <td><code>2000</code></td>
-<td>max buffered output chunks per session kept for replay on
-(re)connect</td>
+<td>max buffered output <em>chunks</em> per session kept for replay on
+(re)connect (each chunk up to 64 KiB; see below)</td>
 </tr>
 <tr>
 <td><code>scrollback_lines</code></td>
@@ -241,6 +241,13 @@ ANSI colors</td>
 </tr>
 </tbody>
 </table>
+<p><code>replay_chunks</code> caps the number of buffered output
+<em>chunks</em>, not bytes or lines: each chunk is up to 64 KiB (the pty
+is read in 64 KiB blocks), so the worst-case memory a single session’s
+replay buffer can hold is <code>replay_chunks × 64 KiB</code> — 2000 ×
+64 KiB ≈ 125 MiB at the default. Raise or lower
+<code>replay_chunks</code> to trade replay depth against memory per
+session.</p>
 <h3 id="worked-example-adding-a-project-and-a-snippet">Worked example:
 adding a project and a snippet</h3>
 <p>Edit <code>~/.claudiu/config.json</code> (or the file
@@ -255,12 +262,12 @@ adding a project and a snippet</h3>
 <span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>     <span class="dt">&quot;send&quot;</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">}</span></span>
 <span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
 <span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
-<p>Restart the server (or refresh the page after a
-<code>GET /api/config</code>-driven reload) to pick up the change. “My
-App” now appears in the project launcher, and “run tests” appears as a
-button in the snippets bar and in the <code>Ctrl+k</code> palette;
-because <code>send</code> is <code>true</code>, choosing it types the
-text and presses Enter.</p>
+<p>Restart the server to pick up the change (config is loaded once at
+startup; refreshing the page alone does not reload it). “My App” now
+appears in the project launcher, and “run tests” appears as a button in
+the snippets bar and in the <code>Ctrl+k</code> palette; because
+<code>send</code> is <code>true</code>, choosing it types the text and
+presses Enter.</p>
 <h2 id="shortcuts">Shortcuts</h2>
 <p>Interface-level keyboard shortcuts, all remappable via the
 <code>shortcuts</code> config key. They never intercept keys the CLI
@@ -404,7 +411,10 @@ launcher and rename dialogs rely on.</p>
 <p><code>GET /api/resume</code> scans the real
 <code>~/.claude/projects</code> directory of the user running the server
 — the resume list you see is your own Claude Code history on that
-machine, in that account.</p>
+machine, in that account. Each project entry includes an
+<code>exists</code> flag (<code>true</code>/<code>false</code>) so the
+launcher can skip projects whose directory has since moved or been
+deleted.</p>
 <h2 id="command-line">Command line</h2>
 <pre><code>python -m claudiu [--config PATH] [--port PORT] [--log-dir DIR]
                   [--no-browser] [--verbose | --quiet] [--version]</code></pre>
@@ -490,7 +500,9 @@ pointed at the same running instance.</li>
 multi-pane layouts.</li>
 <li><strong>No remote access.</strong> The server binds
 <code>127.0.0.1</code> only — it is not reachable from other devices,
-and there is no plan to make it so.</li>
+and there is no plan to make it so. Requests must also originate from
+the page itself: a foreign <code>Origin</code> or <code>Host</code>
+header (CSRF, or DNS rebinding to 127.0.0.1) is refused with 403.</li>
 <li><strong>No transcript export.</strong> CLAUDIU does not render or
 export session transcripts; that is the job of the separate
 claude-session-publisher tool.</li>
