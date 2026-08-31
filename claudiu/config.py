@@ -104,7 +104,9 @@ def load_config(path=None) -> tuple[dict, list]:
     warnings: list = []
     if path.exists():
         try:
-            data = json.loads(path.read_text(encoding="utf-8"))
+            # utf-8-sig: Windows editors often prepend a BOM, which strict
+            # utf-8 rejects as invalid JSON.
+            data = json.loads(path.read_text(encoding="utf-8-sig"))
         except json.JSONDecodeError as exc:
             raise ConfigError(f"{path} is not valid JSON: {exc}") from exc
         if not isinstance(data, dict):

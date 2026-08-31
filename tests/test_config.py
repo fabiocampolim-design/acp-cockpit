@@ -32,6 +32,16 @@ def test_unknown_key_warned_not_dropped(tmp_path):
     assert any("tpyo" in w for w in warnings)
 
 
+def test_utf8_bom_is_tolerated(tmp_path):
+    # Windows editors (Notepad, PowerShell's Set-Content -Encoding utf8)
+    # write a UTF-8 BOM; strict utf-8 decoding rejects it as invalid JSON.
+    p = tmp_path / "c.json"
+    p.write_bytes(b"\xef\xbb\xbf" + json.dumps({"port": 9100}).encode("utf-8"))
+    cfg, warnings = config.load_config(p)
+    assert cfg["port"] == 9100
+    assert warnings == []
+
+
 def test_invalid_json_is_config_error(tmp_path):
     p = tmp_path / "c.json"
     p.write_text("{not json")
