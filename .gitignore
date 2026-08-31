@@ -4,3 +4,5 @@ __pycache__/
 logs/
 .claude/settings.local.json
 .project-class
+.superpowers/
+.remember/

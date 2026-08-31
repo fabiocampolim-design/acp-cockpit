@@ -34,3 +34,11 @@ Initial release.
   `USER_MANUAL.html` (and `.pdf` when pandoc + xelatex are on PATH), with a
   stdlib-only Markdown fallback when they are not.
 - `CITATION.cff` for citing the software.
+
+### Deferred to a follow-up
+
+- A `~/.claude/keybindings.json` helper (spec-listed) that would keep
+  CLAUDIU's shortcuts and Claude Code's own keybindings from colliding —
+  intentionally not in this release.
+- A light theme — only the calm dark theme ships; `theme` is fully
+  config-driven so a light palette can be supplied by hand today.
