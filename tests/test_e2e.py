@@ -4,6 +4,7 @@
 """End-to-end: read the rendered page back (rule 14 - the artefact, not
 the return code). Skips cleanly when playwright is not installed."""
 import json
+import os
 import socket
 import subprocess
 import sys
@@ -48,10 +49,17 @@ def server(tmp_path):
     }
     cfg_file = tmp_path / "config.json"
     cfg_file.write_text(json.dumps(cfg), encoding="utf-8")
+    # Isolate the subprocess's home so the resume scan never touches the
+    # developer's real ~/.claude/projects (Path.home() follows USERPROFILE
+    # on Windows, HOME elsewhere). --config/--log-dir are passed explicitly
+    # so config/log locations are unaffected by this.
+    env = dict(os.environ)
+    env["USERPROFILE"] = str(tmp_path)
+    env["HOME"] = str(tmp_path)
     proc = subprocess.Popen(
         [sys.executable, "-m", "claudiu", "--config", str(cfg_file),
          "--no-browser", "--quiet", "--log-dir", str(tmp_path / "logs")],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
     try:
         wait_for_port(port)
         yield f"http://127.0.0.1:{port}/"
@@ -71,8 +79,12 @@ def test_full_roundtrip_rendered_in_browser(server):
         browser = pw.chromium.launch()
         page = browser.new_page()
         page.goto(server)
-        # launcher auto-opens (no sessions yet); start the demo project
-        page.click(".choice")
+        # launcher auto-opens (no sessions yet); start the demo project.
+        # Scoped to #launcher-projects: the resume list appends its own
+        # .choice buttons asynchronously once /api/resume resolves, and
+        # an unscoped ".choice" click is ambiguous under Playwright's
+        # strict mode once that happens.
+        page.click("#launcher-projects .choice")
         page_has(page, "READY")
         # keystrokes reach the pty and the echo renders back
         page.keyboard.type("roundtrip")
