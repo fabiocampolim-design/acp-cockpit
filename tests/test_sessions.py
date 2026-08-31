@@ -215,3 +215,29 @@ class ArgvTests(AsyncTestCase):
             assert mgr.status_all()[sid] is st
             await mgr.kill_session(sid)
             assert mgr.status_all() == {}
+
+    @gen_test(timeout=30)
+    async def test_status_all_flags_waiting_from_the_pty_buffer(self):
+        import json
+        import tempfile
+        from claudiu.status import transcript_path
+        with tempfile.TemporaryDirectory() as tmp:
+            mgr = SessionManager(
+                make_cfg(context_window_tokens=1000,
+                         permission_patterns=["Do you want to proceed"]),
+                claude_dir=tmp)
+            info = mgr.create_session(cwd=".")
+            sid = info["id"]
+            path = transcript_path(info["cwd"], info["session_id"], tmp)
+            path.parent.mkdir(parents=True)
+            # a pending tool call -> transcript state is "busy"
+            path.write_text(json.dumps({
+                "type": "assistant",
+                "message": {"stop_reason": "tool_use", "content": []}}) + "\n",
+                encoding="utf-8")
+            assert mgr.status_all()[sid]["state"] == "busy"
+            # the terminal now shows a permission prompt -> "waiting"
+            mgr.terminals[sid].read_buffer.append(
+                "\x1b[1mDo you want to proceed?\x1b[0m\n 1. Yes\n 2. No")
+            assert mgr.status_all()[sid]["state"] == "waiting"
+            await mgr.kill_session(sid)
