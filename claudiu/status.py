@@ -28,6 +28,31 @@ from pathlib import Path
 PROMPT_MAX = 2000
 READY_STOPS = ("end_turn", "stop_sequence", "max_tokens")
 INTERRUPTED = "[Request interrupted by user"
+_ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b[@-Z\\-_]")
+
+
+def strip_ansi(text: str) -> str:
+    """Drop ANSI/VT escape sequences so plain-text patterns match the pty."""
+    return _ANSI.sub("", text)
+
+
+def awaiting_permission(pty_tail: str, patterns) -> bool:
+    """True when the recent terminal output shows a Claude Code permission
+    or confirmation prompt (the transcript has no record for this -- a
+    blocked tool call looks exactly like a slow one there)."""
+    if not pty_tail or not patterns:
+        return False
+    text = strip_ansi(pty_tail).lower()
+    return any(p.lower() in text for p in patterns if p)
+
+
+def apply_permission(status: dict, pty_tail: str, patterns) -> dict:
+    """Upgrade a busy session to 'waiting' when its terminal shows a prompt.
+    Returns a new dict; the input (which may be a cache entry) is untouched."""
+    if status.get("state") == "busy" and awaiting_permission(pty_tail, patterns):
+        status = dict(status)
+        status["state"] = "waiting"
+    return status
 
 
 def project_slug(cwd) -> str:

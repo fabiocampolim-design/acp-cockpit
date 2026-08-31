@@ -43,6 +43,23 @@ DEFAULTS: dict = {
     "context_window_tokens": 200000,
     "context_warn_pct": 50,
     "context_danger_pct": 75,
+    # Interface (chrome) theme: "system" follows the OS setting, "light"
+    # and "dark" force it. This themes the tabs, dialogs and bars only --
+    # the terminal keeps the xterm `theme` above. A per-browser toggle in
+    # the tab bar overrides this default and is remembered in localStorage.
+    "ui_theme": "system",
+    # A session shows the "waiting" state (needs your input) when its
+    # terminal output contains any of these substrings -- Claude Code's
+    # permission/confirmation prompts. Matched case-insensitively with the
+    # ANSI escape codes stripped. Editable so it survives wording changes.
+    "permission_patterns": [
+        "Do you want to proceed",
+        "Do you want to create",
+        "Do you want to make this edit",
+        "Would you like to proceed",
+    ],
+    # How many recently launched folders to remember (~/.claudiu/recent.json).
+    "recent_max": 15,
     "shortcuts": {
         "tab_1": "Alt+1", "tab_2": "Alt+2", "tab_3": "Alt+3",
         "tab_4": "Alt+4", "tab_5": "Alt+5", "tab_6": "Alt+6",
@@ -100,9 +117,14 @@ def _validate(cfg: dict) -> None:
             or not all(isinstance(p, str) for p in cfg["claude_command"])):
         raise ConfigError("claude_command must be a non-empty list of strings")
     for key in ("replay_chunks", "scrollback_lines", "font_size",
-                "status_poll_ms", "context_window_tokens"):
+                "status_poll_ms", "context_window_tokens", "recent_max"):
         if not isinstance(cfg[key], int) or cfg[key] <= 0:
             raise ConfigError(f"{key} must be a positive integer")
+    if cfg["ui_theme"] not in ("system", "light", "dark"):
+        raise ConfigError('ui_theme must be "system", "light" or "dark"')
+    if (not isinstance(cfg["permission_patterns"], list)
+            or not all(isinstance(p, str) for p in cfg["permission_patterns"])):
+        raise ConfigError("permission_patterns must be a list of strings")
     for key in ("context_warn_pct", "context_danger_pct"):
         if not isinstance(cfg[key], int) or not 0 <= cfg[key] <= 100:
             raise ConfigError(f"{key} must be an integer between 0 and 100")

@@ -164,14 +164,29 @@ scrollback, with highlighting.</li>
 to rename it.</li>
 <li><strong>Status strip</strong> — above each terminal, a one-line box
 shows the last prompt you typed in that session (click it to expand long
-prompts). Each tab carries a small light — pulsing while Claude is
-working, steady once it is waiting for you — and a context gauge that
-fills as the conversation grows and shifts from green through amber to
-red as it approaches the point where auto-compaction starts hurting. A
-tab whose turn finishes while you are looking elsewhere gets the
-“unseen” dot. All three read Claude Code’s own session transcript;
-nothing is guessed from terminal output (see “How the status strip
-works” below).</li>
+prompts). Each tab carries a small light — pulsing amber while Claude is
+working, a faster accent-coloured pulse when it is waiting for your
+input on a permission prompt, and steady green once it is done — and a
+context gauge that fills as the conversation grows and shifts from green
+through amber to red as it approaches the point where auto-compaction
+starts hurting. A tab whose turn finishes while you are looking
+elsewhere gets the “unseen” dot. All three read Claude Code’s own
+session transcript; nothing is guessed from terminal output (see “How
+the status strip works” below).</li>
+<li><strong>Light / dark / system theme</strong> — a theme button in the
+tab bar cycles the interface between following your OS
+(<code>system</code>), <code>light</code>, and <code>dark</code>; the
+choice is remembered per browser. Set the default with
+<code>ui_theme</code>. (The terminal keeps its own <code>theme</code>
+colours in every mode.)</li>
+<li><strong>Redesigned launcher</strong> — the new-session window opens
+with “Any folder” on top (type a path, pick a recently used one from the
+dropdown, or <strong>Browse</strong> the filesystem and <strong>New
+folder</strong> to create one), and two independently scrolling columns
+below: your configured <strong>Projects</strong> and <strong>Resume
+recent</strong>.</li>
+<li><strong>Jump to latest</strong> — when you scroll up in a tab, a “↓
+latest” button appears to return to the live output.</li>
 <li><strong>Calm dark theme</strong> — near-black background, warm-gray
 foreground, muted ANSI colors, steady non-blinking cursor; every color
 is a config value. Sessions start with Claude Code’s
@@ -270,6 +285,23 @@ truecolor)</td>
 <code>context_warn_pct</code>)</td>
 </tr>
 <tr>
+<td><code>ui_theme</code></td>
+<td><code>&quot;system&quot;</code></td>
+<td>interface theme: <code>&quot;system&quot;</code>, <code>&quot;light&quot;</code>, or
+<code>&quot;dark&quot;</code> (the tab-bar button overrides this per browser)</td>
+</tr>
+<tr>
+<td><code>permission_patterns</code></td>
+<td>four common prompts</td>
+<td>substrings that mark a session as “waiting for you” when they appear
+in its terminal output (ANSI stripped, case-insensitive)</td>
+</tr>
+<tr>
+<td><code>recent_max</code></td>
+<td><code>15</code></td>
+<td>how many recently launched folders to remember</td>
+</tr>
+<tr>
 <td><code>shortcuts</code></td>
 <td>see the Shortcuts table below</td>
 <td>interface keyboard shortcut map</td>
@@ -305,11 +337,14 @@ every <code>status_poll_ms</code>:</p>
 <li><strong>last prompt</strong> — the transcript’s
 <code>last-prompt</code> record (or the last user message you typed,
 never text injected by skills or hooks);</li>
-<li><strong>busy / ready</strong> — the last assistant record’s
-<code>stop_reason</code>: a finished turn means ready; a pending tool
-call, or a prompt with no answer yet, means busy. “Busy” therefore also
-covers “waiting for your permission on a tool call” — look at the
-terminal;</li>
+<li><strong>busy / ready / waiting</strong> — the last assistant
+record’s <code>stop_reason</code>: a finished turn means ready; a
+pending tool call, or a prompt with no answer yet, means busy. When the
+session is busy <em>and</em> its terminal shows one of the
+<code>permission_patterns</code> (a “Do you want to proceed?” prompt),
+the state becomes <strong>waiting</strong> — the transcript has no
+record for a blocked prompt, so this one signal is read from the
+terminal output rather than the transcript;</li>
 <li><strong>context gauge</strong> — the last assistant record’s token
 usage (input + cache-creation + cache-read), divided by
 <code>context_window_tokens</code>.</li>
@@ -490,6 +525,18 @@ launcher and rename dialogs rely on.</p>
 <tr>
 <td><code>GET /api/status</code></td>
 <td>per-session status: last prompt, busy/ready, context use</td>
+</tr>
+<tr>
+<td><code>GET /api/recent</code></td>
+<td>recently launched folders (<code>~/.claudiu/recent.json</code>)</td>
+</tr>
+<tr>
+<td><code>GET /api/dirs</code></td>
+<td>list sub-directories of a path (launcher folder picker)</td>
+</tr>
+<tr>
+<td><code>POST /api/mkdir</code></td>
+<td>create a folder (body: <code>parent</code>, <code>name</code>)</td>
 </tr>
 <tr>
 <td><code>WS /ws/&lt;id&gt;</code></td>

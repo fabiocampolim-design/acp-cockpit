@@ -22,12 +22,36 @@ window.Claudiu = {
     return body;
   },
 
-  applyTheme() {
-    const t = this.cfg.theme;
-    const root = document.documentElement.style;
-    root.setProperty("--bg", t.background);
-    root.setProperty("--fg", t.foreground);
-    root.setProperty("--accent", t.blue);
+  // Interface (chrome) theme, independent of the terminal's xterm theme:
+  // "system" follows the OS (no attribute -> CSS prefers-color-scheme),
+  // "light"/"dark" force it via data-theme. A per-browser choice in
+  // localStorage overrides the config default.
+  THEMES: ["system", "light", "dark"],
+  THEME_ICON: { system: "◐", light: "☀", dark: "☾" },
+
+  initTheme() {
+    let t;
+    try { t = localStorage.getItem("claudiu-ui-theme"); } catch (e) { /* ok */ }
+    if (!this.THEMES.includes(t)) t = this.cfg.ui_theme || "system";
+    this.applyUiTheme(t);
+  },
+
+  applyUiTheme(theme) {
+    this.uiTheme = theme;
+    if (theme === "system") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", theme);
+    const btn = document.getElementById("themebtn");
+    if (btn) {
+      btn.textContent = this.THEME_ICON[theme];
+      btn.title = "Theme: " + theme + " (click to change)";
+    }
+  },
+
+  cycleTheme() {
+    const next = this.THEMES[(this.THEMES.indexOf(this.uiTheme) + 1)
+      % this.THEMES.length];
+    try { localStorage.setItem("claudiu-ui-theme", next); } catch (e) { /* ok */ }
+    this.applyUiTheme(next);
   },
 
   tabList() { return Array.from(this.tabs.values()); },
@@ -56,7 +80,9 @@ window.Claudiu = {
     pane.innerHTML = '<div class="strip reconnect">reconnecting…</div>' +
       '<div class="promptstrip" hidden title="your last prompt — click to expand">' +
       '<span class="mark">❯</span><span class="text"></span></div>' +
-      '<div class="termhost"></div><div class="endstate"></div>';
+      '<div class="termhost"></div>' +
+      '<button class="jump" hidden title="scroll to the latest output">↓ latest</button>' +
+      '<div class="endstate"></div>';
     document.getElementById("panes").appendChild(pane);
 
     let fontSize = this.cfg.font_size;
@@ -101,6 +127,11 @@ window.Claudiu = {
     strip.addEventListener("click", () => {
       strip.classList.toggle("expanded");
     });
+    // "jump to latest": show a button whenever the user has scrolled up,
+    // so long tool output never strands them away from the live prompt
+    const jump = pane.querySelector(".jump");
+    jump.addEventListener("click", () => { term.scrollToBottom(); });
+    term.onScroll(() => C.updateJump(tab));
     term.onData((d) => {
       if (tab.ws && tab.ws.readyState === WebSocket.OPEN) {
         tab.ws.send(JSON.stringify(["stdin", d]));
@@ -130,7 +161,7 @@ window.Claudiu = {
       let msg;
       try { msg = JSON.parse(ev.data); } catch (e) { return; }
       if (msg[0] === "stdout") {
-        tab.term.write(msg[1]);
+        tab.term.write(msg[1], () => C.updateJump(tab));
         if (C.activeId !== tab.id && !tab.replaying) tab.el.classList.add("unseen");
       } else if (msg[0] === "disconnect") {
         C.markEnded(tab, msg[1]);
@@ -153,6 +184,13 @@ window.Claudiu = {
     tab.resizeTimer = setTimeout(() => this.sendSize(tab), 120);
   },
 
+  updateJump(tab) {
+    const b = tab.term.buffer.active;
+    const atBottom = b.viewportY >= b.baseY;
+    const jump = tab.pane.querySelector(".jump");
+    if (jump) jump.hidden = atBottom;
+  },
+
   sendSize(tab, force) {
     // A hidden pane (display:none) proposes no dimensions; fitting it
     // would shrink the terminal to its minimum and resize the pty to
@@ -173,11 +211,13 @@ window.Claudiu = {
   applyStatus(tab, st) {
     const prev = tab.state;
     tab.state = st.state;
-    for (const s of ["busy", "ready", "unknown"]) {
+    for (const s of ["busy", "ready", "waiting", "unknown"]) {
       tab.el.classList.toggle("state-" + s, st.state === s);
     }
-    // a turn finishing off-screen is the moment worth flagging
-    if (prev === "busy" && st.state === "ready" && this.activeId !== tab.id) {
+    // a tab that now needs you -- finished its turn, or is blocked on a
+    // permission prompt -- while you are looking elsewhere is flagged
+    const needsYou = st.state === "ready" || st.state === "waiting";
+    if (prev === "busy" && needsYou && this.activeId !== tab.id) {
       tab.el.classList.add("unseen");
     }
     const strip = tab.pane.querySelector(".promptstrip");
@@ -336,12 +376,14 @@ window.Claudiu = {
   async boot() {
     const data = await this.api("/api/config");
     this.cfg = data.config;
-    this.applyTheme();
+    this.initTheme();
     window.ClaudiuUI?.init(this, data.warnings || []);
     window.addEventListener("keydown", (ev) => this.handleShortcut(ev), true);
     // window resizes reach each terminal through its ResizeObserver
     document.getElementById("newtab").addEventListener("click",
       () => window.ClaudiuUI?.openLauncher());
+    document.getElementById("themebtn").addEventListener("click",
+      () => this.cycleTheme());
     const listed = await this.api("/api/sessions");
     for (const info of listed.sessions) this.openTab(info);
     if (!listed.sessions.length) window.ClaudiuUI?.openLauncher();

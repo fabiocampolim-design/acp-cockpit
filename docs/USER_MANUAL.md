@@ -45,13 +45,26 @@ machines) and opens it in your default browser automatically.
 - **Rename by double-click** — double-click a tab's label to rename it.
 - **Status strip** — above each terminal, a one-line box shows the last
   prompt you typed in that session (click it to expand long prompts).
-  Each tab carries a small light — pulsing while Claude is working,
-  steady once it is waiting for you — and a context gauge that fills as
+  Each tab carries a small light — pulsing amber while Claude is
+  working, a faster accent-coloured pulse when it is waiting for your
+  input on a permission prompt, and steady green once it is done — and a
+  context gauge that fills as
   the conversation grows and shifts from green through amber to red as it
   approaches the point where auto-compaction starts hurting. A tab whose
   turn finishes while you are looking elsewhere gets the "unseen" dot.
   All three read Claude Code's own session transcript; nothing is guessed
   from terminal output (see "How the status strip works" below).
+- **Light / dark / system theme** — a theme button in the tab bar cycles
+  the interface between following your OS (`system`), `light`, and `dark`;
+  the choice is remembered per browser. Set the default with `ui_theme`.
+  (The terminal keeps its own `theme` colours in every mode.)
+- **Redesigned launcher** — the new-session window opens with "Any folder"
+  on top (type a path, pick a recently used one from the dropdown, or
+  **Browse** the filesystem and **New folder** to create one), and two
+  independently scrolling columns below: your configured **Projects** and
+  **Resume recent**.
+- **Jump to latest** — when you scroll up in a tab, a "↓ latest" button
+  appears to return to the live output.
 - **Calm dark theme** — near-black background, warm-gray foreground, muted
   ANSI colors, steady non-blinking cursor; every color is a config value.
   Sessions start with Claude Code's `dark-ansi` theme so *all* of its
@@ -83,6 +96,9 @@ startup warning, never rejected.
 | `context_window_tokens` | `200000` | the model's context window, denominator of the context gauge |
 | `context_warn_pct` | `50` | gauge turns amber at this percentage of the context window |
 | `context_danger_pct` | `75` | gauge turns red at this percentage (must be ≥ `context_warn_pct`) |
+| `ui_theme` | `"system"` | interface theme: `"system"`, `"light"`, or `"dark"` (the tab-bar button overrides this per browser) |
+| `permission_patterns` | four common prompts | substrings that mark a session as "waiting for you" when they appear in its terminal output (ANSI stripped, case-insensitive) |
+| `recent_max` | `15` | how many recently launched folders to remember |
 | `shortcuts` | see the Shortcuts table below | interface keyboard shortcut map |
 | `projects` | `[]` | launcher entries: `{"name", "path", "args": []}` |
 | `snippets` | `[]` | snippet-bar entries: `{"name", "text", "send": false}` |
@@ -103,10 +119,13 @@ hundred KB at most) every `status_poll_ms`:
 
 - **last prompt** — the transcript's `last-prompt` record (or the last
   user message you typed, never text injected by skills or hooks);
-- **busy / ready** — the last assistant record's `stop_reason`: a finished
-  turn means ready; a pending tool call, or a prompt with no answer yet,
-  means busy. "Busy" therefore also covers "waiting for your permission
-  on a tool call" — look at the terminal;
+- **busy / ready / waiting** — the last assistant record's `stop_reason`:
+  a finished turn means ready; a pending tool call, or a prompt with no
+  answer yet, means busy. When the session is busy *and* its terminal
+  shows one of the `permission_patterns` (a "Do you want to proceed?"
+  prompt), the state becomes **waiting** — the transcript has no record
+  for a blocked prompt, so this one signal is read from the terminal
+  output rather than the transcript;
 - **context gauge** — the last assistant record's token usage (input +
   cache-creation + cache-read), divided by `context_window_tokens`.
 
@@ -192,6 +211,9 @@ the launcher and rename dialogs rely on.
 | `GET /api/config` | effective config plus load warnings |
 | `GET /api/resume` | recent resumable Claude sessions |
 | `GET /api/status` | per-session status: last prompt, busy/ready, context use |
+| `GET /api/recent` | recently launched folders (`~/.claudiu/recent.json`) |
+| `GET /api/dirs` | list sub-directories of a path (launcher folder picker) |
+| `POST /api/mkdir` | create a folder (body: `parent`, `name`) |
 | `WS /ws/<id>` | terminal stream (terminado protocol) |
 
 `GET /api/resume` scans the real `~/.claude/projects` directory of the

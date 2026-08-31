@@ -48,6 +48,9 @@ Every key of `claudiu.config.DEFAULTS`:
 | `context_window_tokens` | `200000` | denominator of the context gauge |
 | `context_warn_pct` | `50` | gauge amber threshold (percent) |
 | `context_danger_pct` | `75` | gauge red threshold (percent), must be >= `context_warn_pct` |
+| `ui_theme` | `"system"` | chrome theme: `system` / `light` / `dark`; a per-browser toggle overrides it in localStorage |
+| `permission_patterns` | list of 4 | substrings that flag a busy session as `waiting` when found in its pty output (ANSI stripped, caseless) |
+| `recent_max` | `15` | cap on `~/.claudiu/recent.json` |
 | `shortcuts` | see Shortcuts table below | interface keyboard shortcut map |
 | `projects` | `[]` | list of `{"name", "path", "args": []}` launcher entries |
 | `snippets` | `[]` | list of `{"name", "text", "send": false}` prompt-snippet entries |
@@ -56,8 +59,9 @@ Validation (`claudiu.config._validate`): `port` must be an int in
 1–65535; `claude_command` a non-empty list of strings (a bare string is
 coerced to a one-element list); `replay_chunks`, `scrollback_lines`,
 `font_size`, `status_poll_ms`, `context_window_tokens` positive ints;
-`context_warn_pct` <= `context_danger_pct`, both ints in 0-100;
-`claude_theme` a string; `theme` and `shortcuts` must be JSON objects;
+`recent_max` positive int; `context_warn_pct` <= `context_danger_pct`,
+both ints in 0-100; `ui_theme` one of system/light/dark;
+`permission_patterns` a list of strings; `claude_theme` a string; `theme` and `shortcuts` must be JSON objects;
 each `projects[i]` needs `name` and `path` (`args` defaults to `[]`); each
 `snippets[i]` needs `name` and `text` (`send` defaults to `false`).
 
@@ -91,6 +95,9 @@ dialog-closing `Escape` handler in `static/ui.js`.
 | `GET /api/config` | effective config plus load warnings |
 | `GET /api/resume` | recent resumable Claude sessions |
 | `GET /api/status` | per-session status: last prompt, busy/ready, context use |
+| `GET /api/recent` | recently launched folders (`~/.claudiu/recent.json`) |
+| `GET /api/dirs` | list sub-directories of a path (launcher folder picker) |
+| `POST /api/mkdir` | create a folder (body: parent, name) |
 | `WS /ws/<id>` | terminal stream (terminado protocol) |
 
 `GET /api/resume` scans the real `~/.claude/projects` directory of the
@@ -106,6 +113,16 @@ not already carry `--session-id`/`--resume <id>`/`--continue`; the file is
 located lazily (`find_transcript`) and re-read only when its mtime/size
 changes. The slug is the absolute cwd with every non-alphanumeric character
 replaced by `-` (`claudiu.status.project_slug`).
+
+`GET /api/dirs?path=` (`claudiu.browse.list_dirs`) lists a folder's
+sub-directories plus its parent; an empty path lists drive roots on
+Windows. `POST /api/mkdir` (`claudiu.browse.make_dir`) creates one folder
+under an existing parent (rejects separators). `GET /api/recent`
+(`claudiu.recent`) reads `~/.claudiu/recent.json`, which `POST
+/api/sessions` appends to on every launch. The `waiting` status is added
+by `claudiu.status.apply_permission`, which scans the session's replay
+buffer tail for `permission_patterns` (the transcript has no blocked-prompt
+record).
 
 Everything else (`GET /(.*)`) is served as a static file from
 `claudiu/static/`, `index.html` as the default document.
@@ -132,7 +149,9 @@ claudiu/cli.py            argument parsing, audit logging, server startup
 claudiu/app.py             Tornado application, ROUTES, REST handlers
 claudiu/sessions.py       SessionManager: ConPTYs, replay buffers, metadata
 claudiu/resume.py           ~/.claude/projects scanner for --resume lists
-claudiu/status.py           transcript-tail reader: last prompt, busy/ready, context use
+claudiu/status.py           transcript-tail reader: last prompt, busy/ready/waiting, context use
+claudiu/recent.py           recently launched folders (~/.claudiu/recent.json)
+claudiu/browse.py           launcher folder picker: list_dirs + make_dir
 claudiu/static/           index.html, app.js, ui.js, keys.js, app.css
 claudiu/static/vendor/    pinned xterm.js + addons (see VENDORED.md)
 docs/USER_MANUAL.md       human-oriented manual

@@ -12,23 +12,56 @@
 <header id="topbar">
   <nav id="tabbar" aria-label="sessions"></nav>
   <button id="newtab" title="New session (Alt+T)">+</button>
+  <button id="themebtn" title="Theme">◐</button>
   <button id="helpbtn" title="Keyboard shortcuts (Alt+H)">?</button>
 </header>
 <div id="snippetbar"></div>
 <main id="panes"></main>
 
 <div class="overlay" id="launcher" hidden>
-  <div class="dialog">
+  <div class="dialog launcher">
     <h2>New session</h2>
-    <h3>Projects</h3>
-    <div id="launcher-projects"></div>
-    <h3>Resume recent</h3>
-    <div id="launcher-resume"></div>
-    <h3>Any folder</h3>
-    <div class="row">
-      <input id="launcher-path" placeholder="C:\path\to\project">
-      <button id="launcher-start">Start</button>
+
+    <section class="anyfolder">
+      <h3>Any folder</h3>
+      <div class="row">
+        <input id="launcher-path"
+               placeholder="C:\path\to\project — type a path, pick a recent one, or browse">
+        <button id="launcher-browse" class="ghost with-icon" title="Browse folders">
+          <span class="ico">📂</span> Browse</button>
+        <button id="launcher-start" class="primary with-icon"
+                title="Start a claude session in this folder">
+          <span class="ico">▶</span> Start</button>
+      </div>
+      <div class="row">
+        <select id="launcher-recent" title="Recently used folders"
+                aria-label="Recent folders"></select>
+      </div>
+      <div id="launcher-browser" hidden>
+        <div id="launcher-crumb" class="crumb" aria-label="current folder"></div>
+        <div class="row">
+          <button id="launcher-newfolder" class="ghost with-icon"
+                  title="Create a new folder inside the current one">
+            <span class="ico">＋</span> New folder</button>
+          <button id="launcher-usehere" class="primary with-icon"
+                  title="Start a claude session in the current folder">
+            <span class="ico">▶</span> Use this folder</button>
+        </div>
+        <div id="launcher-dirs" class="dirlist" aria-label="sub-folders"></div>
+      </div>
+    </section>
+
+    <div class="launcher-cols">
+      <section class="col">
+        <h3>Projects</h3>
+        <div id="launcher-projects" class="scrollcol"></div>
+      </section>
+      <section class="col">
+        <h3>Resume recent</h3>
+        <div id="launcher-resume" class="scrollcol"></div>
+      </section>
     </div>
+
     <p class="hint" id="launcher-hint">Esc closes</p>
   </div>
 </div>

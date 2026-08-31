@@ -44,6 +44,8 @@ window.ClaudiuUI = (function () {
     ok.focus();
   }
 
+  let browsePath = null;  // folder currently shown in the picker
+
   async function openLauncher() {
     hideAll();
     const projBox = el("launcher-projects");
@@ -55,6 +57,9 @@ window.ClaudiuUI = (function () {
     if (!app.cfg.projects.length) {
       projBox.innerHTML = '<small class="hint">none configured — add "projects" to config.json</small>';
     }
+    el("launcher-browser").hidden = true;  // start collapsed
+    el("launcher-path").value = "";
+    populateRecent();
     const resBox = el("launcher-resume");
     resBox.innerHTML = '<small class="hint">scanning…</small>';
     show("launcher");
@@ -65,8 +70,8 @@ window.ClaudiuUI = (function () {
       // Skip projects whose directory no longer exists -- --resume would
       // just spawn `claude` nowhere usable.
       const found = data.projects.filter((p) => p.exists !== false);
-      for (const proj of found.slice(0, 8)) {
-        for (const s of proj.sessions.slice(0, 2)) {
+      for (const proj of found) {
+        for (const s of proj.sessions.slice(0, 3)) {
           resBox.appendChild(choice(s.summary, proj.path, () =>
             startSession({ path: proj.path, args: ["--resume", s.id] })));
         }
@@ -78,6 +83,98 @@ window.ClaudiuUI = (function () {
       resBox.innerHTML = '<small class="hint"></small>';
       resBox.querySelector("small").textContent = "scan failed: " + e.message;
     }
+  }
+
+  async function populateRecent() {
+    const sel = el("launcher-recent");
+    sel.innerHTML = "";
+    let items = [];
+    try { items = (await app.api("/api/recent")).recent || []; }
+    catch (e) { /* dropdown is a convenience; ignore */ }
+    if (!items.length) {
+      const o = document.createElement("option");
+      o.textContent = "Recent folders — none yet"; o.disabled = true;
+      o.selected = true; sel.appendChild(o); sel.disabled = true;
+      return;
+    }
+    sel.disabled = false;
+    const head = document.createElement("option");
+    head.value = ""; head.textContent = "Recent folders…"; head.selected = true;
+    sel.appendChild(head);
+    for (const it of items) {
+      const o = document.createElement("option");
+      o.value = it.path; o.textContent = `${it.name}  —  ${it.path}`;
+      sel.appendChild(o);
+    }
+  }
+
+  function toggleBrowser() {
+    const box = el("launcher-browser");
+    box.hidden = !box.hidden;
+    if (!box.hidden) browseTo(el("launcher-path").value.trim());
+  }
+
+  async function browseTo(path) {
+    const box = el("launcher-dirs");
+    box.innerHTML = '<small class="hint">scanning…</small>';
+    let data;
+    try { data = await app.api("/api/dirs?path=" + encodeURIComponent(path || "")); }
+    catch (e) { box.innerHTML = ""; box.textContent = "could not read: " + e.message; return; }
+    browsePath = data.path || "";
+    if (browsePath) el("launcher-path").value = browsePath;
+    el("launcher-crumb").textContent = data.path || "This PC (drives)";
+    el("launcher-usehere").disabled = !browsePath;
+    el("launcher-newfolder").disabled = !browsePath;
+    box.textContent = "";
+    if (data.parent !== null && data.parent !== undefined) {
+      box.appendChild(choice("⬆  ..", "up one level", () => browseTo(data.parent)));
+    }
+    for (const d of data.dirs) {
+      box.appendChild(choice("📁  " + d.name, "", () => browseTo(d.path)));
+    }
+    if (data.error) {
+      const s = document.createElement("small");
+      s.className = "hint"; s.textContent = data.error; box.appendChild(s);
+    } else if (!data.dirs.length && data.parent === null) {
+      box.innerHTML = '<small class="hint">no drives found</small>';
+    } else if (!data.dirs.length) {
+      const s = document.createElement("small");
+      s.className = "hint"; s.textContent = "no sub-folders here";
+      box.appendChild(s);
+    }
+  }
+
+  function newFolder() {
+    if (!browsePath) return;
+    const box = el("launcher-dirs");
+    const row = document.createElement("div");
+    row.className = "row newfolder";
+    const input = document.createElement("input");
+    input.placeholder = "new folder name";
+    const ok = document.createElement("button");
+    ok.className = "primary"; ok.textContent = "Create";
+    const cancel = document.createElement("button");
+    cancel.className = "ghost"; cancel.textContent = "Cancel";
+    row.append(input, ok, cancel);
+    box.prepend(row);
+    input.focus();
+    const create = async () => {
+      const name = input.value.trim();
+      if (!name) { input.focus(); return; }
+      try {
+        const res = await app.api("/api/mkdir", {
+          method: "POST",
+          body: JSON.stringify({ parent: browsePath, name }),
+        });
+        browseTo(res.path);  // step into the folder just created
+      } catch (e) { alertBox("Could not create folder: " + e.message); }
+    };
+    ok.addEventListener("click", create);
+    cancel.addEventListener("click", () => row.remove());
+    input.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") { ev.preventDefault(); create(); }
+      if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); row.remove(); }
+    });
   }
 
   // human labels for the config "shortcuts" keys; tab_1..tab_9 collapse
@@ -302,6 +399,18 @@ window.ClaudiuUI = (function () {
     });
     el("launcher-path").addEventListener("keydown", (ev) => {
       if (ev.key === "Enter") el("launcher-start").click();
+    });
+    el("launcher-browse").addEventListener("click", toggleBrowser);
+    el("launcher-usehere").addEventListener("click", () => {
+      if (browsePath) startSession({ path: browsePath });
+    });
+    el("launcher-newfolder").addEventListener("click", newFolder);
+    el("launcher-recent").addEventListener("change", (ev) => {
+      if (ev.target.value) {
+        el("launcher-path").value = ev.target.value;
+        ev.target.selectedIndex = 0;  // back to the "Recent folders…" header
+        el("launcher-path").focus();
+      }
     });
     // Capture phase: with a terminal focused, xterm.js handles Escape on
     // its textarea and stops propagation, so a bubble-phase listener

@@ -33,8 +33,12 @@ browser.
 - **One dead session never disturbs another** — every session's I/O is
   exception-walled.
 - **You can see where every session stands** — each tab shows your last
-  prompt, whether Claude is working or waiting, and how full its context
-  is (green → amber → red), all read from Claude Code's own transcript.
+  prompt, whether Claude is working, waiting for your input, or done, and
+  how full its context is (green → amber → red), read from Claude Code's
+  own transcript.
+- **A launcher that gets out of the way** — browse to any folder (or make
+  a new one), pick a recent one, or start a configured project, with
+  resume-after-crash one click away. Light, dark, or system theme.
 - **Everything reachable by keyboard** — remappable shortcuts, a snippet
   palette, and a project launcher, all one action away.
 - **Every visual parameter is a committed config line** — theme colors,
@@ -45,7 +49,7 @@ See `docs/USER_MANUAL.md` for the full feature list, configuration
 reference, and known limitations, and `AGENTS.md` for the machine-oriented
 reference (every config key, route, and CLI flag).
 
-Verified by 81 checks (pytest + pyflakes, Windows/Linux/macOS CI) plus two
+Verified by 93 checks (pytest + pyflakes, Windows/Linux/macOS CI) plus two
 Playwright end-to-end checks.
 
 ## How it was built

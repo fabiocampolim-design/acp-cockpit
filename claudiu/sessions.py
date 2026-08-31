@@ -16,7 +16,8 @@ from pathlib import Path
 
 from terminado import NamedTermManager, TermSocket
 
-from .status import find_transcript, read_status, unknown_status
+from .status import (apply_permission, find_transcript, read_status,
+                     unknown_status)
 
 log = logging.getLogger(__name__)
 
@@ -170,12 +171,24 @@ class SessionManager(NamedTermManager):
                 key = None
             cached = self._status_cache.get(sid)
             if cached and key is not None and cached[0] == key:
-                out[sid] = cached[1]
-                continue
-            status = read_status(path, cfg["context_window_tokens"])
-            self._status_cache[sid] = (key, status)
-            out[sid] = status
+                status = cached[1]
+            else:
+                status = read_status(path, cfg["context_window_tokens"])
+                self._status_cache[sid] = (key, status)
+            # The permission overlay depends on the live terminal, not the
+            # transcript, so it is applied fresh every poll (never cached).
+            out[sid] = apply_permission(status, self._pty_tail(sid),
+                                        cfg.get("permission_patterns", []))
         return out
+
+    def _pty_tail(self, sid: str, chunks: int = 40) -> str:
+        """Recent terminal output for a session (last few replay chunks),
+        used to spot a permission prompt Claude Code is blocked on."""
+        term = self.terminals.get(sid)
+        buf = getattr(term, "read_buffer", None)
+        if not buf:
+            return ""
+        return "".join(list(buf)[-chunks:])
 
     def rename(self, sid: str, title: str) -> None:
         self._meta[sid]["title"] = title

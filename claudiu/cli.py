@@ -91,7 +91,7 @@ def main(argv=None) -> int:
         for w in warnings:
             log.warning("config: %s", w)
         manager = SessionManager(cfg)
-        app = make_app(cfg, manager, warnings)
+        app = make_app(cfg, manager, warnings, config_dir=str(cfg_path.parent))
         try:
             app.listen(cfg["port"], address="127.0.0.1")
         except OSError as exc:

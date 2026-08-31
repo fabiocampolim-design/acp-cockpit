@@ -11,6 +11,8 @@ from pathlib import Path
 import tornado.web
 from tornado.ioloop import IOLoop
 
+from claudiu.browse import list_dirs, make_dir
+from claudiu.recent import add_recent, load_recent
 from claudiu.resume import scan_recent_sessions
 from claudiu.sessions import ClaudiuTermSocket
 
@@ -46,6 +48,9 @@ ROUTES = {
     "GET /api/config": "effective config plus load warnings",
     "GET /api/resume": "recent resumable Claude sessions",
     "GET /api/status": "per-session status: last prompt, busy/ready, context use",
+    "GET /api/recent": "recently launched folders (~/.claudiu/recent.json)",
+    "GET /api/dirs": "list sub-directories of a path (launcher folder picker)",
+    "POST /api/mkdir": "create a folder (body: parent, name)",
     "WS /ws/<id>": "terminal stream (terminado protocol)",
 }
 
@@ -89,8 +94,10 @@ class APIHandler(tornado.web.RequestHandler):
 
 
 class SessionsHandler(APIHandler):
-    def initialize(self, manager):
+    def initialize(self, manager, config_dir, config):
         self.manager = manager
+        self.config_dir = config_dir
+        self.config = config
 
     def get(self):
         self.write({"sessions": self.manager.list_sessions()})
@@ -108,8 +115,40 @@ class SessionsHandler(APIHandler):
         except Exception as exc:  # exception wall: one bad spawn, not a dead server
             log.exception("session spawn failed")
             raise _api_error(500, f"could not start session: {exc}")
+        try:  # remembering a launch must never fail the launch
+            add_recent(self.config_dir, path, body.get("title"),
+                       cap=self.config.get("recent_max", 15))
+        except Exception:
+            log.exception("could not record recent folder")
         self.set_status(201)
         self.write(info)
+
+
+class RecentHandler(APIHandler):
+    def initialize(self, config_dir):
+        self.config_dir = config_dir
+
+    def get(self):
+        self.write({"recent": load_recent(self.config_dir)})
+
+
+class DirsHandler(APIHandler):
+    async def get(self):
+        path = self.get_query_argument("path", "")
+        result = await IOLoop.current().run_in_executor(None, list_dirs, path)
+        self.write(result)
+
+
+class MkdirHandler(APIHandler):
+    def post(self):
+        body = self.body_json()
+        parent, name = body.get("parent"), body.get("name")
+        if not isinstance(parent, str) or not isinstance(name, str):
+            raise tornado.web.HTTPError(400, reason="parent and name are required")
+        result = make_dir(parent, name)
+        if result.get("error"):
+            raise _api_error(400, result["error"])
+        self.write(result)
 
 
 class SessionHandler(APIHandler):
@@ -190,17 +229,24 @@ class TermSocketHandler(ClaudiuTermSocket):
         return host in ALLOWED_HOSTS
 
 
-def make_app(config, manager, warnings=()) -> tornado.web.Application:
+def make_app(config, manager, warnings=(), config_dir=None) -> tornado.web.Application:
     static = Path(__file__).parent / "static"
+    if config_dir is None:
+        from claudiu.config import config_path
+        config_dir = str(config_path().parent)
     return tornado.web.Application(
         [
-            (r"/api/sessions", SessionsHandler, {"manager": manager}),
+            (r"/api/sessions", SessionsHandler,
+             {"manager": manager, "config_dir": config_dir, "config": config}),
             (r"/api/sessions/([A-Za-z0-9_-]+)", SessionHandler,
              {"manager": manager}),
             (r"/api/config", ConfigHandler,
              {"config": config, "warnings": list(warnings)}),
             (r"/api/resume", ResumeHandler),
             (r"/api/status", StatusHandler, {"manager": manager}),
+            (r"/api/recent", RecentHandler, {"config_dir": config_dir}),
+            (r"/api/dirs", DirsHandler),
+            (r"/api/mkdir", MkdirHandler),
             (r"/ws/([A-Za-z0-9_-]+)", TermSocketHandler,
              {"term_manager": manager}),
             # browsers ask for /favicon.ico unprompted; point them at the

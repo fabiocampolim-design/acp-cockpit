@@ -4,6 +4,21 @@ All notable changes to CLAUDIU are documented in this file.
 
 ## Unreleased
 
+- Third session state: **waiting for your input**. When a session is busy
+  and its terminal shows a permission/confirmation prompt (matched against
+  the new `permission_patterns` config), its tab light switches to a faster
+  accent-coloured pulse. Claude Code's transcript has no record for a
+  blocked prompt, so this is read from the terminal output.
+- Redesigned launcher: "Any folder" on top with a filesystem browser, a
+  "New folder" button (`POST /api/mkdir`), and a recently-used-folders
+  dropdown (`GET /api/recent`, backed by `~/.claudiu/recent.json`,
+  `recent_max`); two independently scrolling columns below for Projects
+  and Resume recent. New `GET /api/dirs` folder picker.
+- Interface theme: `ui_theme` (`system` / `light` / `dark`) plus a tab-bar
+  toggle remembered per browser; a full light palette. The terminal keeps
+  its own xterm `theme` in every mode.
+- "Jump to latest" button in a tab when you have scrolled up.
+
 - Status strip: each pane shows the last prompt typed in that session
   (click to expand); each tab carries a busy/ready light and a context
   gauge (green → amber → red at `context_warn_pct` / `context_danger_pct`

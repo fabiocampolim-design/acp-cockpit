@@ -4,8 +4,11 @@
 import json
 from pathlib import Path
 
-from claudiu.status import (find_transcript, project_slug, read_status,
-                            transcript_path, unknown_status)
+from claudiu.status import (apply_permission, awaiting_permission,
+                            find_transcript, project_slug, read_status,
+                            strip_ansi, transcript_path, unknown_status)
+
+PATTERNS = ["Do you want to proceed", "Would you like to proceed"]
 
 
 def _write(path: Path, records) -> Path:
@@ -128,3 +131,25 @@ def test_bad_lines_never_raise(tmp_path):
                  + json.dumps(_assistant("end_turn")) + "\n", encoding="utf-8")
     st = read_status(f, context_window=1000)
     assert st["state"] == "ready" and st["last_prompt"] is None
+
+
+def test_strip_ansi_removes_escape_codes():
+    assert strip_ansi("\x1b[38;2;1;2;3mhi\x1b[0m \x1b[2Kthere") == "hi there"
+
+
+def test_awaiting_permission_matches_stripped_and_caseless():
+    tail = "\x1b[1mDo you want to PROCEED?\x1b[0m\n 1. Yes\n 2. No"
+    assert awaiting_permission(tail, PATTERNS) is True
+    assert awaiting_permission("just running tests...", PATTERNS) is False
+    assert awaiting_permission("", PATTERNS) is False
+    assert awaiting_permission("Do you want to proceed", []) is False
+
+
+def test_apply_permission_only_upgrades_busy():
+    busy = {"state": "busy", "last_prompt": "x"}
+    up = apply_permission(busy, "Do you want to proceed?", PATTERNS)
+    assert up["state"] == "waiting"
+    assert busy["state"] == "busy"  # original untouched (may be a cache entry)
+    ready = {"state": "ready"}
+    assert apply_permission(ready, "Do you want to proceed?", PATTERNS) is ready
+    assert apply_permission(dict(busy), "nothing here", PATTERNS)["state"] == "busy"

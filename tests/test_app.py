@@ -2,8 +2,11 @@
 # Copyright 2026 Fabio Campolim
 import copy
 import json
+import os
 import sys
+import tempfile
 
+import tornado.escape
 import tornado.gen
 import tornado.websocket
 from tornado.testing import AsyncHTTPTestCase, gen_test
@@ -24,7 +27,9 @@ class AppTests(AsyncHTTPTestCase):
         cfg = copy.deepcopy(DEFAULTS)
         cfg["claude_command"] = ECHO_CMD
         self.manager = SessionManager(cfg)
-        return make_app(cfg, self.manager, warnings=["w1"])
+        self.config_dir = tempfile.mkdtemp()
+        return make_app(cfg, self.manager, warnings=["w1"],
+                        config_dir=self.config_dir)
 
     def _post(self, url, body, headers=None):
         hdrs = {"Content-Type": "application/json"}
@@ -101,6 +106,28 @@ class AppTests(AsyncHTTPTestCase):
         assert st["state"] == "unknown" and st["last_prompt"] is None
         assert set(st) >= {"exists", "state", "last_prompt",
                            "context_tokens", "context_pct"}
+
+    def test_launching_records_a_recent_folder(self):
+        cwd = os.getcwd()
+        assert self._post("/api/sessions", {"path": cwd}).code == 201
+        recent = json.loads(self.fetch("/api/recent").body)["recent"]
+        assert recent and os.path.samefile(recent[0]["path"], cwd)
+
+    def test_dirs_endpoint_lists_subdirectories(self):
+        d = tempfile.mkdtemp()
+        os.mkdir(os.path.join(d, "sub"))
+        resp = self.fetch("/api/dirs?path=" + tornado.escape.url_escape(d))
+        assert resp.code == 200
+        data = json.loads(resp.body)
+        assert [x["name"] for x in data["dirs"]] == ["sub"]
+
+    def test_mkdir_endpoint_creates_and_validates(self):
+        d = tempfile.mkdtemp()
+        ok = self._post("/api/mkdir", {"parent": d, "name": "made"})
+        assert ok.code == 200
+        assert os.path.isdir(os.path.join(d, "made"))
+        bad = self._post("/api/mkdir", {"parent": d, "name": "a/b"})
+        assert bad.code == 400
 
     def test_resume_endpoint_shape(self):
         body = json.loads(self.fetch("/api/resume").body)
@@ -189,7 +216,7 @@ class FaviconTests(AsyncHTTPTestCase):
     def get_app(self):
         cfg = copy.deepcopy(DEFAULTS)
         cfg["claude_command"] = ECHO_CMD
-        return make_app(cfg, SessionManager(cfg))
+        return make_app(cfg, SessionManager(cfg), config_dir=tempfile.mkdtemp())
 
     def test_favicon_svg_served(self):
         resp = self.fetch("/favicon.svg")
