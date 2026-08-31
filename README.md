@@ -42,7 +42,7 @@ See `docs/USER_MANUAL.md` for the full feature list, configuration
 reference, and known limitations, and `AGENTS.md` for the machine-oriented
 reference (every config key, route, and CLI flag).
 
-Verified by a 46-check test suite (pytest + pyflakes, Windows/Linux/macOS
+Verified by a 50-check test suite (pytest + pyflakes, Windows/Linux/macOS
 CI).
 
 ## How it was built

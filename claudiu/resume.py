@@ -2,7 +2,7 @@
 # Copyright 2026 Fabio Campolim
 """Scan ~/.claude/projects for recent Claude Code sessions to --resume.
 
-Robustness rule (GITHUBIFY rule 14): anything unexpected is counted and
+Robustness rule (publication-playbook rule 14): anything unexpected is counted and
 reported, never dropped silently, and never crashes the scan.
 """
 from __future__ import annotations

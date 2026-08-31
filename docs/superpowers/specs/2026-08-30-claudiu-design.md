@@ -1,7 +1,8 @@
 # CLAUDIU — Browser interface for Claude Code sessions — Design
 
-*Working codename: CLAUDIU (never ships; public name chosen later in GITHUBIFY
-Phase 3 with a GitHub + PyPI collision check, Fabio decides).*
+*Working codename: CLAUDIU (never ships; public name chosen later in the
+publication playbook's Phase 3 with a GitHub + PyPI collision check, Fabio
+decides).*
 
 Date: 2026-08-30. Status: **approved by Fabio** (brainstorming session,
 sections 1–3 each approved individually).
@@ -12,8 +13,8 @@ Working with Claude Code in terminal windows causes real physical strain:
 tiny fonts, endless scroll, harsh colors, no tabs, and interfaces that crash
 or lose sessions. Fabio needs a stable, eye-friendly, keyboard-driven
 interface for running **several Claude Code sessions at once**, built to be
-published on GitHub to the claude-session-publisher standard (the GITHUBIFY
-playbook at `C:\Users\fabio\claude\tools\GITHUBIFY\README.md`).
+published on GitHub to the claude-session-publisher standard (the
+publication playbook — the author's internal repo-publishing standard).
 
 ## Decisions made (with Fabio, 2026-08-30)
 
@@ -70,7 +71,7 @@ Each has one job, a clear interface, and is testable alone.
    list recent Claude Code sessions per project directory, so the UI can
    offer one-click `claude --resume <session-id>` in the right folder after
    a browser/PC crash. Unknown/new record types are counted and reported,
-   never dropped silently (GITHUBIFY rule 14).
+   never dropped silently (publication-playbook rule 14).
 4. **Config (`config.py`)** — one human-editable JSON file: projects list,
    snippets, keyboard shortcut map, theme values, font size, port,
    scrollback cap, claude executable path. Default location in the home
@@ -157,7 +158,7 @@ and its WebSocket.
   (configurable); search operates within the cap. Full-history archiving
   stays claude-session-publisher's job (recorded decision, YAGNI).
 
-## Testing (GITHUBIFY rules 5, 14, 15)
+## Testing (publication-playbook rules 5, 14, 15)
 
 - **Unit:** config load/validate/defaults; ring buffer (wrap, replay,
   cap); resume scanner against synthetic `~/.claude/projects` fixtures
@@ -174,10 +175,10 @@ and its WebSocket.
 - **Static:** pyflakes over the whole tree as its own CI step before the
   suite (rule 5). CI: GitHub Actions on Windows + Linux + macOS.
 
-## Publishing plan (GITHUBIFY phases)
+## Publishing plan (publication-playbook phases)
 
-Developed in `C:\Users\fabio\claude\githubify\CLAUDIU` under the working
-codename. Then: Phase 1 audit → Phase 2 harden → Phase 3 naming (GitHub +
+Developed in a local working folder under the working codename. Then:
+Phase 1 audit → Phase 2 harden → Phase 3 naming (GitHub +
 PyPI collision check; Fabio decides) → Phase 4 README as product page
 (badges, honest neighbour comparison — ttyd, Wetty, VS Code terminal,
 existing Claude web UIs — showcase, CRediT table) → Phase 5 repo mechanics
@@ -185,7 +186,7 @@ existing Claude web UIs — showcase, CRediT table) → Phase 5 repo mechanics
 headers; `### Disclaimer` and non-affiliation note — Anthropic/Claude named
 only to identify what the tool talks to) → Phase 6 after-publishing.
 `VERSION`, `CHANGELOG.md`, annotated tags, GitHub Releases via `gh`. Enters
-the GITHUBIFY queue as a new row. PyPI publication evaluated per rule S10
+the publication playbook's queue as a new row. PyPI publication evaluated per rule S10
 (decision recorded either way).
 
 ## Out of scope for v1 (recorded decisions, not omissions)
@@ -211,5 +212,5 @@ the GITHUBIFY queue as a new row. PyPI publication evaluated per rule S10
    action each.
 5. Fabio can look at it for hours without eye strain — and every visual
    parameter he'd want to tune is one committed config line away.
-6. The repo passes the GITHUBIFY bar: suite + pyflakes green on 3 OSes,
+6. The repo passes the publication playbook's bar: suite + pyflakes green on 3 OSes,
    manual + AGENTS.md guarded by tests, licence/disclaimer guards in place.

@@ -116,10 +116,24 @@ claudiu/resume.py           ~/.claude/projects scanner for --resume lists
 claudiu/static/           index.html, app.js, ui.js, keys.js, app.css
 claudiu/static/vendor/    pinned xterm.js + addons (see VENDORED.md)
 docs/USER_MANUAL.md       human-oriented manual
+docs/build_manual.py       renders USER_MANUAL.md to USER_MANUAL.html/.pdf
 docs/superpowers/         design specification and implementation plan (historical record)
 tests/                    unit, integration, e2e, docs/licence guard tests
 run_claudiu.bat           Windows double-click launcher
 ```
+
+## Rebuilding the manual
+
+`docs/USER_MANUAL.md` is the source of truth; the committed
+`docs/USER_MANUAL.html` (and `.pdf`, when available) are built from it.
+After editing the manual, regenerate and commit both:
+
+```
+python docs/build_manual.py
+```
+
+Uses `pandoc`/`xelatex` when on `PATH`; falls back to a stdlib-only
+Markdown renderer for the HTML otherwise (never fails on a missing tool).
 
 ## Test commands
 

@@ -30,3 +30,7 @@ Initial release.
   websocket per tab (`/ws/<id>`, terminado protocol).
 - Full test suite (unit, integration, end-to-end via Playwright, docs and
   licence guards) green with pyflakes on Windows, Linux, and macOS CI.
+- `docs/build_manual.py`: renders `docs/USER_MANUAL.md` to a committed
+  `USER_MANUAL.html` (and `.pdf` when pandoc + xelatex are on PATH), with a
+  stdlib-only Markdown fallback when they are not.
+- `CITATION.cff` for citing the software.

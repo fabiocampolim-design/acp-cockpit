@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Fabio Campolim
-"""Licence and disclaimer guards (GITHUBIFY rule 17)."""
+"""Licence and disclaimer guards (publication-playbook rule 17)."""
 import re
 from pathlib import Path
 

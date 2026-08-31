@@ -171,6 +171,22 @@ verbosity is independent of the log file: `--verbose` prints debug lines to
 the console too, `--quiet` restricts the console to warnings and errors;
 the log file itself is always written at debug level.
 
+## Rebuilding this manual
+
+This document is the source of truth; `USER_MANUAL.html` (and
+`USER_MANUAL.pdf`, when the tools are available) are built from it and
+committed so readers need no tooling of their own. To regenerate them after
+editing this file:
+
+```
+python docs/build_manual.py
+```
+
+Uses `pandoc` for the HTML and `pandoc` + `xelatex` for the PDF when both
+are on `PATH`; otherwise falls back to a small stdlib-only Markdown
+renderer for the HTML and prints that the PDF was skipped. Always exits 0.
+`--src` and `--outdir` override the input file and output directory.
+
 ## Known limitations
 
 - **Windows-first.** Development and hand-testing happen on Windows.

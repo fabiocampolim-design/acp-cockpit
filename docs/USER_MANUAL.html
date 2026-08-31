@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc 3.10.2" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>CLAUDIU User Manual</title>
+  <style>
+
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+  <style type="text/css">body{font:15px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif;max-width:860px;margin:2rem auto;padding:0 1rem;color:#22221f;background:#faf7f0}h1{font-size:1.6rem;border-bottom:1px solid #999;padding-bottom:.2rem;margin-top:2rem}h2{font-size:1.25rem;margin-top:1.6rem}h3{font-size:1.05rem;margin-top:1.2rem}table{border-collapse:collapse;width:100%;font-size:.9rem}th,td{border:1px solid #bbb;padding:.3rem .5rem;text-align:left;vertical-align:top}th{background:#eeebe2}pre,code{font-family:ui-monospace,Consolas,monospace;font-size:.86rem}pre{background:#eeebe2;padding:.6rem;overflow-x:auto}@media(prefers-color-scheme:dark){body{color:#e9e6dc;background:#14140f}th,pre{background:#201e17}a{color:#8ab4f8}}</style>
+</head>
+<body>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#claudiu-user-manual" id="toc-claudiu-user-manual">CLAUDIU
+user manual</a>
+<ul>
+<li><a href="#quick-start" id="toc-quick-start">Quick start</a></li>
+<li><a href="#features" id="toc-features">Features</a></li>
+<li><a href="#configuration" id="toc-configuration">Configuration</a>
+<ul>
+<li><a href="#worked-example-adding-a-project-and-a-snippet" id="toc-worked-example-adding-a-project-and-a-snippet">Worked example:
+adding a project and a snippet</a></li>
+</ul></li>
+<li><a href="#shortcuts" id="toc-shortcuts">Shortcuts</a></li>
+<li><a href="#restws-api" id="toc-restws-api">REST/WS API</a></li>
+<li><a href="#command-line" id="toc-command-line">Command line</a></li>
+<li><a href="#logs" id="toc-logs">Logs</a></li>
+<li><a href="#rebuilding-this-manual" id="toc-rebuilding-this-manual">Rebuilding this manual</a></li>
+<li><a href="#known-limitations" id="toc-known-limitations">Known
+limitations</a></li>
+</ul></li>
+</ul>
+</nav>
+<h1 id="claudiu-user-manual">CLAUDIU user manual</h1>
+<p>CLAUDIU (working codename) is a local, browser-based tabbed interface
+for running several Claude Code sessions at once. A small Python server
+spawns real <code>claude</code> CLI processes in pseudo-terminals and
+streams them into browser tabs via xterm.js, so every tab behaves
+exactly like a real terminal — same colors, same prompts, same
+keybindings — while the browser layer adds tabs, a calmer theme,
+adjustable fonts, snippets, and a project launcher on top.</p>
+<h2 id="quick-start">Quick start</h2>
+<pre><code>pip install -e .
+python -m claudiu</code></pre>
+<p>or, on Windows, double-click <code>run_claudiu.bat</code>. The server
+starts on <code>http://127.0.0.1:8642/</code> (127.0.0.1 only — never
+reachable from other machines) and opens it in your default browser
+automatically.</p>
+<h2 id="features">Features</h2>
+<ul>
+<li><strong>Tabs</strong> — one tab per live <code>claude</code>
+session, named after the project folder and renamable.</li>
+<li><strong>Terminal fidelity</strong> — each tab embeds a real
+interactive <code>claude</code> process rendered by xterm.js: skills,
+plugins, slash commands, and permission prompts all behave exactly as in
+a plain terminal.</li>
+<li><strong>Session survival on refresh</strong> — sessions live on the
+server, not in the browser tab; refreshing or closing Chrome never kills
+them.</li>
+<li><strong>Reconnect with backoff</strong> — a dropped websocket
+retries automatically with backoff behind a visible “reconnecting…”
+strip; it never fails silently.</li>
+<li><strong>Resume after crash</strong> — after a browser or PC crash, a
+resume list offers one-click
+<code>claude --resume &lt;session-id&gt;</code> per recent project.</li>
+<li><strong>Snippets bar + palette</strong> — frequently used prompt
+text as buttons under the tab strip and in a fuzzy-searchable palette
+(<code>Ctrl+k</code>).</li>
+<li><strong>Project launcher</strong> — configured working folders (plus
+a browse option) in the new-session dialog; one click starts
+<code>claude</code> in the chosen directory.</li>
+<li><strong>Per-tab font size</strong> — each tab’s font size is
+adjustable and remembered independently.</li>
+<li><strong>Scrollback search</strong> — search within a tab’s capped
+scrollback, with highlighting.</li>
+<li><strong>Rename by double-click</strong> — double-click a tab’s label
+to rename it.</li>
+<li><strong>Calm dark theme</strong> — near-black background, warm-gray
+foreground, muted ANSI colors, steady non-blinking cursor; every color
+is a config value.</li>
+</ul>
+<h2 id="configuration">Configuration</h2>
+<p>One human-editable JSON file. Default location
+<code>~/.claudiu/config.json</code>, created with defaults the first
+time the server runs if it does not exist yet. Override the path with
+the <code>CLAUDIU_CONFIG</code> environment variable, or with the
+<code>--config</code> flag on the command line. Keys the file does not
+mention fall back to the defaults below; keys the file has that this
+version of CLAUDIU does not recognize are kept as-is and reported as a
+startup warning, never rejected.</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Key</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>port</code></td>
+<td><code>8642</code></td>
+<td>TCP port the server listens on (bound to 127.0.0.1 only)</td>
+</tr>
+<tr>
+<td><code>claude_command</code></td>
+<td><code>[&quot;claude&quot;]</code></td>
+<td>argv used to spawn each session</td>
+</tr>
+<tr>
+<td><code>replay_chunks</code></td>
+<td><code>2000</code></td>
+<td>max buffered output chunks per session kept for replay on
+(re)connect</td>
+</tr>
+<tr>
+<td><code>scrollback_lines</code></td>
+<td><code>10000</code></td>
+<td>scrollback cap shown in the browser terminal</td>
+</tr>
+<tr>
+<td><code>font_size</code></td>
+<td><code>16</code></td>
+<td>default terminal font size in pixels</td>
+</tr>
+<tr>
+<td><code>font_family</code></td>
+<td><code>&quot;Consolas, &#39;Cascadia Mono&#39;, monospace&quot;</code></td>
+<td>terminal font stack</td>
+</tr>
+<tr>
+<td><code>theme</code></td>
+<td>a 16-color dark theme object</td>
+<td>background, foreground, cursor, selection background, and the 16
+ANSI colors</td>
+</tr>
+<tr>
+<td><code>shortcuts</code></td>
+<td>see the Shortcuts table below</td>
+<td>interface keyboard shortcut map</td>
+</tr>
+<tr>
+<td><code>projects</code></td>
+<td><code>[]</code></td>
+<td>launcher entries: <code>{&quot;name&quot;, &quot;path&quot;, &quot;args&quot;: []}</code></td>
+</tr>
+<tr>
+<td><code>snippets</code></td>
+<td><code>[]</code></td>
+<td>snippet-bar entries:
+<code>{&quot;name&quot;, &quot;text&quot;, &quot;send&quot;: false}</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="worked-example-adding-a-project-and-a-snippet">Worked example:
+adding a project and a snippet</h3>
+<p>Edit <code>~/.claudiu/config.json</code> (or the file
+<code>CLAUDIU_CONFIG</code> points at) and add to the
+<code>projects</code> and <code>snippets</code> lists:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;projects&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span><span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;My App&quot;</span><span class="fu">,</span> <span class="dt">&quot;path&quot;</span><span class="fu">:</span> <span class="st">&quot;C:/code/my-app&quot;</span><span class="fu">,</span> <span class="dt">&quot;args&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;--continue&quot;</span><span class="ot">]</span><span class="fu">}</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;snippets&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span><span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;run tests&quot;</span><span class="fu">,</span> <span class="dt">&quot;text&quot;</span><span class="fu">:</span> <span class="st">&quot;run the test suite and fix any failures&quot;</span><span class="fu">,</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>     <span class="dt">&quot;send&quot;</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">}</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p>Restart the server (or refresh the page after a
+<code>GET /api/config</code>-driven reload) to pick up the change. “My
+App” now appears in the project launcher, and “run tests” appears as a
+button in the snippets bar and in the <code>Ctrl+k</code> palette;
+because <code>send</code> is <code>true</code>, choosing it types the
+text and presses Enter.</p>
+<h2 id="shortcuts">Shortcuts</h2>
+<p>Interface-level keyboard shortcuts, all remappable via the
+<code>shortcuts</code> config key. They never intercept keys the CLI
+itself needs (plain <code>Ctrl+C</code>, <code>Ctrl+R</code>, arrow
+keys, and so on).</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Action</th>
+<th>Default key</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tab_1</code></td>
+<td><code>Alt+1</code> — switch to tab 1</td>
+</tr>
+<tr>
+<td><code>tab_2</code></td>
+<td><code>Alt+2</code> — switch to tab 2</td>
+</tr>
+<tr>
+<td><code>tab_3</code></td>
+<td><code>Alt+3</code> — switch to tab 3</td>
+</tr>
+<tr>
+<td><code>tab_4</code></td>
+<td><code>Alt+4</code> — switch to tab 4</td>
+</tr>
+<tr>
+<td><code>tab_5</code></td>
+<td><code>Alt+5</code> — switch to tab 5</td>
+</tr>
+<tr>
+<td><code>tab_6</code></td>
+<td><code>Alt+6</code> — switch to tab 6</td>
+</tr>
+<tr>
+<td><code>tab_7</code></td>
+<td><code>Alt+7</code> — switch to tab 7</td>
+</tr>
+<tr>
+<td><code>tab_8</code></td>
+<td><code>Alt+8</code> — switch to tab 8</td>
+</tr>
+<tr>
+<td><code>tab_9</code></td>
+<td><code>Alt+9</code> — switch to tab 9</td>
+</tr>
+<tr>
+<td><code>tab_prev</code></td>
+<td><code>Alt+ArrowLeft</code> — previous tab</td>
+</tr>
+<tr>
+<td><code>tab_next</code></td>
+<td><code>Alt+ArrowRight</code> — next tab</td>
+</tr>
+<tr>
+<td><code>new_session</code></td>
+<td><code>Alt+t</code> — open the new-session launcher</td>
+</tr>
+<tr>
+<td><code>close_tab</code></td>
+<td><code>Alt+w</code> — close the active tab (asks; killing the session
+needs explicit confirmation)</td>
+</tr>
+<tr>
+<td><code>font_bigger</code></td>
+<td><code>Alt+=</code> — increase this tab’s font size</td>
+</tr>
+<tr>
+<td><code>font_smaller</code></td>
+<td><code>Alt+-</code> — decrease this tab’s font size</td>
+</tr>
+<tr>
+<td><code>font_reset</code></td>
+<td><code>Alt+0</code> — reset this tab’s font size</td>
+</tr>
+<tr>
+<td><code>search</code></td>
+<td><code>Ctrl+Shift+f</code> — search this tab’s scrollback</td>
+</tr>
+<tr>
+<td><code>snippet_palette</code></td>
+<td><code>Ctrl+k</code> — open the fuzzy-searchable snippet palette</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Why Alt-based defaults:</strong> Chrome reserves
+<code>Ctrl+T</code>, <code>Ctrl+W</code>, <code>Ctrl+Tab</code>, and
+<code>Ctrl+1</code>…<code>Ctrl+9</code> at the browser level — a web
+page cannot intercept them — so none of those combinations can ever be a
+working interface default; CLAUDIU’s defaults use <code>Alt</code>
+instead. For the same reason, do not rebind any shortcut to bare
+<code>Escape</code>: the shortcut handler runs in the capture phase and
+would suppress the dialog-closing <code>Escape</code> handler that the
+launcher and rename dialogs rely on.</p>
+<h2 id="restws-api">REST/WS API</h2>
+<table>
+<thead>
+<tr>
+<th>Route</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET /api/sessions</code></td>
+<td>list live sessions</td>
+</tr>
+<tr>
+<td><code>POST /api/sessions</code></td>
+<td>create a session (body: path, args, title)</td>
+</tr>
+<tr>
+<td><code>PATCH /api/sessions/&lt;id&gt;</code></td>
+<td>rename a session (body: title)</td>
+</tr>
+<tr>
+<td><code>DELETE /api/sessions/&lt;id&gt;</code></td>
+<td>kill a session</td>
+</tr>
+<tr>
+<td><code>GET /api/config</code></td>
+<td>effective config plus load warnings</td>
+</tr>
+<tr>
+<td><code>GET /api/resume</code></td>
+<td>recent resumable Claude sessions</td>
+</tr>
+<tr>
+<td><code>WS /ws/&lt;id&gt;</code></td>
+<td>terminal stream (terminado protocol)</td>
+</tr>
+</tbody>
+</table>
+<p><code>GET /api/resume</code> scans the real
+<code>~/.claude/projects</code> directory of the user running the server
+— the resume list you see is your own Claude Code history on that
+machine, in that account.</p>
+<h2 id="command-line">Command line</h2>
+<pre><code>python -m claudiu [--config PATH] [--port PORT] [--log-dir DIR]
+                  [--no-browser] [--verbose | --quiet] [--version]</code></pre>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--config</code></td>
+<td>path to config.json (default: <code>~/.claudiu/config.json</code>,
+or <code>$CLAUDIU_CONFIG</code>)</td>
+</tr>
+<tr>
+<td><code>--port</code></td>
+<td>override the config port (config default: 8642)</td>
+</tr>
+<tr>
+<td><code>--log-dir</code></td>
+<td>directory for audit logs (default:
+<code>&lt;config dir&gt;/logs</code>)</td>
+</tr>
+<tr>
+<td><code>--no-browser</code></td>
+<td>do not open the browser automatically</td>
+</tr>
+<tr>
+<td><code>--verbose</code></td>
+<td>debug output on the console</td>
+</tr>
+<tr>
+<td><code>--quiet</code></td>
+<td>warnings and errors only on the console</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>print the version and exit</td>
+</tr>
+<tr>
+<td><code>--help</code></td>
+<td>print the argument summary and exit</td>
+</tr>
+</tbody>
+</table>
+<h2 id="logs">Logs</h2>
+<p>Every run writes an audit log to
+<code>&lt;config dir&gt;/logs/claudiu-&lt;timestamp&gt;.log</code>
+(override the directory with <code>--log-dir</code>) recording: the
+command line invoked, CLAUDIU/Python/Tornado/Terminado versions, any
+config load warnings, session start/rename/kill events, and how the run
+ended. Console verbosity is independent of the log file:
+<code>--verbose</code> prints debug lines to the console too,
+<code>--quiet</code> restricts the console to warnings and errors; the
+log file itself is always written at debug level.</p>
+<h2 id="rebuilding-this-manual">Rebuilding this manual</h2>
+<p>This document is the source of truth; <code>USER_MANUAL.html</code>
+(and <code>USER_MANUAL.pdf</code>, when the tools are available) are
+built from it and committed so readers need no tooling of their own. To
+regenerate them after editing this file:</p>
+<pre><code>python docs/build_manual.py</code></pre>
+<p>Uses <code>pandoc</code> for the HTML and <code>pandoc</code> +
+<code>xelatex</code> for the PDF when both are on <code>PATH</code>;
+otherwise falls back to a small stdlib-only Markdown renderer for the
+HTML and prints that the PDF was skipped. Always exits 0.
+<code>--src</code> and <code>--outdir</code> override the input file and
+output directory.</p>
+<h2 id="known-limitations">Known limitations</h2>
+<ul>
+<li><strong>Windows-first.</strong> Development and hand-testing happen
+on Windows. Linux and macOS are exercised only by CI (unit, integration,
+and end-to-end tests all run there too) — they are not hand-tested.</li>
+<li><strong>One browser page per server.</strong> The server assumes a
+single open page; it is not designed for multiple browser tabs/windows
+pointed at the same running instance.</li>
+<li><strong>No split panes.</strong> One session per interface tab; no
+multi-pane layouts.</li>
+<li><strong>No remote access.</strong> The server binds
+<code>127.0.0.1</code> only — it is not reachable from other devices,
+and there is no plan to make it so.</li>
+<li><strong>No transcript export.</strong> CLAUDIU does not render or
+export session transcripts; that is the job of the separate
+claude-session-publisher tool.</li>
+<li><strong><code>localStorage</code> use is minimal.</strong> The only
+thing CLAUDIU stores in the browser’s <code>localStorage</code> is each
+tab’s remembered font size — nothing else about a session lives in the
+browser; the browser is a disposable view onto server-side
+sessions.</li>
+<li><strong>Keystrokes during a reconnect gap are dropped.</strong> If
+you type while a tab’s websocket is reconnecting (the “reconnecting…”
+strip is visible), those keystrokes are not queued and are lost — wait
+for the strip to clear before typing.</li>
+</ul>
+</body>
+</html>

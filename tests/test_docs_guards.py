@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Fabio Campolim
-"""The suite guards the docs (GITHUBIFY rule 15)."""
+"""The suite guards the docs (publication-playbook rule 15)."""
 import re
 from pathlib import Path
 
@@ -61,3 +61,42 @@ def test_version_consistent_with_pyproject():
 def test_changelog_covers_current_version():
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     assert VERSION in changelog
+
+
+def test_citation_version_matches():
+    citation = (ROOT / "CITATION.cff").read_text(encoding="utf-8")
+    m = re.search(r'version:\s*"([^"]+)"', citation)
+    assert m, "CITATION.cff must have a version: \"x.y.z\" line"
+    assert m.group(1) == VERSION
+    assert "license: Apache-2.0" in citation
+
+
+def test_manual_html_is_built_and_complete():
+    html = (ROOT / "docs" / "USER_MANUAL.html").read_text(encoding="utf-8")
+    assert "Known limitations" in html
+    m = re.search(r"^#\s+(.+)$", MANUAL, re.MULTILINE)
+    assert m, "USER_MANUAL.md must have an H1"
+    assert m.group(1).strip() in html
+
+
+DOC_FILES = (
+    [ROOT / "README.md", ROOT / "AGENTS.md", ROOT / "CHANGELOG.md"]
+    + list((ROOT / "docs").glob("**/*.md"))
+)
+
+
+def test_no_personal_paths_in_tracked_docs():
+    for path in DOC_FILES:
+        text = path.read_text(encoding="utf-8")
+        assert "C:\\Users" not in text, f"personal path in {path}"
+        assert "C:/Users" not in text, f"personal path in {path}"
+
+
+def test_no_internal_nomenclature():
+    banned = "GITHUB" + "IFY"  # split so this guard doesn't trip on itself
+    code_files = list((ROOT / "claudiu").glob("*.py")) + [
+        p for p in (ROOT / "tests").glob("*.py") if p.name != "test_docs_guards.py"
+    ]
+    for path in DOC_FILES + code_files:
+        text = path.read_text(encoding="utf-8")
+        assert banned not in text, f"internal nomenclature in {path}"
