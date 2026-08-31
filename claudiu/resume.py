@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import collections
 import json
+import os
 from pathlib import Path
 
 
@@ -93,7 +94,10 @@ def scan_recent_sessions(claude_dir=None, limit_per_project=5,
     projects = []
     for path, sessions in by_path.items():
         sessions.sort(key=lambda s: s["mtime"], reverse=True)
-        projects.append({"path": path,
+        # A launcher entry for a project whose directory was since moved
+        # or deleted is useless (--resume would spawn `claude` nowhere
+        # usable); let the frontend skip it instead of offering it.
+        projects.append({"path": path, "exists": os.path.isdir(path),
                          "sessions": sessions[:limit_per_project]})
     projects.sort(key=lambda p: (p["sessions"][0]["mtime"] if p["sessions"] else 0.0), reverse=True)
     report["record_types"] = dict(report["record_types"])

@@ -91,6 +91,18 @@ def test_backslash_and_forward_slash_cwd_are_the_same_project(tmp_path):
     assert projects[0]["path"] == str(Path("C:/code/app").resolve())
 
 
+def test_exists_flag_reflects_the_real_directory(tmp_path):
+    p = tmp_path / "C--proj"
+    write_session(p, "s1", [user_rec("hi", cwd=str(tmp_path / "C--proj"))])
+    projects, _ = scan_recent_sessions(tmp_path)
+    assert projects[0]["exists"] is True
+    write_session(p, "s2", [user_rec("hi", cwd="Z:/does/not/exist")])
+    projects, _ = scan_recent_sessions(tmp_path)
+    missing = [pr for pr in projects
+               if pr["path"] == str(Path("Z:/does/not/exist").resolve())][0]
+    assert missing["exists"] is False
+
+
 def test_zero_limit_does_not_crash(tmp_path):
     p = tmp_path / "C--proj"
     write_session(p, "s1", [user_rec("test")])
