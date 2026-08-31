@@ -101,6 +101,11 @@ window.Claudiu = {
       tab.attempts = 0;
       tab.pane.classList.remove("reconnecting");
       tab.term.reset(); // server replays its buffer from scratch
+      // The replay burst that follows isn't new output the user hasn't
+      // seen -- it's scrollback they already had. Suppress "unseen"
+      // until it's had time to land.
+      tab.replaying = true;
+      setTimeout(() => { tab.replaying = false; }, 250);
       C.sendSize(tab);
     };
     ws.onmessage = (ev) => {
@@ -108,7 +113,7 @@ window.Claudiu = {
       try { msg = JSON.parse(ev.data); } catch (e) { return; }
       if (msg[0] === "stdout") {
         tab.term.write(msg[1]);
-        if (C.activeId !== tab.id) tab.el.classList.add("unseen");
+        if (C.activeId !== tab.id && !tab.replaying) tab.el.classList.add("unseen");
       } else if (msg[0] === "disconnect") {
         C.markEnded(tab, msg[1]);
       }
