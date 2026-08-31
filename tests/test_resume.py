@@ -83,12 +83,23 @@ def test_no_user_record_still_listed(tmp_path):
 def test_backslash_and_forward_slash_cwd_are_the_same_project(tmp_path):
     # A record's cwd (as Claude Code writes it -- backslashes on Windows)
     # must group under the same project as a config.json path written with
-    # forward slashes, so the ended-tab Resume button finds it (F3).
+    # forward slashes, so the ended-tab Resume button finds it (F3). That
+    # equivalence is Windows-only: a backslash is a path separator there,
+    # but on POSIX it is just a literal character, so
+    # PurePosixPath("C:\\code\\app") is a single, different component from
+    # PurePosixPath("C:/code/app") and the two would never legitimately
+    # collide there. On non-Windows platforms this test instead checks the
+    # platform-independent half of the claim: the grouping key is still
+    # the normalized (resolve()d) form of the record's own cwd.
     p = tmp_path / "C--code-app"
-    write_session(p, "s1", [user_rec("hi", cwd="C:\\code\\app")])
+    record_cwd = "C:\\code\\app"
+    write_session(p, "s1", [user_rec("hi", cwd=record_cwd)])
     projects, _ = scan_recent_sessions(tmp_path)
     assert len(projects) == 1
-    assert projects[0]["path"] == str(Path("C:/code/app").resolve())
+    if os.name == "nt":
+        assert projects[0]["path"] == str(Path("C:/code/app").resolve())
+    else:
+        assert projects[0]["path"] == str(Path(record_cwd).resolve())
 
 
 def test_exists_flag_reflects_the_real_directory(tmp_path):
