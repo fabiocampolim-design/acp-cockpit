@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Append-only JSONL flight recorder. Raw frames verbatim, before interpretation."""
 from __future__ import annotations
 

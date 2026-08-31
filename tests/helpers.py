@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 from pathlib import Path
 from claudiu.core.acp import AcpSession
 from claudiu.core.policy import PathPolicy

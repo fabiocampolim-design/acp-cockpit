@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 import pytest
 from claudiu.core.acp import StateError
 from tests.helpers import make_session, FakeFiles

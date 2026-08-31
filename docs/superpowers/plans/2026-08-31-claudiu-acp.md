@@ -3204,7 +3204,7 @@ def test_real_handshake_prompt_and_drift_silence(tmp_path):
 ```bash
 python -m pytest tests/ -q                      # full suite, count for README
 python -m pyflakes claudiu tools tests
-python C:/Users/fabio/claude/tools/GITHUBIFY/conformance.py --repo .
+<run the GITHUBIFY conformance checker against the repo>
 python tools/check_schema_drift.py
 ```
 All green / FAIL=0 before the commit. If conformance flags the archive or vendor dirs, fix per its guidance (vendored data needs its licence noted in NOTICE — done in Task 4).

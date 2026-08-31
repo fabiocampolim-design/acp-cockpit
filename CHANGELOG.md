@@ -2,7 +2,35 @@
 
 All notable changes to CLAUDIU are documented in this file.
 
-## Unreleased
+## 0.2.0 — 2026-08-31 — the ACP pivot
+
+CLAUDIU is now a **browser client for AI coding agents over the Agent
+Client Protocol** — Windows-native, no WSL, no pty, no screen-scraping.
+Design history: `docs/superpowers/specs/2026-08-31-acp-research.md` and
+`.../2026-08-31-claudiu-acp-design.md` (decisions D1–D4); plan:
+`docs/superpowers/plans/2026-08-31-claudiu-acp.md`.
+
+- v0.1 (the terminal-mirror app) archived to `archive/claudiu-v0.1` with
+  its own git history (KEEP rule 20); the tree restarts around a four-layer
+  architecture: TOML agent profiles → pure-stdlib core (sans-I/O JSON-RPC,
+  ACP state machine, JSONL flight recorder, drift sentinel, path policy) →
+  Tornado server (token auth, env-scrubbed adapter subprocesses, WS bridge)
+  → vanilla-JS web UI (documented seam: `docs/UI-PROTOCOL.md`).
+- Losslessness: every frame recorded verbatim before interpretation;
+  unknown protocol data surfaces as visible drift/unrecognized/anomaly
+  events, each with access to its raw frame.
+- Drift watch: ACP schema pinned (`vendor/acp/VERSION`, schema-v1.21.0);
+  dev-time registry diff (`tools/check_schema_drift.py`, which caught
+  `config_option_update` / `session_info_update` / `usage_update` on day
+  one) and an online pin-vs-latest check on `/api/drift`.
+- Security: per-launch token on REST+WS, Host/Origin guards, CSP,
+  session path boundary for agent fs requests, `terminal` capability
+  deliberately not advertised, scrubbed child environments.
+- Tests: engine tier against scripted fixtures, server tier, security
+  suite, Playwright e2e, and an opt-in contract tier that passed against
+  the real `claude-code-acp` adapter with zero drift flags.
+
+## 0.1.x (archived)
 
 - Permission buttons hardened for safety: options are now parsed
   client-side from xterm's rendered buffer (the raw pty byte stream

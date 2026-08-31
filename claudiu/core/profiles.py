@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Agent profiles: everything agent-specific, loaded from TOML data."""
 from __future__ import annotations
 

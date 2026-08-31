@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Contract tests against the real claude-code-acp adapter.
 
 Run: CLAUDIU_CONTRACT=1 python -m pytest tests/contract/ -q

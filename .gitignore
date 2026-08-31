@@ -8,3 +8,4 @@ logs/
 .remember/
 
 archive/
+.githubify-scrub-allow

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """ACP client session state machine. Sans-I/O: lines in, lines out via ports."""
 from __future__ import annotations
 

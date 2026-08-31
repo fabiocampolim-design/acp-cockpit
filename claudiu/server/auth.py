@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Per-launch bearer token; localhost is not a trust boundary."""
 from __future__ import annotations
 

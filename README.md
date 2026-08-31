@@ -1,83 +1,106 @@
-# CLAUDIU (working codename)
+# CLAUDIU
 
-CLAUDIU is a local, browser-based tabbed interface for running several
-Claude Code sessions at once: a small Python server spawns real `claude`
-CLI processes in pseudo-terminals and streams them into browser tabs via
-xterm.js, so every tab is a real terminal — same colors, same prompts, same
-keybindings — while the browser layer adds tabs, a calmer eye-friendly
-theme, adjustable fonts, prompt snippets, and a project launcher on top.
+A **browser client for AI coding agents speaking the Agent Client Protocol
+(ACP)** — Windows-native (no WSL, no pty), agent-agnostic, and built around
+one guarantee: *nothing that crosses the wire is ever lost or silently
+misread*. The first configured agent is Claude Code via the
+[`claude-code-acp`](https://github.com/zed-industries/claude-code-acp)
+adapter.
 
-## Quick start
+> Working name only. This project is not affiliated with, endorsed by, or
+> sponsored by Anthropic or Zed Industries.
+
+## Why
+
+Terminal UIs redraw screens; scraping them is guesswork. ACP delivers the
+same conversation as structured JSON-RPC over stdio: messages, thoughts,
+tool calls with diffs, permission requests with typed options. CLAUDIU
+renders that stream in a browser, records every frame verbatim, and flags
+anything it does not recognize — so a protocol change is a visible event,
+never a silent misrender. As of 2026-08 the ACP ecosystem is editors (Zed,
+JetBrains, Neovim, Emacs); a browser client is the missing piece.
+
+## Quickstart
 
 ```
-pip install -e .
+npm install -g @zed-industries/claude-code-acp   # the Claude adapter
+pip install -e .                                 # Python >= 3.11
 python -m claudiu
 ```
 
-or, on Windows, double-click `run_claudiu.bat`. The server binds
-`127.0.0.1` only and opens `http://127.0.0.1:8642/` in your default
-browser.
+Open the printed `http://127.0.0.1:<port>/?token=...` URL, pick an agent,
+pick a project directory, start the session. The port is OS-assigned each
+run unless you pass `--port`.
 
-## What it guarantees
+## Architecture
 
-- **Full terminal fidelity** — each tab is a real `claude` process; skills,
-  plugins, slash commands, and permission prompts behave exactly as in a
-  plain terminal.
-- **Sessions never die with the browser** — refreshing or closing Chrome
-  never kills a session; it lives on the server until you close it.
-- **Dropped connections never fail silently** — a lost websocket
-  reconnects automatically with backoff behind a visible "reconnecting…"
-  strip.
-- **A PC crash costs at most one click per session** — the resume scanner
-  offers `claude --resume` for every recent project.
-- **One dead session never disturbs another** — every session's I/O is
-  exception-walled.
-- **A conversation you can actually read** — by default each session
-  renders as a clean, stable conversation (from Claude Code's transcript
-  JSON), not the raw redrawing terminal: collapsible tool output and
-  thinking, lane filters, a composer, permission prompts as buttons. The
-  real terminal is one click away for menus.
-- **You can see where every session stands** — each tab shows your last
-  prompt, whether Claude is working, waiting for your input, or done, and
-  how full its context is (green → amber → red), read from Claude Code's
-  own transcript.
-- **A launcher that gets out of the way** — browse to any folder (or make
-  a new one), pick a recent one, or start a configured project, with
-  resume-after-crash one click away. Light, dark, or system theme.
-- **Everything reachable by keyboard** — remappable shortcuts, a snippet
-  palette, and a project launcher, all one action away.
-- **Every visual parameter is a committed config line** — theme colors,
-  fonts, and shortcuts all live in one human-editable JSON file.
-- **Localhost only** — the server never binds beyond `127.0.0.1`.
+Four layers, one-way knowledge, swappable at each seam:
 
-See `docs/USER_MANUAL.md` for the full feature list, configuration
-reference, and known limitations, and `AGENTS.md` for the machine-oriented
-reference (every config key, route, and CLI flag).
+```
+ui/web        View        vanilla JS, no build; speaks docs/UI-PROTOCOL.md
+server/       Controller  Tornado; auth, process spawn, WS bridge
+core/         Model       pure stdlib; JSON-RPC, ACP state machine,
+                          flight recorder, drift sentinel, path policy
+agents/*.toml Data        everything agent-specific (see PROFILE-SCHEMA.md)
+```
 
-Verified by 106 checks (pytest + pyflakes, Windows/Linux/macOS CI) plus two
-Playwright end-to-end checks.
+- **Swap the UI**: implement `docs/UI-PROTOCOL.md` (enforced in tests).
+- **Swap the server**: implement the three ports in `claudiu/core/ports.py`.
+- **Add an agent**: write one TOML profile; the engine never changes.
 
-## How it was built
+## Losslessness & drift
 
-Designed and implemented with Claude Code from a written specification and
-an implementation plan (both kept in `docs/`).
+- Every protocol frame, in and out, is appended verbatim to a per-session
+  JSONL record **before** interpretation, along with every client action
+  (prompts, permission answers, policy decisions). Each rendered event
+  carries a `raw_ref` back into that record.
+- Unknown methods, update kinds, fields, or enum values are checked against
+  a registry pinned to a vendored ACP schema release (`vendor/acp/VERSION`)
+  — mismatches surface as `drift` events in the UI and the log, with the
+  offending frame. `tools/check_schema_drift.py` diffs the registry against
+  the schema at dev time; `/api/drift` compares the pin and the installed
+  adapter against the latest published versions (disable with
+  `--no-drift-online`).
+- Anything the renderer does not understand becomes an explicit
+  `unrecognized` element — visible, expandable to the raw frame, never
+  dropped.
 
-## Licence
+## Security model
 
-Apache License, Version 2.0 — see `LICENSE` and `NOTICE`.
+- Binds `127.0.0.1` only; every request and WebSocket carries a per-launch
+  random token (cookie, constant-time compare); foreign `Host`/`Origin`
+  rejected; strict CSP; no external resources.
+- ACP lets the agent ask the client to read/write files: every such request
+  is checked against the session's path boundary (project directory;
+  symlink-resolved) and refused outside it. The `terminal` capability is
+  deliberately not advertised in v1.
+- Adapter subprocesses run with a scrubbed environment (profile
+  `env_scrub`) and are terminated with their session. Records never contain
+  the auth token.
+
+## Development
+
+```
+python -m pytest tests/ -q          # full suite (e2e needs playwright)
+CLAUDIU_CONTRACT=1 python -m pytest tests/contract/ -q   # real adapter
+python -m pyflakes claudiu tools tests
+python tools/check_schema_drift.py
+```
+
+Verified by 70 checks (plus the opt-in real-adapter contract test). See
+`AGENTS.md` for the working rules and `docs/superpowers/specs/` for the
+design history. The v0.1 terminal-mirror app lives in `archive/claudiu-v0.1`
+with its own git history.
+
+## License
+
+Apache-2.0 (see `LICENSE`, `NOTICE`). Vendored data: the ACP schema
+(Apache-2.0), pinned in `vendor/acp/`.
 
 ### Disclaimer
 
-This software is provided "as is", without warranties or conditions of any
-kind, express or implied. The authors and contributors are not liable for
-any damages of any character — direct, indirect, incidental, or
-consequential — arising out of or in connection with its use. You alone
-are responsible for using it lawfully and for complying with the terms of
-every third-party service it touches (including Anthropic's own terms for
-Claude and Claude Code).
-
-This project is independent and not affiliated with, endorsed by, or
-supported by Anthropic. "Claude" and "Claude Code" are used only to
-identify the software this tool talks to.
-
-*(Badges are added at publication time — recorded decision.)*
+This software is provided "as is", without warranty of any kind, express
+or implied. In no event shall the authors be liable for any claim, damages
+or other liability arising from its use. It drives AI coding agents that
+can modify files in the directories you point them at; review what you
+approve.

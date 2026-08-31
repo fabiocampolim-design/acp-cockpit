@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 import json
 import pytest
 from claudiu.core.events import KINDS, make_event, to_wire

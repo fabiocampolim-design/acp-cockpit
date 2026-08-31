@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 from claudiu.server.auth import TokenAuth, COOKIE_NAME
 
 

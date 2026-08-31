@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Abstract seams between the engine and the outside world."""
 from __future__ import annotations
 

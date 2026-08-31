@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Test child: echoes each stdin line as {"echo": line}; reports env once."""
 import json
 import os

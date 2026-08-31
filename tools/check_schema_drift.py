@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Dev-time: walk the vendored ACP schema.json for identifiers the registry
 does not know. Structure-agnostic: collects every string that looks like a
 method name or enum value anywhere in the schema tree."""

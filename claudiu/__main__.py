@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """CLI: python -m claudiu [--port N] [--profiles DIR] [--records DIR]"""
 import argparse
 import signal

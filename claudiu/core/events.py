@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Typed engine events — the only thing the View ever renders."""
 from __future__ import annotations
 

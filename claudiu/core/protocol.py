@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Sans-I/O newline-delimited JSON-RPC 2.0. Knows JSON-RPC, not ACP."""
 from __future__ import annotations
 

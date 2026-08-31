@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Scripted stand-in ACP agent. Usage: python fake_adapter.py fixture.json"""
 import json
 import sys

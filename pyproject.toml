@@ -1,6 +1,6 @@
 [project]
 name = "claudiu"
-version = "0.2.0.dev0"
+version = "0.2.0"
 description = "Browser client for AI coding agents over the Agent Client Protocol"
 requires-python = ">=3.11"
 dependencies = ["tornado>=6.4"]

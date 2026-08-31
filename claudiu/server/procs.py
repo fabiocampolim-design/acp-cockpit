@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Adapter subprocess: plain pipes, scrubbed env, reader threads.
 
 Threading contract: on_line / on_stderr / on_exit fire on internal reader
