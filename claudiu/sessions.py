@@ -123,3 +123,19 @@ class ClaudiuTermSocket(TermSocket):
         except KeyError:
             log.warning("websocket for unknown session %r", url_component)
             self.close(4404, "no such session")
+
+    def on_pty_died(self) -> None:
+        # TermSocket.on_pty_died() hardcodes ["disconnect", 1]; send the
+        # process's real exit status instead, guarded so a missing
+        # attribute on some pty backend never blocks the close.
+        exitstatus = None
+        try:
+            exitstatus = getattr(self.terminal.ptyproc, "exitstatus", None)
+        except Exception:
+            log.warning("could not read exit status", exc_info=True)
+        try:
+            self.send_json_message(["disconnect", exitstatus])
+        except Exception:
+            log.warning("could not send disconnect message", exc_info=True)
+        self.close()
+        self.terminal = None
