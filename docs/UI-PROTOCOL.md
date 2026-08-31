@@ -1,0 +1,101 @@
+# UI Protocol — the View seam
+
+Any UI (web, desktop, mobile) implementing this document is a full CLAUDIU
+front-end. The bundled `claudiu/ui/web/` consumes exactly this protocol and
+nothing else. `tests/test_docs_sync.py` enforces that this document stays in
+lockstep with the code.
+
+## 1. Authentication
+
+The server prints a launch URL `http://127.0.0.1:<port>/?token=<token>` once
+per run. Opening it sets the `claudiu_token` cookie (HttpOnly, SameSite
+Strict) and redirects to `/`. Every REST call and WebSocket upgrade must
+carry that cookie; anything else is `403`. The server binds 127.0.0.1 only
+and rejects foreign `Host`/`Origin` headers.
+
+## 2. REST routes
+
+### `GET /api/profiles`
+```json
+{"profiles": [{"id": "claude", "name": "Claude Code",
+               "caveats": [{"id": "model-picker", "text": "..."}],
+               "install_ok": true,
+               "install_hint": "npm install -g @zed-industries/claude-code-acp"}]}
+```
+
+### `POST /api/sessions` — body `{"profile": "claude", "cwd": "C:\\work\\proj"}`
+Returns `{"id": "<sid>"}`. Errors: `400` bad profile/cwd; `424` adapter not
+installed (body carries `install_hint`).
+
+### `GET /api/sessions`
+```json
+{"sessions": [{"id": "ab12", "profile": "claude",
+               "cwd": "C:\\work\\proj", "state": "ready"}]}
+```
+
+### `DELETE /api/sessions/<sid>` — closes the session. `{"ok": true}`.
+
+### `GET /api/drift`
+```json
+{"pinned_schema": "schema-v1.21.0", "flags": [], "online": true,
+ "latest": {"schema": "schema-v1.21.0", "adapter_latest": "x.y.z",
+            "adapter_installed": "x.y.z"}}
+```
+`flags` non-empty means the pinned protocol schema or the installed adapter
+is behind the latest published version — surface it.
+
+## 3. WebSocket
+
+`GET /ws/sessions/<sid>` (cookie-authenticated). The server first replays
+every event the session has emitted so far, then streams live. Client →
+server messages are JSON commands:
+
+```json
+{"cmd": "prompt", "text": "the user's message"}
+{"cmd": "cancel"}
+{"cmd": "set_mode", "mode": "acceptEdits"}
+{"cmd": "permission", "request": 44, "option": "allow"}
+```
+
+A malformed or ill-timed command comes back as an `anomaly` event with
+category `command-error` (it never kills the socket).
+
+## 4. Events
+
+Every server → client message is one event:
+
+```json
+{"kind": "...", "session": "<sid>", "seq": 7,
+ "ts": "2026-08-31T18:00:00.000+00:00", "data": {...}, "raw_ref": 12}
+```
+
+| Kind | `data` payload | Rendering intent |
+|---|---|---|
+| `session_state` | `state` (`starting`/`ready`/`turn`/`failed`/`closed`), `detail` | Status strip; disable composer unless `ready`. |
+| `message_chunk` | `role` (`agent`/`user`/`thought`), `text` | Append to the conversation; aggregate consecutive chunks of one role; `thought` dimmed/collapsible. |
+| `tool_call` | ACP toolCall passthrough (`toolCallId`, `title`, `kind`, `status`, `content`, `locations`, …) | Collapsible tool row; render diff content when present. |
+| `tool_call_update` | same shape, partial | Update the matching row by `toolCallId`. |
+| `plan` | `entries` (list of `{content, status, priority}`) | Plan panel. |
+| `commands` | `commands` (list of `{name, description, input}`) | Command palette source. |
+| `mode` | `current`, `available` (list of `{id, name}`) | Mode selector. |
+| `permission_request` | `request` (id), `tool_call`, `options` (list of `{optionId, name, kind}`) | Modal approval dialog; explicit choice required. |
+| `permission_resolved` | `request`, `option`, `source` (`user`/`failsafe`) | Close the dialog; show fail-safe rejections distinctly. |
+| `fs_request` | `op` (`read`/`write`), `path`, `allowed` | Inline notice of agent file access and the policy verdict. |
+| `turn_ended` | `stop_reason` | Turn separator; re-enable composer. |
+| `anomaly` | `category`, `detail` | MUST be surfaced (chip + inline row); never dropped. |
+| `drift` | `flags` (list of strings) | MUST be surfaced (chip with details); protocol has outgrown the client. |
+| `unrecognized` | `why`, `frame` | MUST be surfaced; render as an explicit unknown with raw access. |
+
+## 5. Ordering guarantees
+
+`seq` strictly increases per session (gaps impossible). WS attach replays
+the full buffer in order before live events; reconnecting is therefore
+lossless.
+
+## 6. The losslessness contract
+
+`raw_ref` points to the line number in the session's JSONL record
+(`--records` dir) holding the verbatim protocol frame behind the event.
+A conforming UI must offer a way to reveal it, and must render `anomaly`,
+`drift`, and `unrecognized` events visibly — dropping them breaks the
+product's core guarantee.
