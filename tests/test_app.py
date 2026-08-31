@@ -25,9 +25,12 @@ class AppTests(AsyncHTTPTestCase):
         self.manager = SessionManager(cfg)
         return make_app(cfg, self.manager, warnings=["w1"])
 
-    def _post(self, url, body):
+    def _post(self, url, body, headers=None):
+        hdrs = {"Content-Type": "application/json"}
+        if headers:
+            hdrs.update(headers)
         return self.fetch(url, method="POST", body=json.dumps(body),
-                          raise_error=False)
+                          headers=hdrs, raise_error=False)
 
     def test_sessions_lifecycle(self):
         resp = self.fetch("/api/sessions")
@@ -39,11 +42,13 @@ class AppTests(AsyncHTTPTestCase):
         assert json.loads(resp.body)["sessions"][0]["id"] == sid
         resp = self.fetch(f"/api/sessions/{sid}", method="PATCH",
                           body=json.dumps({"title": "mine"}),
+                          headers={"Content-Type": "application/json"},
                           raise_error=False)
         assert resp.code == 200
         resp = self.fetch("/api/sessions")
         assert json.loads(resp.body)["sessions"][0]["title"] == "mine"
         resp = self.fetch(f"/api/sessions/{sid}", method="DELETE",
+                          headers={"Content-Type": "application/json"},
                           raise_error=False)
         assert resp.code == 204
         resp = self.fetch("/api/sessions")
@@ -54,8 +59,29 @@ class AppTests(AsyncHTTPTestCase):
         assert resp.code == 400
         assert "error" in json.loads(resp.body)
 
+    def test_foreign_origin_is_403(self):
+        resp = self._post("/api/sessions", {"path": "."},
+                          headers={"Origin": "http://evil.example"})
+        assert resp.code == 403
+        assert "error" in json.loads(resp.body)
+
+    def test_foreign_host_is_403(self):
+        resp = self.fetch("/api/sessions",
+                          headers={"Host": "evil.example"},
+                          raise_error=False)
+        assert resp.code == 403
+        assert "error" in json.loads(resp.body)
+
+    def test_non_json_content_type_is_403(self):
+        resp = self.fetch("/api/sessions", method="POST", body="path=.",
+                          headers={"Content-Type": "text/plain"},
+                          raise_error=False)
+        assert resp.code == 403
+        assert "error" in json.loads(resp.body)
+
     def test_unknown_session_is_404(self):
         resp = self.fetch("/api/sessions/nope", method="DELETE",
+                          headers={"Content-Type": "application/json"},
                           raise_error=False)
         assert resp.code == 404
         assert "error" in json.loads(resp.body)
@@ -91,7 +117,8 @@ class AppTests(AsyncHTTPTestCase):
     async def _websocket_streams_output(self):
         resp = await self.http_client.fetch(
             self.get_url("/api/sessions"), method="POST",
-            body=json.dumps({"path": "."}), raise_error=False)
+            body=json.dumps({"path": "."}),
+            headers={"Content-Type": "application/json"}, raise_error=False)
         sid = json.loads(resp.body)["id"]
         url = f"ws://127.0.0.1:{self.get_http_port()}/ws/{sid}"
         ws = await tornado.websocket.websocket_connect(url)

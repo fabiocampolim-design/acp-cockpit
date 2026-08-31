@@ -198,6 +198,8 @@ renderer for the HTML and prints that the PDF was skipped. Always exits 0.
 - **No split panes.** One session per interface tab; no multi-pane layouts.
 - **No remote access.** The server binds `127.0.0.1` only — it is not
   reachable from other devices, and there is no plan to make it so.
+  Requests must also originate from the page itself: a foreign `Origin` or
+  `Host` header (CSRF, or DNS rebinding to 127.0.0.1) is refused with 403.
 - **No transcript export.** CLAUDIU does not render or export session
   transcripts; that is the job of the separate claude-session-publisher
   tool.

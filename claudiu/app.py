@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import logging
+import urllib.parse
 from pathlib import Path
 
 import tornado.web
@@ -13,6 +14,12 @@ from claudiu.resume import scan_recent_sessions
 from claudiu.sessions import ClaudiuTermSocket
 
 log = logging.getLogger(__name__)
+
+# Hosts the app trusts to talk to itself. Requests whose Host header (DNS
+# rebinding) or whose Origin header (CSRF from a foreign page) fall outside
+# this set are refused -- see APIHandler.prepare() and
+# TermSocketHandler.check_origin() below.
+ALLOWED_HOSTS = {"127.0.0.1", "localhost", "::1"}
 
 ROUTES = {
     "GET /api/sessions": "list live sessions",
@@ -26,6 +33,25 @@ ROUTES = {
 
 
 class APIHandler(tornado.web.RequestHandler):
+    def prepare(self):
+        # DNS rebinding: a page served from a foreign domain that resolves
+        # to 127.0.0.1 could still send Host: evil.example.
+        if self.request.host_name not in ALLOWED_HOSTS:
+            raise tornado.web.HTTPError(403, reason="forbidden host")
+        if self.request.method not in ("GET", "HEAD", "OPTIONS"):
+            # CSRF: a cross-origin <form> post can't set a custom
+            # Content-Type without triggering a CORS preflight, which this
+            # app never answers -- so require the JSON type real clients
+            # already send instead of relying on a preflight to run.
+            ctype = self.request.headers.get("Content-Type", "")
+            if not ctype.startswith("application/json"):
+                raise tornado.web.HTTPError(403, reason="forbidden content type")
+            origin = self.request.headers.get("Origin")
+            if origin is not None:
+                host = urllib.parse.urlsplit(origin).hostname
+                if host not in ALLOWED_HOSTS:
+                    raise tornado.web.HTTPError(403, reason="forbidden origin")
+
     def write_error(self, status_code, **kwargs):
         reason = self._reason or "error"
         exc = kwargs.get("exc_info")
@@ -112,6 +138,21 @@ class ResumeHandler(APIHandler):
         self.write({"projects": projects, "report": report})
 
 
+class TermSocketHandler(ClaudiuTermSocket):
+    """ClaudiuTermSocket with the same Origin/Host checks as the REST API.
+
+    terminado's default check_origin() only compares Origin to Host (same
+    behaviour Tornado ships); it does not defend against a foreign Host
+    header (DNS rebinding), so both sides are checked here explicitly.
+    """
+
+    def check_origin(self, origin):
+        if self.request.host_name not in ALLOWED_HOSTS:
+            return False
+        host = urllib.parse.urlsplit(origin).hostname
+        return host in ALLOWED_HOSTS
+
+
 def make_app(config, manager, warnings=()) -> tornado.web.Application:
     static = Path(__file__).parent / "static"
     return tornado.web.Application(
@@ -122,7 +163,7 @@ def make_app(config, manager, warnings=()) -> tornado.web.Application:
             (r"/api/config", ConfigHandler,
              {"config": config, "warnings": list(warnings)}),
             (r"/api/resume", ResumeHandler),
-            (r"/ws/([A-Za-z0-9_-]+)", ClaudiuTermSocket,
+            (r"/ws/([A-Za-z0-9_-]+)", TermSocketHandler,
              {"term_manager": manager}),
             (r"/(.*)", tornado.web.StaticFileHandler,
              {"path": str(static), "default_filename": "index.html"}),
