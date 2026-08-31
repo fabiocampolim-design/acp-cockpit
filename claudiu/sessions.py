@@ -35,10 +35,16 @@ class SessionManager(NamedTermManager):
             term.read_buffer, maxlen=self._config["replay_chunks"])
         self.terminals[sid] = term
         self.start_reading(term)
+        # Store the normalized cwd (matches resume.py's normalization of
+        # record cwds, so a resumed session's ended-tab Resume button finds
+        # this project regardless of slash direction) but spawn with the
+        # raw cwd above -- resolve() on a path that does not exist yet
+        # would be misleading to log/report even though it is safe to call.
+        resolved = Path(cwd).resolve()
         self._meta[sid] = {
             "id": sid,
-            "title": title or Path(cwd).resolve().name,
-            "cwd": str(cwd),
+            "title": title or resolved.name,
+            "cwd": str(resolved),
             "args": list(args),
             "created": time.time(),
         }

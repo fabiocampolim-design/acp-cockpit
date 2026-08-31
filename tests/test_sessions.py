@@ -2,6 +2,7 @@
 # Copyright 2026 Fabio Campolim
 import copy
 import sys
+from pathlib import Path
 
 import tornado.gen
 from tornado.testing import AsyncTestCase, gen_test
@@ -44,6 +45,13 @@ class SessionTests(AsyncTestCase):
         listed = mgr.list_sessions()
         assert [s["id"] for s in listed] == [info["id"]]
         assert listed[0]["alive"] is True
+        await mgr.kill_session(info["id"])
+
+    @gen_test(timeout=30)
+    async def test_create_session_stores_absolute_cwd(self):
+        mgr = SessionManager(make_cfg())
+        info = mgr.create_session(cwd=".")
+        assert Path(info["cwd"]).is_absolute()
         await mgr.kill_session(info["id"])
 
     @gen_test(timeout=30)

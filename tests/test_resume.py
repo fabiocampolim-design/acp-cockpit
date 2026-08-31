@@ -3,6 +3,7 @@
 import json
 import os
 import time
+from pathlib import Path
 
 from claudiu.resume import scan_recent_sessions
 
@@ -34,7 +35,10 @@ def test_finds_cwd_summary_and_sorts_newest_first(tmp_path):
     write_session(p, "new", [user_rec("new prompt")])
     projects, report = scan_recent_sessions(tmp_path)
     assert len(projects) == 1
-    assert projects[0]["path"] == "C:/proj"
+    # A record's cwd is normalized (resolve()) so it matches a project's
+    # config path regardless of slash direction -- see the dedicated
+    # normalization test below.
+    assert projects[0]["path"] == str(Path("C:/proj").resolve())
     ids = [s["id"] for s in projects[0]["sessions"]]
     assert ids == ["new", "old"]
     assert projects[0]["sessions"][0]["summary"] == "new prompt"
@@ -74,6 +78,17 @@ def test_no_user_record_still_listed(tmp_path):
     projects, _ = scan_recent_sessions(tmp_path)
     assert projects[0]["path"] == "C--mystery"
     assert projects[0]["sessions"][0]["summary"] == "(no prompt found)"
+
+
+def test_backslash_and_forward_slash_cwd_are_the_same_project(tmp_path):
+    # A record's cwd (as Claude Code writes it -- backslashes on Windows)
+    # must group under the same project as a config.json path written with
+    # forward slashes, so the ended-tab Resume button finds it (F3).
+    p = tmp_path / "C--code-app"
+    write_session(p, "s1", [user_rec("hi", cwd="C:\\code\\app")])
+    projects, _ = scan_recent_sessions(tmp_path)
+    assert len(projects) == 1
+    assert projects[0]["path"] == str(Path("C:/code/app").resolve())
 
 
 def test_zero_limit_does_not_crash(tmp_path):

@@ -80,7 +80,15 @@ def scan_recent_sessions(claude_dir=None, limit_per_project=5,
                 except OSError:
                     report["unreadable_files"] += 1
                     continue
-                key = info["cwd"] or pdir.name
+                # Normalize a record's cwd so a project matches its
+                # config-file path regardless of slash direction (Windows
+                # session records use backslashes; config.json commonly
+                # uses forward slashes) or trailing separators. resolve()
+                # is safe here even when the path no longer exists -- it
+                # only normalizes the string, it does not require the
+                # directory to be present.
+                key = (str(Path(info["cwd"]).resolve()) if info["cwd"]
+                       else pdir.name)
                 by_path.setdefault(key, []).append(info)
     projects = []
     for path, sessions in by_path.items():
