@@ -1,0 +1,45 @@
+"""CLI: python -m claudiu [--port N] [--profiles DIR] [--records DIR]"""
+import argparse
+import signal
+from pathlib import Path
+
+import tornado.httpserver
+import tornado.ioloop
+import tornado.netutil
+
+from .server.app import make_app
+from .server.auth import TokenAuth
+
+
+def main():
+    ap = argparse.ArgumentParser(prog="claudiu")
+    ap.add_argument("--port", type=int, default=0,
+                    help="port (default 0 = OS-assigned)")
+    ap.add_argument("--profiles", default="agents")
+    ap.add_argument("--records",
+                    default=str(Path.home() / ".claudiu" / "records"))
+    ap.add_argument("--no-drift-online", action="store_true",
+                    help="disable the online schema/adapter version check")
+    args = ap.parse_args()
+
+    auth = TokenAuth()
+    app = make_app(Path(args.profiles), Path(args.records), auth,
+                   drift_online=not args.no_drift_online)
+    sockets = tornado.netutil.bind_sockets(args.port, address="127.0.0.1")
+    server = tornado.httpserver.HTTPServer(app)
+    server.add_sockets(sockets)
+    port = sockets[0].getsockname()[1]
+    print(f"CLAUDIU listening: http://127.0.0.1:{port}/?token={auth.token}",
+          flush=True)
+
+    loop = tornado.ioloop.IOLoop.current()
+
+    def shutdown(*_):
+        app.manager.close_all()
+        loop.add_callback_from_signal(loop.stop)
+    signal.signal(signal.SIGINT, shutdown)
+    loop.start()
+
+
+if __name__ == "__main__":
+    main()
