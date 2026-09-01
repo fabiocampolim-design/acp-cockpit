@@ -25,12 +25,21 @@ and rejects foreign `Host`/`Origin` headers.
 
 ### `POST /api/sessions` — body `{"profile": "claude", "cwd": "C:\\work\\proj"}`
 Returns `{"id": "<sid>"}`. Errors: `400` bad profile/cwd; `424` adapter not
-installed (body carries `install_hint`).
+installed (body carries `install_hint`). Add `"resume": "<agent session
+id>"` (from the listing below) to attach to an existing agent session
+instead of creating one (`session/resume` when advertised, else
+`session/load`).
+
+### `GET /api/profiles/<id>/sessions?cwd=<dir>`
+Sessions the *agent* knows for that directory — a throwaway adapter is
+spawned for `session/list` and closed. `{"sessions": [{"sessionId",
+"cwd", "title", "updatedAt"}], "error": null|str}`.
 
 ### `GET /api/sessions`
 ```json
 {"sessions": [{"id": "ab12", "profile": "claude",
-               "cwd": "C:\\work\\proj", "state": "ready"}]}
+               "cwd": "C:\\work\\proj", "state": "ready",
+               "title": "Fix the widget", "agent_session": "<agent id>"}]}
 ```
 
 ### `DELETE /api/sessions/<sid>` — closes the session. `{"ok": true}`.
@@ -55,6 +64,7 @@ server messages are JSON commands:
 {"cmd": "cancel"}
 {"cmd": "set_mode", "mode": "acceptEdits"}
 {"cmd": "set_model", "model": "sonnet"}
+{"cmd": "set_config_option", "config": "effort", "value": "low"}
 {"cmd": "permission", "request": 44, "option": "allow"}
 ```
 
@@ -85,6 +95,9 @@ Every server → client message is one event:
 | `mode` | `current`, `available` (list of `{id, name}`) | Mode selector. |
 | `model` | `current`, `available` (list of `{modelId, name, description}`) | Model selector (from `session/new`'s `models`; empty `available` = current changed only). |
 | `stderr` | `line` | Adapter stderr, recorded (`dir: "err"`). Low severity: collapsible row, no warning chip. Claude's adapter prints slash-command output here. |
+| `usage` | `used`, `size` (tokens), `cost` (`{amount, currency}` or null) | Context gauge in the status strip. |
+| `session_info` | `title`, `updatedAt` (either may be null) | Session/tab title set by the agent. |
+| `config_option` | `options` — the FULL current set of `SessionConfigOption` (`id`, `name`, `type` `select`/`boolean`, `currentValue`, `options` for selects) | Generic selectors; changing one sends `set_config_option`. |
 | `permission_request` | `request` (id), `tool_call`, `options` (list of `{optionId, name, kind}`), `outside_boundary` (absolute paths mentioned by the tool call that fall outside the session boundary) | Modal approval dialog; explicit choice required. Non-empty `outside_boundary` MUST be shown prominently: shell execution is agent-side and the user's answer is the only control. Present one-shot options before standing grants. |
 | `permission_resolved` | `request`, `option`, `source` (`user`/`failsafe`) | Close the dialog; show fail-safe rejections distinctly. |
 | `fs_request` | `op` (`read`/`write`), `path`, `allowed` | Inline notice of agent file access and the policy verdict. |

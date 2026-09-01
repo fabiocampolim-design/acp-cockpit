@@ -205,6 +205,17 @@ class AcpSession:
         elif kind == "current_mode_update":
             self._emit("mode", {"current": update.get("currentModeId"),
                                 "available": []}, ref)
+        elif kind == "usage_update":
+            self._emit("usage", {"used": update.get("used"),
+                                 "size": update.get("size"),
+                                 "cost": update.get("cost")}, ref)
+        elif kind == "session_info_update":
+            self._emit("session_info", {"title": update.get("title"),
+                                        "updatedAt": update.get("updatedAt")},
+                       ref)
+        elif kind == "config_option_update":
+            self._emit("config_option",
+                       {"options": update.get("configOptions", [])}, ref)
         else:
             self._emit("unrecognized",
                        {"why": f"unknown update kind {kind!r}",
@@ -341,7 +352,26 @@ class AcpSession:
                             "modelId": model_id}, done)
         self._flush()
 
+    def set_config_option(self, config_id: str, value) -> None:
+        self.recorder.append({"dir": "client", "action": "set_config_option",
+                              "config": config_id, "value": value})
+
+        def done(result, error):
+            if error:
+                self._emit("anomaly", {"category": "set-config-error",
+                                       "detail": str(error)})
+            else:
+                self._emit("config_option",
+                           {"options": (result or {}).get("configOptions", [])})
+        self._conn.request("session/set_config_option",
+                           {"sessionId": self.acp_session_id,
+                            "configId": config_id, "value": value}, done)
+        self._flush()
+
+    # ---- attaching to existing agent sessions ---------------------------
     def load(self, acp_session_id: str, cwd: str) -> None:
+        """Attach to an existing agent session: `session/resume` when the
+        agent advertises it, else `session/load` (which replays history)."""
         if self.state != "starting":
             raise StateError("load only from a fresh session")
         self._cwd = cwd
@@ -355,13 +385,57 @@ class AcpSession:
         if error or (result or {}).get("protocolVersion") != \
                 self.PROTOCOL_VERSION:
             return self._fail(f"initialize for load failed: {error}")
+        self.agent_capabilities = result.get("agentCapabilities") or {}
+        caps = self.agent_capabilities.get("sessionCapabilities") or {}
+        method = "session/resume" if "resume" in caps else "session/load"
 
         def done(res, err):
             if err:
-                return self._fail(f"session/load failed: {err}")
+                return self._fail(f"{method} failed: {err}")
             self.acp_session_id = self._load_target
+            modes = (res or {}).get("modes") or {}
+            if modes:
+                self._emit("mode", {"current": modes.get("currentModeId"),
+                                    "available": modes.get("availableModes", [])})
+            cfg = (res or {}).get("configOptions")
+            if cfg:
+                self._emit("config_option", {"options": cfg})
+            early, self._early_updates = self._early_updates, []
+            for params, ref in early:
+                self._last_raw_ref = ref
+                self._on_notify("session/update", params)
             self._set_state("ready")
-        self._conn.request("session/load", {
+        self._conn.request(method, {
             "sessionId": self._load_target, "cwd": self._cwd,
             "mcpServers": []}, done)
+        self._flush()
+
+    def probe_sessions(self, cwd: str, on_result) -> None:
+        """Initialize and list the agent's sessions for `cwd` WITHOUT
+        creating one. `on_result(sessions, error)`; state stays 'starting'
+        so the caller closes the probe afterwards."""
+        if self.state != "starting":
+            raise StateError("probe only from a fresh session")
+        self.recorder.append({"dir": "client", "action": "probe_sessions",
+                              "cwd": cwd})
+
+        def listed(res, err):
+            if err:
+                on_result([], err)
+            else:
+                on_result((res or {}).get("sessions", []), None)
+
+        def initialized(res, err):
+            if err or (res or {}).get("protocolVersion") != \
+                    self.PROTOCOL_VERSION:
+                return on_result([], err or {"message": "version mismatch"})
+            caps = (res.get("agentCapabilities") or {}).get(
+                "sessionCapabilities") or {}
+            if "list" not in caps:
+                return on_result([], {"message": "agent cannot list sessions"})
+            self._conn.request("session/list", {"cwd": cwd}, listed)
+            self._flush()
+        self._conn.request("initialize", {
+            "protocolVersion": self.PROTOCOL_VERSION,
+            "clientCapabilities": self.caps}, initialized)
         self._flush()

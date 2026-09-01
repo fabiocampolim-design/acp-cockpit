@@ -8,6 +8,7 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
+import tornado.concurrent
 import tornado.ioloop
 import tornado.web
 
@@ -43,6 +44,7 @@ class Entry:
     sink: BufferedSink
     profile_id: str
     cwd: str
+    title: str | None = None
 
 
 class SessionManager:
@@ -53,10 +55,7 @@ class SessionManager:
         self.permission_timeout = permission_timeout
         self._entries: dict[str, Entry] = {}
 
-    def create(self, profile_id: str, cwd: str) -> str:
-        profile = self.profiles[profile_id]
-        sid = uuid.uuid4().hex[:12]
-        sink = BufferedSink()
+    def _spawn(self, profile, cwd, sid, sink):
         loop = tornado.ioloop.IOLoop.current()
         holder = {}
 
@@ -75,17 +74,51 @@ class SessionManager:
             sentinel=Sentinel.load_default(),
             policy=PathPolicy(cwd), files=LocalFiles())
         holder["s"] = session
-        self._watch_permissions(session, sink, loop)
-        self._entries[sid] = Entry(session, sink, profile_id, cwd)
-        session.start(cwd)
+        return session, loop
+
+    def create(self, profile_id: str, cwd: str, resume: str | None = None) -> str:
+        profile = self.profiles[profile_id]
+        sid = uuid.uuid4().hex[:12]
+        sink = BufferedSink()
+        session, loop = self._spawn(profile, cwd, sid, sink)
+        entry = Entry(session, sink, profile_id, cwd)
+        self._watch_events(entry, loop)
+        self._entries[sid] = entry
+        if resume:
+            session.load(resume, cwd)
+        else:
+            session.start(cwd)
         return sid
 
-    def _watch_permissions(self, session, sink, loop):
+    def list_agent_sessions(self, profile_id: str, cwd: str):
+        """Spawn a throwaway adapter, `session/list`, kill it. Returns a
+        Future of the sessions list (empty + reason on failure)."""
+        profile = self.profiles[profile_id]
+        sid = "probe-" + uuid.uuid4().hex[:8]
+        sink = BufferedSink()
+        session, loop = self._spawn(profile, cwd, sid, sink)
+        future = tornado.concurrent.Future()
+
+        def done(sessions, error):
+            session.close()
+            if not future.done():
+                future.set_result({"sessions": sessions,
+                                   "error": (error or {}).get("message")
+                                   if error else None})
+        session.probe_sessions(cwd, done)
+        loop.call_later(30, lambda: not future.done() and
+                        done([], {"message": "session/list timed out"}))
+        return future
+
+    def _watch_events(self, entry, loop):
+        session, sink = entry.session, entry.sink
         timers: dict[int, object] = {}
         original_emit = sink.emit
 
         def emit(event):
             original_emit(event)
+            if event.kind == "session_info" and event.data.get("title"):
+                entry.title = event.data["title"]
             if event.kind == "permission_request":
                 rid = event.data["request"]
 
@@ -105,7 +138,8 @@ class SessionManager:
 
     def list(self):
         return [{"id": sid, "profile": e.profile_id, "cwd": e.cwd,
-                 "state": e.session.state}
+                 "state": e.session.state, "title": e.title,
+                 "agent_session": e.session.acp_session_id}
                 for sid, e in self._entries.items()]
 
     def close(self, sid):
@@ -188,13 +222,28 @@ class SessionsHandler(BaseHandler):
             self.set_status(424)
             return self.write_json({"error": "adapter not installed",
                                     "install_hint": profile.install_hint})
-        self.write_json({"id": self.manager.create(profile_id, cwd)})
+        self.write_json({"id": self.manager.create(
+            profile_id, cwd, resume=body.get("resume") or None)})
 
 
 class SessionHandler(BaseHandler):
     def delete(self, sid):
         self.manager.close(sid)
         self.write_json({"ok": True})
+
+
+class ProfileSessionsHandler(BaseHandler):
+    """Sessions the AGENT knows for a cwd (for resume); needs a probe."""
+
+    async def get(self, profile_id):
+        cwd = self.get_query_argument("cwd", "")
+        if profile_id not in self.manager.profiles or not Path(cwd).is_dir():
+            raise tornado.web.HTTPError(400, "bad profile or cwd")
+        profile = self.manager.profiles[profile_id]
+        if shutil.which(profile.command[0]) is None:
+            return self.write_json({"sessions": [],
+                                    "error": "adapter not installed"})
+        self.write_json(await self.manager.list_agent_sessions(profile_id, cwd))
 
 
 class DriftHandler(BaseHandler):
@@ -256,6 +305,8 @@ def make_app(profiles_dir, records_dir, auth,
         (r"/api/profiles", ProfilesHandler, common),
         (r"/api/sessions", SessionsHandler, common),
         (r"/api/sessions/([0-9a-f]+)", SessionHandler, common),
+        (r"/api/profiles/([A-Za-z0-9_-]+)/sessions", ProfileSessionsHandler,
+         common),
         (r"/api/drift", DriftHandler, common),
         (r"/ws/sessions/([0-9a-f]+)", SessionWS, common),
         (r"/ui/(.*)", tornado.web.StaticFileHandler, {"path": str(UI_DIR)}),

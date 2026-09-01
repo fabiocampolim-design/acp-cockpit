@@ -76,6 +76,8 @@ class SessionWS(tornado.websocket.WebSocketHandler):
                 session.set_mode(msg["mode"])
             elif cmd == "set_model":
                 session.set_model(msg["model"])
+            elif cmd == "set_config_option":
+                session.set_config_option(msg["config"], msg["value"])
             elif cmd == "permission":
                 session.answer_permission(msg["request"], msg["option"])
             else:

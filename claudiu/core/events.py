@@ -16,6 +16,9 @@ KINDS = frozenset({
     "mode",                # {"current": str|None, "available": [...]}
     "model",               # {"current": str|None, "available": [{modelId, name, description}]}
     "stderr",              # {"line": str} — adapter stderr, recorded, low severity
+    "usage",               # {"used": int, "size": int, "cost": {amount, currency}|None}
+    "session_info",        # {"title": str|None, "updatedAt": str|None}
+    "config_option",       # {"options": [SessionConfigOption...]} full current set
     "permission_request",  # {"request": int, "tool_call": dict, "options": [...],
                            #  "outside_boundary": [paths mentioned outside the policy root]}
     "permission_resolved", # {"request": int, "option": str|None, "source": "user"|"failsafe"}
