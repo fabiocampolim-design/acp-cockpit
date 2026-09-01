@@ -87,8 +87,8 @@ def test_model_selector_and_thinking_marker_and_stderr(server):
         page.wait_for_selector("#model:not([hidden])")
         assert page.input_value("#model") == "default"
         page.select_option("#model", "sonnet")
-        page.wait_for_function(
-            "document.querySelector('#status .model').textContent === 'sonnet'")
+        # selector wait, not wait_for_function: the page's CSP forbids eval
+        page.wait_for_selector("#status .model:text-is('sonnet')")
         page.fill("#prompt-input", "go")
         page.click("#send")
         page.wait_for_selector('[data-kind="turn_ended"]')
