@@ -21,6 +21,26 @@ body {
   height: 100vh; display: flex; flex-direction: column;
 }
 
+/* ---- tabs ---- */
+#tabs {
+  display: flex; gap: .25rem; padding: .3rem .5rem 0; background: var(--bg);
+  border-bottom: 1px solid var(--border); overflow-x: auto;
+}
+.tab {
+  display: flex; align-items: center; gap: .5rem; padding: .3rem .7rem;
+  border: 1px solid var(--border); border-bottom: none; border-radius: 6px 6px 0 0;
+  background: var(--bg-raised); color: var(--fg-dim); cursor: pointer;
+  font-size: .85em; white-space: nowrap;
+}
+.tab.active { color: var(--fg); background: var(--bg); border-color: var(--accent); }
+.tab[data-state="turn"]::before { content: "●"; color: var(--accent);
+  animation: pulse 1.6s ease-in-out infinite; }
+.tab[data-state="ready"]::before { content: "●"; color: var(--ok); }
+.tab[data-state="failed"]::before, .tab[data-state="disconnected"]::before {
+  content: "●"; color: var(--danger); }
+.tab .close { opacity: .5; } .tab .close:hover { opacity: 1; color: var(--danger); }
+.tab.add { font-weight: 700; }
+
 /* ---- launcher ---- */
 #launcher { max-width: 34rem; margin: 12vh auto; padding: 0 1rem; }
 #launcher h1 { font-weight: 600; letter-spacing: .18em; color: var(--accent); }
@@ -34,7 +54,15 @@ body {
   border-radius: 6px; background: var(--accent); color: var(--bg);
   cursor: pointer; font-weight: 600;
 }
+#launcher button.secondary {
+  background: var(--bg-raised); color: var(--fg); margin-left: .5rem;
+}
 #caveats { color: var(--fg-dim); font-size: .85em; padding-left: 1.2rem; }
+#caveats .error { color: var(--danger); }
+#recent h3 { font-size: .95em; color: var(--fg-dim); margin-bottom: .3rem; }
+#recent-list { list-style: none; padding: 0; font-size: .9em; }
+#recent-list li { display: flex; gap: .6rem; align-items: center; margin: .3rem 0; }
+#recent-list button { padding: .2rem .7rem; margin: 0; }
 
 /* ---- workspace ---- */
 #workspace { display: flex; flex-direction: column; flex: 1; min-height: 0; }
@@ -72,7 +100,7 @@ body {
 #perm-options button[data-kind="allow_always"] { border-color: var(--warn); }
 
 #conversation { flex: 1; overflow-y: auto; padding: 1rem; min-height: 0; }
-#conversation > div {
+.pane > div {
   margin: .35rem auto; max-width: 52rem; padding: .45rem .8rem;
   border-radius: 8px; white-space: pre-wrap; word-break: break-word;
 }
@@ -82,10 +110,32 @@ body {
 [data-kind="message_chunk"][data-role="thought"] {
   color: var(--fg-dim); font-style: italic; font-size: .9em;
 }
-[data-kind="tool_call"], [data-kind="tool_call_update"] {
+[data-kind="tool_call"] {
   background: var(--bg-raised); border-left: 3px solid var(--accent);
   font-family: ui-monospace, Consolas, monospace; font-size: .85em;
 }
+[data-kind="tool_call"][data-status="completed"] { border-left-color: var(--ok); }
+[data-kind="tool_call"][data-status="failed"] { border-left-color: var(--danger); }
+[data-kind="tool_call"] .tool-head { font-weight: 600; }
+[data-kind="tool_call"] summary { cursor: pointer; color: var(--fg-dim); }
+.tool-text { white-space: pre-wrap; margin: .3rem 0; }
+.locations { color: var(--fg-dim); }
+.diff { margin: .3rem 0; }
+.diff-path { color: var(--fg-dim); margin-bottom: .2rem; }
+.diff .add { background: color-mix(in srgb, var(--ok) 22%, transparent); }
+.diff .del { background: color-mix(in srgb, var(--danger) 22%, transparent); }
+.diff .ctx { color: var(--fg-dim); }
+.diff div { white-space: pre; padding: 0 .3rem; }
+
+#status .usage {
+  background: linear-gradient(to right, color-mix(in srgb, var(--accent) 35%, transparent) var(--pct, 0%), transparent var(--pct, 0%));
+  border: 1px solid var(--border); border-radius: 4px; padding: 0 .5em;
+}
+.config-option { font-size: .85em; color: var(--fg-dim); display: inline-flex;
+  align-items: center; gap: .3rem; }
+.config-option select { background: var(--bg); color: var(--fg);
+  border: 1px solid var(--border); border-radius: 6px; padding: .3rem; }
+.working.stale { color: var(--warn); animation: none; }
 [data-kind="turn_ended"] { color: var(--fg-dim); text-align: center;
   font-size: .8em; }
 [data-kind="fs_request"] { color: var(--fg-dim); font-size: .85em; }
@@ -101,7 +151,7 @@ pre.raw {
   padding: .5rem; overflow-x: auto; font-size: .8em; clear: both;
 }
 
-#working {
+.working {
   color: var(--accent); font-size: .85em; text-align: center;
   animation: pulse 1.6s ease-in-out infinite;
 }

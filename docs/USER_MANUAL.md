@@ -21,6 +21,15 @@ one-time token — open it; the token becomes a cookie and the address bar
 cleans itself. Each launch gets a fresh token; old URLs die with the
 server.
 
+## Tabs
+
+Each session is a tab (Alt+1…9 switch, Alt+N opens the launcher, × closes
+and ends the session). The tab shows the agent's own title for the
+session once it sets one, and a dot: green ready, pulsing blue working,
+red failed or disconnected. The status strip, selectors and composer
+always belong to the active tab; approval dialogs from any tab pop up
+wherever you are, labelled with the session they belong to.
+
 ## The launcher
 
 Pick an **agent** (from `agents/*.toml` profiles; an agent whose adapter is
@@ -28,12 +37,18 @@ not installed shows "adapter missing" with the install hint) and a
 **project directory** — the session's working directory and, importantly,
 its *file-access boundary*: the agent can only read/write inside it through
 this client. Known caveats of the selected agent are listed right there.
+**Find resumable sessions** asks the agent which of its own sessions exist
+for that directory (a throwaway adapter is started and closed for the
+query) and offers a **Resume** button per session.
 
 ## The conversation
 
 - **Agent text** streams as it is produced; *thinking* appears dimmed and
   italic; your prompts are boxed.
-- **Tool calls** are compact monospace rows updated live with status.
+- **Tool calls** are one row per call, updated in place as the agent
+  reports progress (pending → in progress → completed/failed, colour-coded
+  edge). Edits arrive as real diffs (+/− lines); text output and file
+  locations open under "details".
 - **Plan** entries (the agent's todo list) fill the panel above the
   composer.
 - **Turn ends** are marked with the protocol's stop reason.
@@ -60,9 +75,16 @@ as fail-safe rejections.
 
 ## Status strip and warnings
 
-The strip shows the session state and current permission mode (a selector
-appears when the agent offers modes such as Accept Edits or Plan). Two
-chips can appear and should not be ignored:
+The strip shows the session state, the current permission mode, a
+**context gauge** (tokens used / window size, percentage, and cost when
+the agent reports it) and the current model. Selectors next to the
+composer switch **mode**, **model** (with the agent's description — Claude's
+"Default" is Opus) and any **configuration options** the agent advertises.
+While a turn runs, a pulsing "agent working… 42s · last activity 3s ago
+(tool_call: Edit hello.py)" row sits at the end of the conversation — the
+elapsed time tells you the turn is alive, the last-activity part tells you
+whether the agent is still producing events (it turns amber after a minute
+of silence). Two chips can appear and should not be ignored:
 
 - **drift** — the agent sent protocol data newer than this client's pinned
   ACP schema (hover for details). The client keeps working and keeps

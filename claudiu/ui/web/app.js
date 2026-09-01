@@ -1,18 +1,28 @@
 "use strict";
-/* CLAUDIU web View. Talks ONLY the UI protocol (docs/UI-PROTOCOL.md). */
+/* CLAUDIU web View. Talks ONLY the UI protocol (docs/UI-PROTOCOL.md).
+   Multi-session: one Session object per tab; the status strip, controls
+   and composer always reflect the ACTIVE session. */
 
-const $ = (sel) => document.querySelector(sel);
-let ws = null, sid = null, turnActive = false;
+const $ = (sel, root = document) => root.querySelector(sel);
+const sessions = new Map();   // sid -> Session
+let active = null;            // Session
+let profiles = [];
 
 async function api(path, opts = {}) {
   const resp = await fetch(path, {headers: {"Content-Type": "application/json"},
                                   ...opts});
-  if (!resp.ok) throw new Error(`${path}: ${resp.status}`);
+  if (!resp.ok) {
+    let detail = "";
+    try { detail = (await resp.json()).install_hint || ""; } catch (e) {}
+    throw new Error(`${path}: ${resp.status} ${detail}`.trim());
+  }
   return resp.json();
 }
 
+/* ---------------- launcher ---------------- */
+
 async function initLauncher() {
-  const {profiles} = await api("/api/profiles");
+  ({profiles} = await api("/api/profiles"));
   const sel = $("#profile");
   for (const p of profiles) {
     const o = document.createElement("option");
@@ -29,92 +39,503 @@ async function initLauncher() {
     }));
   };
   sel.onchange();
-  $("#start").onclick = startSession;
+  $("#start").onclick = () => startSession(null);
+  $("#refresh-recent").onclick = loadRecent;
+  $("#tab-add").onclick = showLauncher;
 }
 
-async function startSession() {
-  const body = JSON.stringify({profile: $("#profile").value,
-                               cwd: $("#cwd").value.trim()});
-  const {id} = await api("/api/sessions", {method: "POST", body});
-  sid = id;
-  $("#launcher").hidden = true;
-  $("#workspace").hidden = false;
-  connect();
+async function loadRecent() {
+  const cwd = $("#cwd").value.trim();
+  const list = $("#recent-list");
+  $("#recent").hidden = false;
+  list.replaceChildren(li("looking…"));
+  try {
+    const data = await api(`/api/profiles/${$("#profile").value}/sessions?cwd=` +
+                           encodeURIComponent(cwd));
+    if (data.error) list.replaceChildren(li(`not available: ${data.error}`));
+    else if (!data.sessions.length) list.replaceChildren(li("none found"));
+    else list.replaceChildren(...data.sessions.map(s => {
+      const item = li(`${s.title || "(untitled)"} — ${s.sessionId}` +
+                      (s.updatedAt ? ` · ${s.updatedAt}` : ""));
+      const b = document.createElement("button");
+      b.textContent = "Resume";
+      b.dataset.resume = s.sessionId;
+      b.onclick = () => startSession(s.sessionId);
+      item.prepend(b);
+      return item;
+    }));
+  } catch (e) {
+    list.replaceChildren(li(`error: ${e.message}`));
+  }
 }
 
-const sendQueue = [];
-
-function connect() {
-  ws = new WebSocket(`ws://${location.host}/ws/sessions/${sid}`);
-  ws.onopen = () => {
-    while (sendQueue.length) ws.send(sendQueue.shift());
-  };
-  ws.onmessage = (m) => handleEvent(JSON.parse(m.data));
-  ws.onclose = () => setState("disconnected");
+function li(text) {
+  const el = document.createElement("li"); el.textContent = text; return el;
 }
 
-let uiState = "starting";
-
-let workingTimer = null;
-
-function setState(s) {
-  uiState = s;
-  $("#status .state").textContent = s;
-  turnActive = (s === "turn");
-  $("#send").disabled = (s !== "ready");
-  $("#cancel").hidden = !turnActive;
-  showWorking(turnActive);
-}
-
-// Visible progress while the agent's turn runs (slash commands like
-// /insights can take minutes with no output until the end).
-function showWorking(on) {
-  let w = $("#working");
-  if (!on) {
-    if (w) w.remove();
-    if (workingTimer) { clearInterval(workingTimer); workingTimer = null; }
+async function startSession(resume) {
+  const profile = $("#profile").value;
+  const cwd = $("#cwd").value.trim();
+  const body = JSON.stringify({profile, cwd, resume});
+  let id;
+  try {
+    ({id} = await api("/api/sessions", {method: "POST", body}));
+  } catch (e) {
+    alertBanner(e.message);
     return;
   }
-  if (w) return;
-  w = document.createElement("div");
-  w.id = "working";
-  const started = Date.now();
-  const render = () => {
-    const secs = Math.round((Date.now() - started) / 1000);
-    w.textContent = `agent working… ${secs}s — Stop cancels the turn`;
-  };
-  render();
-  workingTimer = setInterval(render, 1000);
-  $("#conversation").append(w);
-  w.scrollIntoView({block: "end"});
+  const S = new Session(id, profile, cwd);
+  sessions.set(id, S);
+  activate(S);
+  S.connect();
 }
 
-const agg = {};   // aggregation state for consecutive same-role chunks
+function alertBanner(text) {
+  const ul = $("#caveats");
+  const el = li("⚠ " + text);
+  el.className = "error";
+  ul.prepend(el);
+}
 
-function addBlock(kind, role, text) {
-  const key = kind + ":" + (role || "");
-  if (agg.currentKey === key && agg.node) {
-    if (text) {
-      const marker = agg.node.querySelector(".marker");
-      if (marker) marker.remove();   // real text replaces the placeholder
-    }
-    agg.node.querySelector(".text").textContent += text;
-    return agg.node;
+/* ---------------- tabs ---------------- */
+
+function showLauncher() {
+  active = null;
+  $("#launcher").hidden = false;
+  $("#workspace").hidden = true;
+  for (const S of sessions.values()) S.tab.classList.remove("active");
+  $("#tab-add").classList.add("active");
+}
+
+function activate(S) {
+  active = S;
+  $("#launcher").hidden = true;
+  $("#workspace").hidden = false;
+  $("#tab-add").classList.remove("active");
+  for (const other of sessions.values()) {
+    other.pane.hidden = other !== S;
+    other.tab.classList.toggle("active", other === S);
   }
-  const div = document.createElement("div");
-  div.dataset.kind = kind;
-  if (role) div.dataset.role = role;
-  const span = document.createElement("span");
-  span.className = "text";
-  span.textContent = text;
-  div.append(span);
-  const working = $("#working");   // keep the progress row last
-  if (working) working.before(div); else $("#conversation").append(div);
-  agg.currentKey = key;
-  agg.node = div;
-  div.scrollIntoView({block: "end"});
-  return div;
+  S.renderAll();
+  $("#prompt-input").focus();
 }
+
+function closeSession(S) {
+  fetch(`/api/sessions/${S.sid}`, {method: "DELETE"}).catch(() => {});
+  if (S.ws) { S.ws.onclose = null; S.ws.close(); }
+  S.pane.remove();
+  S.tab.remove();
+  sessions.delete(S.sid);
+  if (active === S) {
+    const next = sessions.values().next().value;
+    if (next) activate(next); else showLauncher();
+  }
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.altKey && /^[1-9]$/.test(e.key)) {
+    const S = [...sessions.values()][Number(e.key) - 1];
+    if (S) { activate(S); e.preventDefault(); }
+  } else if (e.altKey && e.key.toLowerCase() === "n") {
+    showLauncher(); e.preventDefault();
+  }
+});
+
+/* ---------------- session ---------------- */
+
+class Session {
+  constructor(sid, profile, cwd) {
+    this.sid = sid; this.profile = profile; this.cwd = cwd;
+    this.state = "starting"; this.title = null;
+    this.agg = {}; this.tools = new Map(); this.queue = [];
+    this.mode = {current: null, available: []};
+    this.model = {current: null, available: []};
+    this.config = []; this.plan = []; this.usage = null; this.commands = [];
+    this.chips = {".drift-chip": {n: 0, label: "drift", title: ""},
+                  ".anomaly-chip": {n: 0, label: "anomalies", title: ""}};
+    this.turnStarted = null; this.lastActivity = null;
+    this.pane = document.createElement("div");
+    this.pane.className = "pane";
+    this.pane.dataset.session = sid;
+    $("#conversation").append(this.pane);
+    this.tab = document.createElement("button");
+    this.tab.className = "tab";
+    this.tab.onclick = () => activate(this);
+    const x = document.createElement("span");
+    x.className = "close"; x.textContent = "×"; x.title = "close session";
+    x.onclick = (e) => { e.stopPropagation(); closeSession(this); };
+    this.tabLabel = document.createElement("span");
+    this.tab.append(this.tabLabel, x);
+    $("#tab-add").before(this.tab);
+    this.renderTab();
+  }
+
+  get isActive() { return active === this; }
+
+  connect() {
+    this.ws = new WebSocket(`ws://${location.host}/ws/sessions/${this.sid}`);
+    this.ws.onopen = () => { while (this.queue.length) this.ws.send(this.queue.shift()); };
+    this.ws.onmessage = (m) => this.handle(JSON.parse(m.data));
+    this.ws.onclose = () => this.setState("disconnected");
+  }
+
+  send(obj) {
+    const wire = JSON.stringify(obj);
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) this.ws.send(wire);
+    else this.queue.push(wire);
+  }
+
+  /* ----- rendering of session-scoped chrome ----- */
+  renderTab() {
+    const base = this.cwd.replace(/[\\/]+$/, "").split(/[\\/]/).pop();
+    this.tabLabel.textContent = this.title || `${this.profile} · ${base}`;
+    this.tab.dataset.state = this.state;
+    this.tab.title = `${this.profile} — ${this.cwd} — ${this.state}`;
+  }
+
+  renderAll() {
+    this.renderTab();
+    this.renderStatus();
+    this.renderControls();
+    this.renderPlan();
+    showWorking(this, this.state === "turn");
+  }
+
+  renderStatus() {
+    if (!this.isActive) return;
+    $("#status .state").textContent = this.state;
+    $("#status .mode").textContent = this.mode.current || "";
+    $("#status .model").textContent = this.model.current || "";
+    const u = this.usage;
+    const usageEl = $("#status .usage");
+    if (u && u.size) {
+      const pct = Math.round(100 * u.used / u.size);
+      usageEl.textContent = `${fmtK(u.used)} / ${fmtK(u.size)} (${pct}%)` +
+        (u.cost ? ` · ${u.cost.amount} ${u.cost.currency}` : "");
+      usageEl.style.setProperty("--pct", pct + "%");
+    } else usageEl.textContent = "";
+    for (const [sel, c] of Object.entries(this.chips)) {
+      const chip = $("#status " + sel);
+      chip.hidden = c.n === 0;
+      chip.textContent = `${c.label} (${c.n})`;
+      chip.title = c.title;
+      chip.onclick = () => { c.n = 0; c.title = ""; this.renderStatus(); };
+    }
+    $("#send").disabled = this.state !== "ready";
+    $("#cancel").hidden = this.state !== "turn";
+  }
+
+  renderControls() {
+    if (!this.isActive) return;
+    fillSelect($("#mode"), this.mode.available.map(m => [m.id, m.name || m.id]),
+               this.mode.current);
+    fillSelect($("#model"), this.model.available.map(m =>
+      [m.modelId, (m.name || m.modelId) + (m.description ? ` — ${m.description}` : "")]),
+      this.model.current);
+    const box = $("#config-options");
+    box.replaceChildren(...this.config.map(opt => {
+      const wrap = document.createElement("label");
+      wrap.className = "config-option";
+      wrap.title = opt.description || "";
+      wrap.textContent = opt.name + " ";
+      if (opt.type === "boolean") {
+        const cb = document.createElement("input");
+        cb.type = "checkbox"; cb.checked = !!opt.currentValue;
+        cb.dataset.config = opt.id;
+        cb.onchange = () => this.send({cmd: "set_config_option",
+                                       config: opt.id, value: cb.checked});
+        wrap.append(cb);
+      } else {
+        const sel = document.createElement("select");
+        sel.dataset.config = opt.id;
+        for (const o of opt.options || []) {
+          const el = document.createElement("option");
+          el.value = o.value; el.textContent = o.name || o.value;
+          sel.append(el);
+        }
+        sel.value = opt.currentValue;
+        sel.onchange = () => this.send({cmd: "set_config_option",
+                                       config: opt.id, value: sel.value});
+        wrap.append(sel);
+      }
+      return wrap;
+    }));
+  }
+
+  renderPlan() {
+    if (!this.isActive) return;
+    $("#plan").hidden = this.plan.length === 0;
+    $("#plan").replaceChildren(...this.plan.map(e => {
+      const row = document.createElement("div");
+      row.textContent = `${e.status || "?"} — ${e.content || ""}`;
+      return row;
+    }));
+  }
+
+  setState(s) {
+    this.state = s;
+    if (s === "turn") this.turnStarted = Date.now();
+    this.renderTab();
+    this.renderStatus();
+    showWorking(this, s === "turn");
+  }
+
+  touch(text) {
+    this.lastActivity = {ts: Date.now(), text};
+  }
+
+  /* ----- conversation blocks ----- */
+  addBlock(kind, role, text) {
+    const key = kind + ":" + (role || "");
+    if (this.agg.currentKey === key && this.agg.node) {
+      if (text) { const m = $(".marker", this.agg.node); if (m) m.remove(); }
+      $(".text", this.agg.node).textContent += text;
+      return this.agg.node;
+    }
+    const div = document.createElement("div");
+    div.dataset.kind = kind;
+    if (role) div.dataset.role = role;
+    const span = document.createElement("span");
+    span.className = "text";
+    span.textContent = text;
+    div.append(span);
+    this.appendRow(div);
+    this.agg.currentKey = key;
+    this.agg.node = div;
+    return div;
+  }
+
+  appendRow(node) {
+    const working = $(".working", this.pane);
+    if (working) working.before(node); else this.pane.append(node);
+    if (this.isActive) node.scrollIntoView({block: "end"});
+  }
+
+  breakAgg() { this.agg.currentKey = null; }
+
+  /* ----- event dispatch ----- */
+  handle(ev) {
+    const d = ev.data;
+    if (ev.kind !== "session_state") this.touch(summarize(ev));
+    switch (ev.kind) {
+      case "session_state": this.setState(d.state); break;
+      case "message_chunk": {
+        const node = this.addBlock("message_chunk", d.role, d.text);
+        if (d.role === "thought" && !$(".text", node).textContent &&
+            !$(".marker", node)) {
+          const m = document.createElement("span");
+          m.className = "marker"; m.textContent = "· thinking ·";
+          node.prepend(m);
+        }
+        break;
+      }
+      case "tool_call":
+      case "tool_call_update": this.breakAgg(); this.renderTool(ev); break;
+      case "plan": this.plan = d.entries; this.renderPlan(); break;
+      case "commands": this.commands = d.commands; break;
+      case "mode":
+        if (d.available.length) this.mode.available = d.available;
+        this.mode.current = d.current || this.mode.current;
+        this.renderStatus(); this.renderControls(); break;
+      case "model":
+        if (d.available.length) this.model.available = d.available;
+        this.model.current = d.current || this.model.current;
+        this.renderStatus(); this.renderControls(); break;
+      case "config_option": this.config = d.options; this.renderControls(); break;
+      case "usage": this.usage = d; this.renderStatus(); break;
+      case "session_info":
+        if (d.title !== undefined) this.title = d.title;
+        this.renderTab(); break;
+      case "stderr": this.renderStderr(ev); break;
+      case "permission_request": queuePermission(this, ev); break;
+      case "permission_resolved": resolvePermission(this, d.request); break;
+      case "turn_ended":
+        this.breakAgg();
+        this.addBlock("turn_ended", null, `— turn ended (${d.stop_reason}) —`);
+        break;
+      case "fs_request":
+        this.breakAgg();
+        this.addBlock("fs_request", null,
+          `agent ${d.op} ${d.path} ${d.allowed ? "✓" : "✗ blocked"}`);
+        break;
+      case "drift": this.bumpChip(".drift-chip", d.flags.join("\n")); break;
+      case "anomaly":
+        this.bumpChip(".anomaly-chip", `${d.category}: ${d.detail}`);
+        this.breakAgg();
+        addRawToggle(this.addBlock("anomaly", null,
+          `⚠ ${d.category}: ${d.detail}`), ev);
+        break;
+      case "unrecognized":
+        this.breakAgg();
+        addRawToggle(this.addBlock("unrecognized", null,
+          `unrecognized protocol data (${d.why})`), ev);
+        break;
+      default:
+        this.breakAgg();
+        addRawToggle(this.addBlock("unrecognized", null,
+          `unknown event kind ${ev.kind}`), ev);
+    }
+  }
+
+  bumpChip(sel, detail) {
+    const c = this.chips[sel];
+    c.n += 1;
+    c.title = (c.title ? c.title + "\n" : "") + detail;
+    this.renderStatus();
+  }
+
+  renderStderr(ev) {
+    const line = ev.data.line;
+    if (this.agg.currentKey === "stderr:" && this.agg.node) {
+      const pre = $("pre", this.agg.node);
+      pre.textContent += "\n" + line;
+      this.agg.node.stderrLines += 1;
+      $("summary", this.agg.node).textContent =
+        `adapter stderr (${this.agg.node.stderrLines} lines)`;
+      return;
+    }
+    const node = document.createElement("div");
+    node.dataset.kind = "stderr";
+    node.stderrLines = 1;
+    const det = document.createElement("details");
+    const sum = document.createElement("summary");
+    sum.textContent = "adapter stderr (1 lines)";
+    const pre = document.createElement("pre");
+    pre.textContent = line;
+    det.append(sum, pre);
+    node.append(det);
+    addRawToggle(node, ev);
+    this.appendRow(node);
+    this.agg.currentKey = "stderr:";
+    this.agg.node = node;
+  }
+
+  /* Tool calls: one row per toolCallId, updates merge into it. */
+  renderTool(ev) {
+    const d = ev.data;
+    const id = d.toolCallId || `anon-${ev.seq}`;
+    let entry = this.tools.get(id);
+    if (!entry) {
+      const node = document.createElement("div");
+      node.dataset.kind = "tool_call";
+      node.dataset.toolCall = id;
+      const head = document.createElement("div");
+      head.className = "tool-head";
+      const det = document.createElement("details");
+      const sum = document.createElement("summary");
+      sum.textContent = "details";
+      const body = document.createElement("div");
+      body.className = "tool-body";
+      det.append(sum, body);
+      node.append(head, det);
+      addRawToggle(node, ev);
+      this.appendRow(node);
+      entry = {node, head, body, data: {}};
+      this.tools.set(id, entry);
+    }
+    for (const [k, v] of Object.entries(d)) {
+      if (v !== null && v !== undefined && k !== "sessionUpdate") entry.data[k] = v;
+    }
+    const t = entry.data;
+    entry.head.textContent =
+      `${t.kind || "tool"} · ${t.title || id} [${t.status || "pending"}]`;
+    entry.node.dataset.status = t.status || "pending";
+    entry.body.replaceChildren(...(t.content || []).map(renderToolContent));
+    if (t.locations && t.locations.length) {
+      const loc = document.createElement("div");
+      loc.className = "locations";
+      loc.textContent = t.locations.map(l => l.path + (l.line ? `:${l.line}` : "")).join(", ");
+      entry.body.append(loc);
+    }
+    if (entry.body.children.length) entry.node.querySelector("details").open = true;
+  }
+}
+
+function fmtK(n) { return n >= 1000 ? (n / 1000).toFixed(n >= 100000 ? 0 : 1) + "k" : String(n); }
+
+function fillSelect(sel, pairs, current) {
+  if (pairs.length) {
+    sel.hidden = false;
+    sel.replaceChildren(...pairs.map(([v, label]) => {
+      const o = document.createElement("option");
+      o.value = v; o.textContent = label; return o;
+    }));
+  } else sel.hidden = true;
+  if (current !== null && current !== undefined) sel.value = current;
+}
+
+function summarize(ev) {
+  const d = ev.data;
+  switch (ev.kind) {
+    case "message_chunk": return d.role === "thought" ? "thinking" : "agent text";
+    case "tool_call": case "tool_call_update":
+      return `${ev.kind}: ${d.title || d.toolCallId || ""}`.trim();
+    case "stderr": return "adapter stderr";
+    case "permission_request": return "waiting for your approval";
+    default: return ev.kind;
+  }
+}
+
+/* ---------------- tool content & diffs ---------------- */
+
+function renderToolContent(item) {
+  if (item.type === "diff") return renderDiff(item);
+  if (item.type === "content" && item.content && item.content.type === "text") {
+    const pre = document.createElement("pre");
+    pre.className = "tool-text";
+    pre.textContent = item.content.text;
+    return pre;
+  }
+  const pre = document.createElement("pre");
+  pre.className = "tool-text";
+  pre.textContent = JSON.stringify(item, null, 2);
+  return pre;
+}
+
+function renderDiff(item) {
+  const box = document.createElement("div");
+  box.className = "diff";
+  const path = document.createElement("div");
+  path.className = "diff-path";
+  path.textContent = item.path || "";
+  box.append(path);
+  const oldLines = item.oldText == null ? [] : item.oldText.split("\n");
+  const newLines = (item.newText || "").split("\n");
+  for (const [op, text] of lineDiff(oldLines, newLines)) {
+    const row = document.createElement("div");
+    row.className = op === "+" ? "add" : op === "-" ? "del" : "ctx";
+    row.textContent = `${op} ${text}`;
+    box.append(row);
+  }
+  return box;
+}
+
+// Line-level LCS diff; falls back to whole-file replace when too large.
+function lineDiff(a, b) {
+  if (a.length * b.length > 250000) {
+    return [...a.map(l => ["-", l]), ...b.map(l => ["+", l])];
+  }
+  const n = a.length, m = b.length;
+  const dp = Array.from({length: n + 1}, () => new Uint16Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1
+                               : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+  const out = [];
+  let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (a[i] === b[j]) { out.push([" ", a[i]]); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) { out.push(["-", a[i]]); i++; }
+    else { out.push(["+", b[j]]); j++; }
+  }
+  while (i < n) out.push(["-", a[i++]]);
+  while (j < m) out.push(["+", b[j++]]);
+  return out;
+}
+
+/* ---------------- raw frame escape hatch ---------------- */
 
 function addRawToggle(node, ev) {
   const btn = document.createElement("button");
@@ -122,7 +543,7 @@ function addRawToggle(node, ev) {
   btn.textContent = "{}";
   btn.title = `raw frame #${ev.raw_ref ?? "-"}`;
   btn.onclick = () => {
-    let pre = node.querySelector("pre.raw");
+    let pre = $("pre.raw", node);
     if (pre) { pre.remove(); return; }
     pre = document.createElement("pre");
     pre.className = "raw";
@@ -132,158 +553,70 @@ function addRawToggle(node, ev) {
   node.append(btn);
 }
 
-function handleEvent(ev) {
-  const d = ev.data;
-  switch (ev.kind) {
-    case "session_state":
-      setState(d.state);
-      break;
-    case "message_chunk": {
-      const node = addBlock("message_chunk", d.role, d.text);
-      // Claude's adapter sends thought chunks with EMPTY text (thinking is
-      // redacted). Show that thinking happened rather than an empty block.
-      if (d.role === "thought" && !node.querySelector(".text").textContent
-          && !node.querySelector(".marker")) {
-        const m = document.createElement("span");
-        m.className = "marker";
-        m.textContent = "· thinking ·";
-        node.prepend(m);
-      }
-      break;
-    }
-    case "model": {
-      const sel = $("#model");
-      if (d.available.length) {
-        sel.hidden = false;
-        sel.replaceChildren(...d.available.map(m => {
-          const o = document.createElement("option");
-          o.value = m.modelId;
-          // The description carries the real identity ("Default" = Opus).
-          o.textContent = (m.name || m.modelId) +
-            (m.description ? ` — ${m.description}` : "");
-          return o;
-        }));
-      }
-      if (d.current) sel.value = d.current;
-      $("#status .model").textContent = d.current || "";
-      break;
-    }
-    case "stderr": {
-      // Consecutive stderr lines coalesce into ONE collapsible row
-      // (Claude's /context echoes ~130 lines); every line stays visible.
-      if (agg.currentKey === "stderr:" && agg.node) {
-        const pre = agg.node.querySelector("pre");
-        pre.textContent += "\n" + d.line;
-        agg.node.stderrLines += 1;
-        agg.node.querySelector("summary").textContent =
-          `adapter stderr (${agg.node.stderrLines} lines)`;
-        break;
-      }
-      const node = document.createElement("div");
-      node.dataset.kind = "stderr";
-      node.stderrLines = 1;
-      const det = document.createElement("details");
-      const sum = document.createElement("summary");
-      sum.textContent = "adapter stderr (1 lines)";
-      const pre = document.createElement("pre");
-      pre.textContent = d.line;
-      det.append(sum, pre);
-      node.append(det);
-      addRawToggle(node, ev);
-      $("#conversation").append(node);
-      agg.currentKey = "stderr:";
-      agg.node = node;
-      break;
-    }
-    case "tool_call":
-    case "tool_call_update": {
-      agg.currentKey = null;
-      const node = addBlock(ev.kind, null,
-        `${d.title || d.kind || "tool"} [${d.status || ""}]`);
-      addRawToggle(node, ev);
-      break;
-    }
-    case "plan":
-      $("#plan").hidden = d.entries.length === 0;
-      $("#plan").replaceChildren(...d.entries.map(e => {
-        const li = document.createElement("div");
-        li.textContent = `${e.status || "?"} — ${e.content || ""}`;
-        return li;
-      }));
-      break;
-    case "commands":
-      window._commands = d.commands;
-      break;
-    case "mode": {
-      const sel = $("#mode");
-      if (d.available.length) {
-        sel.hidden = false;
-        sel.replaceChildren(...d.available.map(m => {
-          const o = document.createElement("option");
-          o.value = m.id; o.textContent = m.name || m.id;
-          return o;
-        }));
-      }
-      if (d.current) sel.value = d.current;
-      $("#status .mode").textContent = d.current || "";
-      break;
-    }
-    case "permission_request":
-      showPermission(ev);
-      break;
-    case "permission_resolved":
-      $("#permission").close();
-      break;
-    case "turn_ended":
-      agg.currentKey = null;
-      addBlock("turn_ended", null, `— turn ended (${d.stop_reason}) —`);
-      break;
-    case "fs_request":
-      agg.currentKey = null;
-      addBlock("fs_request", null,
-        `agent ${d.op} ${d.path} ${d.allowed ? "✓" : "✗ blocked"}`);
-      break;
-    case "drift":
-      bumpChip(".drift-chip", "drift", d.flags.join("\n"));
-      break;
-    case "anomaly":
-      bumpChip(".anomaly-chip", "anomalies", `${d.category}: ${d.detail}`);
-      agg.currentKey = null;
-      addRawToggle(addBlock("anomaly", null,
-        `⚠ ${d.category}: ${d.detail}`), ev);
-      break;
-    case "unrecognized":
-      agg.currentKey = null;
-      addRawToggle(addBlock("unrecognized", null,
-        `unrecognized protocol data (${d.why})`), ev);
-      break;
-    default:
-      agg.currentKey = null;
-      addRawToggle(addBlock("unrecognized", null,
-        `unknown event kind ${ev.kind}`), ev);
+/* ---------------- liveness: the working row ---------------- */
+
+let workingTimer = null;
+
+function showWorking(S, on) {
+  const existing = $("#working");
+  if (!S.isActive) return;
+  if (!on) {
+    if (existing) existing.remove();
+    if (workingTimer) { clearInterval(workingTimer); workingTimer = null; }
+    return;
   }
-}
-
-const chipCounts = {};
-function bumpChip(sel, label, detail) {
-  const chip = $("#status " + sel);
-  chipCounts[sel] = (chipCounts[sel] || 0) + 1;
-  chip.hidden = false;
-  chip.textContent = `${label} (${chipCounts[sel]})`;
-  chip.title = (chip.title ? chip.title + "\n" : "") + detail;
-  chip.onclick = () => {           // acknowledge: clear the chip
-    chip.hidden = true; chip.title = ""; chipCounts[sel] = 0;
+  if (existing && existing.parentElement === S.pane) return;
+  if (existing) existing.remove();
+  const w = document.createElement("div");
+  w.id = "working";
+  w.className = "working";
+  const render = () => {
+    const secs = Math.round((Date.now() - (S.turnStarted || Date.now())) / 1000);
+    const la = S.lastActivity;
+    const ago = la ? Math.round((Date.now() - la.ts) / 1000) : null;
+    w.textContent = `agent working… ${secs}s` +
+      (la ? ` · last activity ${ago}s ago (${la.text})` : " · waiting for first event") +
+      " — Stop cancels the turn";
+    w.classList.toggle("stale", ago !== null && ago > 60);
   };
+  render();
+  if (workingTimer) clearInterval(workingTimer);
+  workingTimer = setInterval(render, 1000);
+  S.pane.append(w);
+  w.scrollIntoView({block: "end"});
 }
 
-// Safe ordering for the approval dialog regardless of the agent's order:
-// one-shot answers first, standing grants last (and visibly cautionary).
+/* ---------------- permissions (modal, queued across sessions) ---------------- */
+
+const permQueue = [];   // {S, ev}
+let permOpen = null;
+
 const KIND_ORDER = {allow_once: 0, reject_once: 1, reject_always: 2,
                     allow_always: 3};
 
-function showPermission(ev) {
-  const tc = ev.data.tool_call;
-  $("#perm-tool").textContent = JSON.stringify(tc, null, 2);
+function queuePermission(S, ev) {
+  permQueue.push({S, ev});
+  if (!permOpen) showNextPermission();
+}
+
+function resolvePermission(S, requestId) {
+  if (permOpen && permOpen.S === S && permOpen.ev.data.request === requestId) {
+    $("#permission").close();
+    permOpen = null;
+    showNextPermission();
+  } else {
+    const idx = permQueue.findIndex(p => p.S === S && p.ev.data.request === requestId);
+    if (idx >= 0) permQueue.splice(idx, 1);
+  }
+}
+
+function showNextPermission() {
+  const next = permQueue.shift();
+  if (!next) return;
+  permOpen = next;
+  const {S, ev} = next;
+  $("#perm-session").textContent = sessions.size > 1 ? `— ${S.tabLabel.textContent}` : "";
+  $("#perm-tool").textContent = JSON.stringify(ev.data.tool_call, null, 2);
   const warn = $("#perm-warning");
   const outside = ev.data.outside_boundary || [];
   if (outside.length) {
@@ -291,58 +624,54 @@ function showPermission(ev) {
     warn.textContent = "⚠ Touches paths OUTSIDE the project boundary — " +
       "shell commands are not confined by this client; your answer is " +
       "the only control:\n" + outside.join("\n");
-  } else {
-    warn.hidden = true;
-  }
-  const box = $("#perm-options");
+  } else warn.hidden = true;
   const options = [...ev.data.options].sort((a, b) =>
     (KIND_ORDER[a.kind] ?? 9) - (KIND_ORDER[b.kind] ?? 9));
-  box.replaceChildren(...options.map((o, i) => {
+  $("#perm-options").replaceChildren(...options.map((o, i) => {
     const b = document.createElement("button");
     b.dataset.option = o.optionId;
     b.dataset.kind = o.kind;
     b.textContent = `${i + 1}. ${o.name} (${o.kind})` +
       (o.kind === "allow_always" ? " — standing grant for this session" : "");
-    b.onclick = () => send({cmd: "permission",
-                            request: ev.data.request, option: o.optionId});
+    b.onclick = () => S.send({cmd: "permission", request: ev.data.request,
+                              option: o.optionId});
     return b;
   }));
   $("#permission").showModal();
 }
 
-function send(obj) {
-  const wire = JSON.stringify(obj);
-  if (ws && ws.readyState === WebSocket.OPEN) ws.send(wire);
-  else sendQueue.push(wire);   // flushed by ws.onopen
-}
+$("#permission").addEventListener("cancel", (e) => e.preventDefault());
+
+/* ---------------- composer ---------------- */
+
+const promptEl = $("#prompt-input");
 
 function sendPrompt() {
-  const text = $("#prompt-input").value.trim();
-  if (!text || uiState !== "ready") return;
-  agg.currentKey = null;
-  addBlock("message_chunk", "user", text);
-  agg.currentKey = null;
-  send({cmd: "prompt", text});
-  $("#prompt-input").value = "";
+  const text = promptEl.value.trim();
+  if (!active || !text || active.state !== "ready") return;
+  active.breakAgg();
+  active.addBlock("message_chunk", "user", text);
+  active.breakAgg();
+  active.send({cmd: "prompt", text});
+  promptEl.value = "";
   const pal = $("#palette");
   if (pal) pal.hidden = true;
 }
 
 $("#send").onclick = sendPrompt;
-$("#cancel").onclick = () => send({cmd: "cancel"});
-$("#prompt-input").addEventListener("keydown", (e) => {
+$("#cancel").onclick = () => active && active.send({cmd: "cancel"});
+promptEl.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendPrompt(); }
 });
-$("#mode").onchange = () => send({cmd: "set_mode", mode: $("#mode").value});
-$("#model").onchange = () => send({cmd: "set_model", model: $("#model").value});
+$("#mode").onchange = () => active && active.send({cmd: "set_mode", mode: $("#mode").value});
+$("#model").onchange = () => active && active.send({cmd: "set_model", model: $("#model").value});
 
 /* Command palette: '/' in an empty composer lists agent-advertised
    commands. Submit only on explicit send — never auto-issue. */
-const promptEl = $("#prompt-input");
 promptEl.addEventListener("input", () => {
   const v = promptEl.value;
   const pal = $("#palette");
-  if (!v.startsWith("/") || !window._commands?.length) {
+  if (!v.startsWith("/") || !active || !active.commands.length) {
     if (pal) pal.hidden = true;
     return;
   }
@@ -362,16 +691,11 @@ function ensurePalette() {
 
 function renderPalette(filter) {
   const pal = $("#palette");
-  const cmds = window._commands.filter(c =>
-    c.name.toLowerCase().includes(filter));
+  const cmds = active.commands.filter(c => c.name.toLowerCase().includes(filter));
   pal.replaceChildren(...cmds.map(c => {
     const b = document.createElement("button");
     b.textContent = `/${c.name} — ${c.description || ""}`;
-    b.onclick = () => {
-      promptEl.value = `/${c.name} `;
-      pal.hidden = true;
-      promptEl.focus();
-    };
+    b.onclick = () => { promptEl.value = `/${c.name} `; pal.hidden = true; promptEl.focus(); };
     return b;
   }));
   if (!cmds.length) pal.hidden = true;
@@ -379,7 +703,7 @@ function renderPalette(filter) {
 
 document.addEventListener("keydown", (e) => {
   const dlg = $("#permission");
-  if (dlg.open && /^[1-9]$/.test(e.key)) {
+  if (dlg.open && /^[1-9]$/.test(e.key) && !e.altKey) {
     const btn = $("#perm-options").children[Number(e.key) - 1];
     if (btn) btn.click();
   }
@@ -388,6 +712,6 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
   }
 });
-$("#permission").addEventListener("cancel", (e) => e.preventDefault());
 
 initLauncher();
+showLauncher();

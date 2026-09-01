@@ -7,31 +7,39 @@
 <link rel="stylesheet" href="/ui/style.css">
 </head>
 <body>
+<div id="tabs"><button class="tab add" id="tab-add" title="New session (Alt+N)">+</button></div>
 <div id="launcher">
   <h1>CLAUDIU</h1>
   <label>Agent <select id="profile"></select></label>
   <label>Project directory <input id="cwd" spellcheck="false"></label>
   <button id="start">Start session</button>
+  <button id="refresh-recent" class="secondary">Find resumable sessions</button>
   <ul id="caveats"></ul>
+  <div id="recent" hidden>
+    <h3>Resume an agent session in this directory</h3>
+    <ul id="recent-list"></ul>
+  </div>
 </div>
 <div id="workspace" hidden>
   <div id="status"><span class="state">starting</span><span class="mode"></span>
     <span class="drift-chip" hidden>drift</span>
     <span class="anomaly-chip" hidden>anomalies</span>
+    <span class="usage" title="context window"></span>
     <span class="model"></span></div>
   <div id="conversation"></div>
   <div id="plan" hidden></div>
   <div id="composer">
     <textarea id="prompt-input" rows="3"
-      placeholder="Prompt — Enter sends, Shift+Enter for newline"></textarea>
+      placeholder="Prompt — Enter sends, Shift+Enter for newline, / for commands"></textarea>
     <button id="send" disabled>Send</button>
     <button id="cancel" hidden>Stop</button>
     <select id="mode" hidden></select>
     <select id="model" hidden></select>
+    <span id="config-options"></span>
   </div>
 </div>
 <dialog id="permission">
-  <h2>Approval request</h2>
+  <h2>Approval request <span id="perm-session"></span></h2>
   <div id="perm-warning" hidden></div>
   <pre id="perm-tool"></pre>
   <div id="perm-options"></div>

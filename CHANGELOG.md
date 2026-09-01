@@ -24,6 +24,13 @@ Every item traced to its recorded frames before fixing:
   agent-side and cannot be fenced by the client; caveat + README updated.
 - Registry: five schema methods added (`session/close|delete|list|resume|
   set_config_option`); the drift tool now scans all schema strings.
+- Third round (21:54, "proceed with the rest"): **multi-session tabs**
+  (Alt+1…9, Alt+N, close), **resume** (launcher lists the agent's own
+  sessions via `session/list`; attach with `session/resume`), **tool-call
+  rows merged by id with rendered diffs**, **context gauge** from
+  `usage_update`, agent-set **session titles**, generic **config-option
+  selectors** (`session/set_config_option`), and the working row now
+  reports *last activity* so a stall is distinguishable from progress.
 - Second round (21:21): model options now show their description ("Default
   (recommended) — Opus 4.6 · …" — Opus was there under "Default"); a
   pulsing "agent working… Ns" row with the Stop hint shows during long
