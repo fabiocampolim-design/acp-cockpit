@@ -14,3 +14,8 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["claudiu*"]
+
+[tool.pytest.ini_options]
+# archive/claudiu-v0.1 is a separate, gitignored repo with its own suite;
+# a bare `pytest` from the root must not collect it (11 import errors).
+testpaths = ["tests"]
