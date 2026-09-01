@@ -20,19 +20,40 @@ def resolve_command(argv: list[str]) -> list[str]:
     return [exe, *argv[1:]]
 
 
-def build_env(env_scrub: list[str], env_set: dict) -> dict:
+def resolve_env(env_resolve: dict | None, env_set: dict | None = None) -> dict:
+    """Profile `env_resolve` (VAR -> command name): VAR becomes the command's
+    absolute PATH entry when one is found. An explicit `env_set` value wins;
+    a command that is not installed leaves VAR unset, so the agent falls
+    back to whatever it ships. Applied AFTER the scrub: the Claude profile
+    uses it for CLAUDE_CODE_EXECUTABLE, which the CLAUDE_CODE_* guard would
+    otherwise strip (2026-09-01: the adapter's bundled CLI was refused by
+    the API for a new model; the user's `claude` was not)."""
+    out = {}
+    for var, cmd in (env_resolve or {}).items():
+        if env_set and var in env_set:
+            continue
+        path = shutil.which(cmd)
+        if path:
+            out[var] = path
+    return out
+
+
+def build_env(env_scrub: list[str], env_set: dict,
+              env_resolve: dict | None = None) -> dict:
     env = {k: v for k, v in os.environ.items()
            if not any(fnmatch.fnmatch(k, pat) for pat in env_scrub)}
+    env.update(resolve_env(env_resolve, env_set))
     env.update(env_set)
     return env
 
 
 class SubprocessAgentProcess:
     def __init__(self, command, cwd, env_scrub, env_set,
-                 on_line, on_stderr, on_exit):
+                 on_line, on_stderr, on_exit, env_resolve=None):
+        self.resolved_env = resolve_env(env_resolve, env_set)  # for the record
         self._proc = subprocess.Popen(
             resolve_command(command), cwd=cwd,
-            env=build_env(env_scrub, env_set),
+            env=build_env(env_scrub, env_set, env_resolve),
             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.PIPE, text=True, encoding="utf-8",
             errors="replace", bufsize=1)

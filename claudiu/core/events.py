@@ -23,7 +23,8 @@ KINDS = frozenset({
                            #  "outside_boundary": [paths mentioned outside the policy root]}
     "permission_resolved", # {"request": int, "option": str|None, "source": "user"|"failsafe"}
     "fs_request",          # {"op": "read"|"write", "path": str, "allowed": bool}
-    "turn_ended",          # {"stop_reason": str}
+    "turn_ended",          # {"stop_reason": str}; "error" adds
+                           #  {"error": {"code": int|None, "message": str}}
     "anomaly",             # {"category": str, "detail": str}
     "drift",               # {"flags": [str]}
     "unrecognized",        # {"why": str, "frame": dict}

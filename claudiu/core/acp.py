@@ -164,8 +164,15 @@ class AcpSession:
     def _on_turn_end(self, result, error):
         self._turn_id = None
         if error:
+            # The agent failed the turn (e.g. its API rejected the request).
+            # Still a turn end: the view needs its separator and composer.
+            err = error if isinstance(error, dict) else {"message": str(error)}
+            message = str(err.get("message") or error)
             self._emit("anomaly", {"category": "turn-error",
-                                   "detail": str(error)})
+                                   "detail": message})
+            self._emit("turn_ended", {"stop_reason": "error",
+                                      "error": {"code": err.get("code"),
+                                                "message": message}})
             self._set_state("ready")
             return
         self._emit("turn_ended",

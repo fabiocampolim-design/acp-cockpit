@@ -30,7 +30,9 @@ python -m claudiu
 
 Open the printed `http://127.0.0.1:<port>/?token=...` URL, pick an agent,
 pick a project directory, start the session. The port is OS-assigned each
-run unless you pass `--port`.
+run unless you pass `--port`. If a `claude` CLI is installed, the adapter
+is pointed at it instead of the older copy it bundles (the launcher shows
+which runtime resolved; `agents/PROFILE-SCHEMA.md` → `env_resolve`).
 
 ## Architecture
 
@@ -78,8 +80,9 @@ agents/*.toml Data        everything agent-specific (see PROFILE-SCHEMA.md)
   control ("Always Allow" is a standing grant for the session). The
   `terminal` capability is deliberately not advertised in v1.
 - Adapter subprocesses run with a scrubbed environment (profile
-  `env_scrub`) and are terminated with their session. Records never contain
-  the auth token.
+  `env_scrub`, then the profile's own `env_resolve`/`env_set` additions —
+  recorded as the session's first record) and are terminated with their
+  session. Records never contain the auth token.
 
 ## Development
 
@@ -90,7 +93,7 @@ python -m pyflakes claudiu tools tests
 python tools/check_schema_drift.py
 ```
 
-Verified by 89 checks (plus the opt-in real-adapter contract test). See
+Verified by 97 checks (plus the opt-in real-adapter contract test). See
 `AGENTS.md` for the working rules and `docs/superpowers/specs/` for the
 design history. The v0.1 terminal-mirror app lives in `archive/claudiu-v0.1`
 with its own git history.

@@ -29,3 +29,28 @@ def test_load_profiles_indexes_by_id(tmp_path):
     (tmp_path / "notes.txt").write_text("ignore me", encoding="utf-8")
     profs = load_profiles(tmp_path)
     assert set(profs) == {"a"} and isinstance(profs["a"], AgentProfile)
+
+
+def test_claude_profile_resolves_the_installed_claude_cli():
+    # The adapter bundles its own Claude CLI; the API refused it for a new
+    # model on 2026-09-01 ("version 2.1.251 or newer is required"). The
+    # profile points the adapter at the user's `claude` when one is on PATH.
+    p = load_profile(Path("agents/claude.toml"))
+    assert p.env_resolve == {"CLAUDE_CODE_EXECUTABLE": "claude"}
+
+
+MINIMAL = ('id = "a"\nname = "A"\ncommand = ["a-cmd"]\n'
+           'install_hint = "get a"\nenv_scrub = []\n')
+
+
+def test_env_resolve_defaults_empty(tmp_path):
+    f = tmp_path / "a.toml"
+    f.write_text(MINIMAL, encoding="utf-8")
+    assert load_profile(f).env_resolve == {}
+
+
+def test_env_resolve_values_must_be_command_names(tmp_path):
+    f = tmp_path / "a.toml"
+    f.write_text(MINIMAL + "[env_resolve]\nX = 1\n", encoding="utf-8")
+    with pytest.raises(ProfileError):
+        load_profile(f)

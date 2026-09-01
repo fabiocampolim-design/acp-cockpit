@@ -13,6 +13,15 @@ extensions = ["session/set_model"]
 
 [env_set]
 
+# The adapter ships its own copy of the Claude CLI (2.1.44 in claude-code-acp
+# 0.16.2) and the API refuses old CLIs for new models ("version 2.1.251 or
+# newer is required", 2026-09-01). When a `claude` is installed on PATH the
+# adapter is pointed at it instead. Resolved AFTER the scrub above, which
+# would strip an inherited CLAUDE_CODE_EXECUTABLE; an explicit [env_set]
+# value wins; no `claude` on PATH leaves the adapter's bundled copy in use.
+[env_resolve]
+CLAUDE_CODE_EXECUTABLE = "claude"
+
 [[caveats]]
 id = "shell-escapes-boundary"
 text = "The project-directory boundary is enforced only for file access routed through this client. Shell commands run by the agent itself are not confined; the approval dialog flags out-of-boundary paths and your answer is the only control. 'Always Allow' is a standing grant for the whole session."
@@ -24,6 +33,10 @@ text = "Thinking is delivered as empty markers (content redacted by the adapter)
 [[caveats]]
 id = "slash-commands-on-stderr"
 text = "Built-in slash commands (e.g. /context) echo their output on the adapter's stderr as well as in the reply; the stderr copy appears as collapsible rows."
+
+[[caveats]]
+id = "bundled-cli"
+text = "The adapter bundles its own Claude CLI, which the API may refuse for newer models. When `claude` is installed on PATH this client points the adapter at it instead (CLAUDE_CODE_EXECUTABLE, shown below as runtime); the adapter may then print harmless 'Unexpected case' lines on stderr for message types newer than it knows."
 
 [[caveats]]
 id = "terminal-unadvertised"

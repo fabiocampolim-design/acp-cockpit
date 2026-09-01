@@ -38,6 +38,7 @@ def test_real_handshake_prompt_and_drift_silence(tmp_path):
     proc = SubprocessAgentProcess(
         command=profile.command, cwd=str(tmp_path),
         env_scrub=profile.env_scrub, env_set=profile.env_set,
+        env_resolve=profile.env_resolve,
         on_line=lambda ln: holder["s"].on_line(ln),
         on_stderr=lambda ln: None,
         on_exit=lambda code: None)

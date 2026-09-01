@@ -82,3 +82,24 @@ def test_updates_arriving_before_session_id_are_buffered_not_dropped(tmp_path):
                    "result": {"sessionId": "acp-123"}})
     assert "commands" in sink.kinds()              # replayed once id known
     assert not any(e.kind == "anomaly" for e in sink.events)
+
+
+def test_prompt_error_ends_the_turn_visibly(tmp_path):
+    # 2026-09-01: the adapter answered session/prompt with a JSON-RPC error
+    # (its bundled CLI refused by the API). The turn must END — separator,
+    # composer back — and the message must be readable, not a dict repr.
+    session, proc, sink = make_session(tmp_path)
+    do_handshake(session, proc)
+    session.prompt("hi")
+    turn = sent_frames(proc)[2]
+    msg = ("Internal error: API Error: 400 Claude Code 2.1.44 does not "
+           "support this model; version 2.1.251 or newer is required.")
+    feed(session, {"jsonrpc": "2.0", "id": turn["id"],
+                   "error": {"code": -32603, "message": msg}})
+    ended = [e for e in sink.events if e.kind == "turn_ended"][0]
+    assert ended.data["stop_reason"] == "error"
+    assert ended.data["error"] == {"code": -32603, "message": msg}
+    anomaly = [e for e in sink.events if e.kind == "anomaly"][0]
+    assert anomaly.data["category"] == "turn-error"
+    assert anomaly.data["detail"] == msg
+    assert session.state == "ready"

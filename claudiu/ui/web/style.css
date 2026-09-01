@@ -59,6 +59,7 @@ body {
 }
 #caveats { color: var(--fg-dim); font-size: .85em; padding-left: 1.2rem; }
 #caveats .error { color: var(--danger); }
+#caveats .runtime { font-family: var(--mono, monospace); color: var(--fg); }
 #recent h3 { font-size: .95em; color: var(--fg-dim); margin-bottom: .3rem; }
 #recent-list { list-style: none; padding: 0; font-size: .9em; }
 #recent-list li { display: flex; gap: .6rem; align-items: center; margin: .3rem 0; }

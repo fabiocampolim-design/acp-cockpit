@@ -33,10 +33,18 @@ async function initLauncher() {
   }
   sel.onchange = () => {
     const p = profiles.find(x => x.id === sel.value);
-    $("#caveats").replaceChildren(...(p ? p.caveats : []).map(c => {
+    const items = (p ? p.caveats : []).map(c => {
       const li = document.createElement("li"); li.textContent = c.text;
       return li;
-    }));
+    });
+    // which runtime the adapter will be pointed at (profile env_resolve)
+    for (const [k, v] of Object.entries((p && p.env_resolved) || {})) {
+      const li = document.createElement("li");
+      li.className = "runtime";
+      li.textContent = `runtime: ${k} → ${v}`;
+      items.push(li);
+    }
+    $("#caveats").replaceChildren(...items);
   };
   sel.onchange();
   $("#start").onclick = () => startSession(null);

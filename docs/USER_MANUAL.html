@@ -24,71 +24,6 @@ margin: 0 0.8em 0.2em -1.6em;
 vertical-align: middle;
 }
 .display.math{display: block; text-align: center; margin: 0.5rem auto;}
-
-html { -webkit-text-size-adjust: 100%; }
-pre > code.sourceCode { white-space: pre; position: relative; }
-pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
-pre > code.sourceCode > span:empty { height: 1.2em; }
-.sourceCode { overflow: visible; }
-code.sourceCode > span { color: inherit; text-decoration: inherit; }
-div.sourceCode { margin: 1em 0; }
-pre.sourceCode { margin: 0; }
-@media screen {
-div.sourceCode { overflow: auto; }
-}
-@media print {
-pre > code.sourceCode { white-space: pre-wrap; }
-pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
-}
-pre.numberSource code
-{ counter-reset: source-line 0; }
-pre.numberSource code > span
-{ position: relative; left: -4em; counter-increment: source-line; }
-pre.numberSource code > span > a:first-child::before
-{ content: counter(source-line);
-position: relative; left: -1em; text-align: right; vertical-align: baseline;
-border: none; display: inline-block;
--webkit-touch-callout: none; -webkit-user-select: none;
--khtml-user-select: none; -moz-user-select: none;
--ms-user-select: none; user-select: none;
-padding: 0 4px; width: 4em;
-color: #aaaaaa;
-}
-pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
-div.sourceCode
-{ }
-@media screen {
-pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
-}
-code span.al { color: #ff0000; font-weight: bold; } 
-code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
-code span.at { color: #7d9029; } 
-code span.bn { color: #40a070; } 
-code span.bu { color: #008000; } 
-code span.cf { color: #007020; font-weight: bold; } 
-code span.ch { color: #4070a0; } 
-code span.cn { color: #880000; } 
-code span.co { color: #60a0b0; font-style: italic; } 
-code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
-code span.do { color: #ba2121; font-style: italic; } 
-code span.dt { color: #902000; } 
-code span.dv { color: #40a070; } 
-code span.er { color: #ff0000; font-weight: bold; } 
-code span.ex { } 
-code span.fl { color: #40a070; } 
-code span.fu { color: #06287e; } 
-code span.im { color: #008000; font-weight: bold; } 
-code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
-code span.kw { color: #007020; font-weight: bold; } 
-code span.op { color: #666666; } 
-code span.ot { color: #007020; } 
-code span.pp { color: #bc7a00; } 
-code span.sc { color: #4070a0; } 
-code span.ss { color: #bb6688; } 
-code span.st { color: #4070a0; } 
-code span.va { color: #19177c; } 
-code span.vs { color: #4070a0; } 
-code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
 </style>
   <style type="text/css">body{font:15px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif;max-width:860px;margin:2rem auto;padding:0 1rem;color:#22221f;background:#faf7f0}h1{font-size:1.6rem;border-bottom:1px solid #999;padding-bottom:.2rem;margin-top:2rem}h2{font-size:1.25rem;margin-top:1.6rem}h3{font-size:1.05rem;margin-top:1.2rem}table{border-collapse:collapse;width:100%;font-size:.9rem}th,td{border:1px solid #bbb;padding:.3rem .5rem;text-align:left;vertical-align:top}th{background:#eeebe2}pre,code{font-family:ui-monospace,Consolas,monospace;font-size:.86rem}pre{background:#eeebe2;padding:.6rem;overflow-x:auto}@media(prefers-color-scheme:dark){body{color:#e9e6dc;background:#14140f}th,pre{background:#201e17}a{color:#8ab4f8}}</style>
 </head>
@@ -98,633 +33,131 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; }
 <li><a href="#claudiu-user-manual" id="toc-claudiu-user-manual">CLAUDIU
 user manual</a>
 <ul>
-<li><a href="#quick-start" id="toc-quick-start">Quick start</a></li>
-<li><a href="#features" id="toc-features">Features</a></li>
-<li><a href="#configuration" id="toc-configuration">Configuration</a>
-<ul>
-<li><a href="#the-conversation-view" id="toc-the-conversation-view">The
-conversation view</a></li>
-<li><a href="#how-the-status-strip-works" id="toc-how-the-status-strip-works">How the status strip works</a></li>
-<li><a href="#worked-example-adding-a-project-and-a-snippet" id="toc-worked-example-adding-a-project-and-a-snippet">Worked example:
-adding a project and a snippet</a></li>
-</ul></li>
-<li><a href="#shortcuts" id="toc-shortcuts">Shortcuts</a></li>
-<li><a href="#restws-api" id="toc-restws-api">REST/WS API</a></li>
-<li><a href="#command-line" id="toc-command-line">Command line</a></li>
-<li><a href="#logs" id="toc-logs">Logs</a></li>
-<li><a href="#rebuilding-this-manual" id="toc-rebuilding-this-manual">Rebuilding this manual</a></li>
-<li><a href="#launching-from-inside-claude-code" id="toc-launching-from-inside-claude-code">Launching from inside Claude
-Code</a></li>
-<li><a href="#known-limitations" id="toc-known-limitations">Known
-limitations</a></li>
+<li><a href="#starting" id="toc-starting">Starting</a></li>
+<li><a href="#tabs" id="toc-tabs">Tabs</a></li>
+<li><a href="#the-launcher" id="toc-the-launcher">The launcher</a></li>
+<li><a href="#the-conversation" id="toc-the-conversation">The
+conversation</a></li>
+<li><a href="#prompting" id="toc-prompting">Prompting</a></li>
+<li><a href="#approvals" id="toc-approvals">Approvals</a></li>
+<li><a href="#status-strip-and-warnings" id="toc-status-strip-and-warnings">Status strip and warnings</a></li>
+<li><a href="#records" id="toc-records">Records</a></li>
+<li><a href="#security-notes" id="toc-security-notes">Security
+notes</a></li>
 </ul></li>
 </ul>
 </nav>
 <h1 id="claudiu-user-manual">CLAUDIU user manual</h1>
-<p>CLAUDIU (working codename) is a local, browser-based tabbed interface
-for running several Claude Code sessions at once. A small Python server
-spawns real <code>claude</code> CLI processes in pseudo-terminals and
-streams them into browser tabs via xterm.js, so every tab behaves
-exactly like a real terminal — same colors, same prompts, same
-keybindings — while the browser layer adds tabs, a calmer theme,
-adjustable fonts, snippets, and a project launcher on top.</p>
-<h2 id="quick-start">Quick start</h2>
-<pre><code>pip install -e .
-python -m claudiu</code></pre>
-<p>or, on Windows, double-click <code>run_claudiu.bat</code>. The server
-starts on <code>http://127.0.0.1:8642/</code> (127.0.0.1 only — never
-reachable from other machines) and opens it in your default browser
-automatically.</p>
-<h2 id="features">Features</h2>
+<p>CLAUDIU (working codename) is a local, browser-based client for AI
+coding agents that speak the Agent Client Protocol (ACP). It runs a
+small Python server on your machine, spawns the agent’s ACP adapter as a
+plain subprocess, and renders the structured conversation — messages,
+thinking, tool calls with diffs, permission requests — in your browser.
+Nothing is screen-scraped; everything you see comes from typed protocol
+data, and every byte that crosses the wire is recorded.</p>
+<h2 id="starting">Starting</h2>
+<pre><code>python -m claudiu</code></pre>
+<p>Options: <code>--port N</code> (default 0 = OS-assigned),
+<code>--profiles DIR</code> (default <code>agents/</code>),
+<code>--records DIR</code> (default <code>~/.claudiu/records</code>),
+<code>--no-drift-online</code> (skip the update check). The server
+prints a URL with a one-time token — open it; the token becomes a cookie
+and the address bar cleans itself. Each launch gets a fresh token; old
+URLs die with the server.</p>
+<h2 id="tabs">Tabs</h2>
+<p>Each session is a tab (Alt+1…9 switch, Alt+N opens the launcher, ×
+closes and ends the session). The tab shows the agent’s own title for
+the session once it sets one, and a dot: green ready, pulsing blue
+working, red failed or disconnected. The status strip, selectors and
+composer always belong to the active tab; approval dialogs from any tab
+pop up wherever you are, labelled with the session they belong to.</p>
+<h2 id="the-launcher">The launcher</h2>
+<p>Pick an <strong>agent</strong> (from <code>agents/*.toml</code>
+profiles; an agent whose adapter is not installed shows “adapter
+missing” with the install hint) and a <strong>project directory</strong>
+— the session’s working directory and, importantly, its <em>file-access
+boundary</em>: the agent can only read/write inside it through this
+client. Known caveats of the selected agent are listed right there,
+followed by the <strong>runtime</strong> the adapter will be pointed at:
+for Claude, <code>CLAUDE_CODE_EXECUTABLE</code> resolves to your
+installed <code>claude</code> when there is one on <code>PATH</code>.
+The adapter bundles its own, older Claude CLI, which the API may refuse
+for newer models (“version 2.1.251 or newer is required” was the
+2026-09-01 symptom); with no <code>claude</code> installed the bundled
+copy is used. The older adapter may then print harmless “Unexpected
+case” lines on stderr (shown as collapsible rows) for message types
+newer than it knows. <strong>Find resumable sessions</strong> asks the
+agent which of its own sessions exist for that directory (a throwaway
+adapter is started and closed for the query) and offers a
+<strong>Resume</strong> button per session.</p>
+<h2 id="the-conversation">The conversation</h2>
 <ul>
-<li><strong>Tabs</strong> — one tab per live <code>claude</code>
-session, named after the project folder and renamable.</li>
-<li><strong>Terminal fidelity</strong> — each tab embeds a real
-interactive <code>claude</code> process rendered by xterm.js: skills,
-plugins, slash commands, and permission prompts all behave exactly as in
-a plain terminal.</li>
-<li><strong>Session survival on refresh</strong> — sessions live on the
-server, not in the browser tab; refreshing or closing Chrome never kills
-them.</li>
-<li><strong>Reconnect with backoff</strong> — a dropped websocket
-retries automatically with backoff behind a visible “reconnecting…”
-strip; it never fails silently.</li>
-<li><strong>Resume after crash</strong> — after a browser or PC crash, a
-resume list offers one-click
-<code>claude --resume &lt;session-id&gt;</code> per recent project.</li>
-<li><strong>Snippets bar + palette</strong> — frequently used prompt
-text as buttons under the tab strip and in a fuzzy-searchable palette
-(<code>Ctrl+k</code>).</li>
-<li><strong>Project launcher</strong> — configured working folders (plus
-a browse option) in the new-session dialog; one click starts
-<code>claude</code> in the chosen directory.</li>
-<li><strong>Per-tab font size</strong> — each tab’s font size is
-adjustable and remembered independently.</li>
-<li><strong>Scrollback search</strong> — search within a tab’s capped
-scrollback, with highlighting.</li>
-<li><strong>Rename by double-click</strong> — double-click a tab’s label
-to rename it.</li>
-<li><strong>Status strip</strong> — above each terminal, a one-line box
-shows the last prompt you typed in that session (click it to expand long
-prompts). Each tab carries a small light — pulsing amber while Claude is
-working, a faster accent-coloured pulse when it is waiting for your
-input on a permission prompt, and steady green once it is done — and a
-context gauge that fills as the conversation grows and shifts from green
-through amber to red as it approaches the point where auto-compaction
-starts hurting. A tab whose turn finishes while you are looking
-elsewhere gets the “unseen” dot. All three read Claude Code’s own
-session transcript; nothing is guessed from terminal output (see “How
-the status strip works” below).</li>
-<li><strong>Light / dark / system theme</strong> — a theme button in the
-tab bar cycles the interface between following your OS
-(<code>system</code>), <code>light</code>, and <code>dark</code>; the
-choice is remembered per browser. Set the default with
-<code>ui_theme</code>. (The terminal keeps its own <code>theme</code>
-colours in every mode.)</li>
-<li><strong>Conversation view (controlled)</strong> — by default a
-session shows a clean, CLAUDIU-rendered conversation instead of Claude
-Code’s raw terminal: the working directory and Claude’s window title on
-top, the exchange in a scrollable frame (PageUp/PageDown, a
-jump-to-latest button, collapsible tool output and thinking), lane
-checkboxes (<strong>thinking · tools · events · subagents</strong>) and
-a search box, the model and token/context count, the live state, and a
-composer to type into. It is read from Claude Code’s transcript JSON and
-refreshed about once a second — stable, no reflow. A permission prompt
-appears as <strong>buttons</strong> matching the prompt’s real options
-(parsed from the rendered screen, shown only when unambiguous; otherwise
-CLAUDIU tells you to open the terminal rather than guess). When you need
-a menu the view can’t model (slash-command autocomplete,
-<code>/model</code>, the plan or file pickers), <strong>Show
-terminal</strong> reveals the real terminal, and hides it again. See
-“The conversation view” below.</li>
-<li><strong>Redesigned launcher</strong> — the new-session window opens
-with “Any folder” on top (type a path, pick a recently used one from the
-dropdown, or <strong>Browse</strong> the filesystem and <strong>New
-folder</strong> to create one), and two independently scrolling columns
-below: your configured <strong>Projects</strong> and <strong>Resume
-recent</strong>.</li>
-<li><strong>Jump to latest</strong> — when you scroll up in a tab, a “↓
-latest” button appears to return to the live output.</li>
-<li><strong>Calm dark theme</strong> — near-black background, warm-gray
-foreground, muted ANSI colors, steady non-blinking cursor; every color
-is a config value. Sessions start with Claude Code’s
-<code>dark-ansi</code> theme so <em>all</em> of its colours come from
-that palette (Claude Code’s default themes print hard-coded truecolor
-that no terminal palette can soften); bold text keeps its colour instead
-of jumping to the bright variant.</li>
+<li><strong>Agent text</strong> streams as it is produced;
+<em>thinking</em> appears dimmed and italic; your prompts are
+boxed.</li>
+<li><strong>Tool calls</strong> are one row per call, updated in place
+as the agent reports progress (pending → in progress → completed/failed,
+colour-coded edge). Edits arrive as real diffs (+/− lines); text output
+and file locations open under “details”.</li>
+<li><strong>Plan</strong> entries (the agent’s todo list) fill the panel
+above the composer.</li>
+<li><strong>Turn ends</strong> are marked with the protocol’s stop
+reason.</li>
+<li>The <code>{}</code> button on special rows reveals the raw protocol
+frame behind them — the escape hatch into the session record.</li>
 </ul>
-<h2 id="configuration">Configuration</h2>
-<p>One human-editable JSON file. Default location
-<code>~/.claudiu/config.json</code>, created with defaults the first
-time the server runs if it does not exist yet. Override the path with
-the <code>CLAUDIU_CONFIG</code> environment variable, or with the
-<code>--config</code> flag on the command line. Keys the file does not
-mention fall back to the defaults below; keys the file has that this
-version of CLAUDIU does not recognize are kept as-is and reported as a
-startup warning, never rejected.</p>
-<table>
-<colgroup>
-<col style="width: 33%" />
-<col style="width: 33%" />
-<col style="width: 33%" />
-</colgroup>
-<thead>
-<tr>
-<th>Key</th>
-<th>Default</th>
-<th>Meaning</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>port</code></td>
-<td><code>8642</code></td>
-<td>TCP port the server listens on (bound to 127.0.0.1 only)</td>
-</tr>
-<tr>
-<td><code>claude_command</code></td>
-<td><code>[&quot;claude&quot;]</code></td>
-<td>argv used to spawn each session</td>
-</tr>
-<tr>
-<td><code>replay_chunks</code></td>
-<td><code>2000</code></td>
-<td>max buffered output <em>chunks</em> per session kept for replay on
-(re)connect (each chunk up to 64 KiB; see below)</td>
-</tr>
-<tr>
-<td><code>scrollback_lines</code></td>
-<td><code>10000</code></td>
-<td>scrollback cap shown in the browser terminal</td>
-</tr>
-<tr>
-<td><code>font_size</code></td>
-<td><code>16</code></td>
-<td>default terminal font size in pixels</td>
-</tr>
-<tr>
-<td><code>font_family</code></td>
-<td><code>&quot;Consolas, &#39;Cascadia Mono&#39;, monospace&quot;</code></td>
-<td>terminal font stack</td>
-</tr>
-<tr>
-<td><code>theme</code></td>
-<td>a 16-color dark theme object</td>
-<td>background, foreground, cursor, selection background, and the 16
-ANSI colors</td>
-</tr>
-<tr>
-<td><code>claude_theme</code></td>
-<td><code>&quot;dark-ansi&quot;</code></td>
-<td>Claude Code theme passed to every spawned session via
-<code>--settings</code>; <code>&quot;&quot;</code> leaves Claude Code’s own
-setting alone (its default themes bypass <code>theme</code> with
-truecolor)</td>
-</tr>
-<tr>
-<td><code>status_poll_ms</code></td>
-<td><code>2000</code></td>
-<td>how often the page refreshes the status strip, light and gauge</td>
-</tr>
-<tr>
-<td><code>context_window_tokens</code></td>
-<td><code>200000</code></td>
-<td>the model’s context window, denominator of the context gauge</td>
-</tr>
-<tr>
-<td><code>context_warn_pct</code></td>
-<td><code>50</code></td>
-<td>gauge turns amber at this percentage of the context window</td>
-</tr>
-<tr>
-<td><code>context_danger_pct</code></td>
-<td><code>75</code></td>
-<td>gauge turns red at this percentage (must be ≥
-<code>context_warn_pct</code>)</td>
-</tr>
-<tr>
-<td><code>ui_theme</code></td>
-<td><code>&quot;system&quot;</code></td>
-<td>interface theme: <code>&quot;system&quot;</code>, <code>&quot;light&quot;</code>, or
-<code>&quot;dark&quot;</code> (the tab-bar button overrides this per browser)</td>
-</tr>
-<tr>
-<td><code>permission_patterns</code></td>
-<td>four common prompts</td>
-<td>substrings that mark a session as “waiting for you” when they appear
-in its terminal output (ANSI stripped, case-insensitive)</td>
-</tr>
-<tr>
-<td><code>recent_max</code></td>
-<td><code>15</code></td>
-<td>how many recently launched folders to remember</td>
-</tr>
-<tr>
-<td><code>shortcuts</code></td>
-<td>see the Shortcuts table below</td>
-<td>interface keyboard shortcut map</td>
-</tr>
-<tr>
-<td><code>projects</code></td>
-<td><code>[]</code></td>
-<td>launcher entries: <code>{&quot;name&quot;, &quot;path&quot;, &quot;args&quot;: []}</code></td>
-</tr>
-<tr>
-<td><code>snippets</code></td>
-<td><code>[]</code></td>
-<td>snippet-bar entries:
-<code>{&quot;name&quot;, &quot;text&quot;, &quot;send&quot;: false}</code></td>
-</tr>
-</tbody>
-</table>
-<p><code>replay_chunks</code> caps the number of buffered output
-<em>chunks</em>, not bytes or lines: each chunk is up to 64 KiB (the pty
-is read in 64 KiB blocks), so the worst-case memory a single session’s
-replay buffer can hold is <code>replay_chunks × 64 KiB</code> — 2000 ×
-64 KiB ≈ 125 MiB at the default. Raise or lower
-<code>replay_chunks</code> to trade replay depth against memory per
-session.</p>
-<h3 id="the-conversation-view">The conversation view</h3>
-<p>Each session shows two things over the same live process:</p>
-<ol type="1">
-<li>the <strong>conversation view</strong> (default) — rendered by
-CLAUDIU from the session’s transcript JSON, refreshed ~1 s. It never
-shows Claude Code’s raw terminal drawing, so it does not reflow or
-flicker. Tool output and thinking are collapsible; the lane checkboxes
-hide whole categories; the search box filters; PageUp/PageDown and a
-jump-to-latest button move through it. The composer at the bottom sends
-what you type to the session, and a detected permission prompt is
-offered as buttons.</li>
-<li>the <strong>raw terminal</strong> — hidden by default, revealed by
-<strong>Show terminal</strong>. Use it for the interactive surfaces the
-JSON cannot represent (slash-command autocomplete, <code>/model</code>,
-the plan selector, the <code>@</code>-file picker, arrow-key menus). It
-is the same live session; toggling the view changes nothing about
-it.</li>
-</ol>
-<p>Every keystroke CLAUDIU sends to a session (composer, a permission
-button, Esc, snippets) is written to the audit log
-(<code>~/.claudiu/logs/</code>, logger <code>claudiu.audit</code>) so
-there is a complete record of what was issued. If a Claude Code update
-adds a transcript record type CLAUDIU does not recognise, the header
-shows a small “unrecognized record(s)” warning instead of quietly
-dropping it.</p>
-<p>Updates are polled, not streamed token-by-token — a reply appears
-when the turn lands, which is the calm behaviour this view is for. If a
-future Claude Code release changes the transcript schema the view
-degrades to empty rather than wrong, and the raw terminal is always one
-click away.</p>
-<h3 id="how-the-status-strip-works">How the status strip works</h3>
-<p>Claude Code writes every session’s transcript to
-<code>~/.claude/projects/&lt;project-slug&gt;/&lt;session-id&gt;.jsonl</code>
-as it runs. CLAUDIU starts each session with an explicit
-<code>--session-id</code>, so it knows which file belongs to which tab,
-and reads only the <em>tail</em> of that file (a few hundred KB at most)
-every <code>status_poll_ms</code>:</p>
+<h2 id="prompting">Prompting</h2>
+<p>Enter sends; Shift+Enter inserts a newline. The Send button is
+enabled only while the session is ready (not during the agent’s turn,
+not before startup completes). <strong>Stop</strong> cancels the current
+turn. Typing <code>/</code> first opens the command palette listing the
+agent’s own slash commands; picking one only fills the composer —
+nothing is sent until you press Send, and the agent’s response to a
+command is always rendered.</p>
+<h2 id="approvals">Approvals</h2>
+<p>When the agent wants to do something that needs permission, a dialog
+shows the tool call (with diff when provided) and the agent’s own
+options — allow once, allow always, reject — as buttons (digits 1–9 work
+too). There is no Escape-to-dismiss: an explicit choice is required.
+Unanswered requests are auto-rejected after a timeout (default one hour)
+and marked as fail-safe rejections.</p>
+<h2 id="status-strip-and-warnings">Status strip and warnings</h2>
+<p>The strip shows the session state, the current permission mode, a
+<strong>context gauge</strong> (tokens used / window size, percentage,
+and cost when the agent reports it) and the current model. Selectors
+next to the composer switch <strong>mode</strong>,
+<strong>model</strong> (with the agent’s description — Claude’s
+“Default” is Opus) and any <strong>configuration options</strong> the
+agent advertises. While a turn runs, a pulsing “agent working… 42s ·
+last activity 3s ago (tool_call: Edit hello.py)” row sits at the end of
+the conversation — the elapsed time tells you the turn is alive, the
+last-activity part tells you whether the agent is still producing events
+(it turns amber after a minute of silence). Two chips can appear and
+should not be ignored:</p>
 <ul>
-<li><strong>last prompt</strong> — the transcript’s
-<code>last-prompt</code> record (or the last user message you typed,
-never text injected by skills or hooks);</li>
-<li><strong>busy / ready / waiting</strong> — the last assistant
-record’s <code>stop_reason</code>: a finished turn means ready; a
-pending tool call, or a prompt with no answer yet, means busy. When the
-session is busy <em>and</em> its terminal shows one of the
-<code>permission_patterns</code> (a “Do you want to proceed?” prompt),
-the state becomes <strong>waiting</strong> — the transcript has no
-record for a blocked prompt, so this one signal is read from the
-terminal output rather than the transcript;</li>
-<li><strong>context gauge</strong> — the last assistant record’s token
-usage (input + cache-creation + cache-read), divided by
-<code>context_window_tokens</code>.</li>
+<li><strong>drift</strong> — the agent sent protocol data newer than
+this client’s pinned ACP schema (hover for details). The client keeps
+working and keeps recording; the flag means an update to the client is
+due.</li>
+<li><strong>anomalies</strong> — something out of order happened
+(malformed frame, adapter crash, rejected command…); the conversation
+shows the details inline with raw-frame access.</li>
 </ul>
-<p>Sessions started with <code>--continue</code> have no id CLAUDIU can
-know in advance; their tab shows a dim light and no gauge. Sessions
-resumed with <code>--resume &lt;id&gt;</code> use that id. If the
-transcript cannot be found or read, the strip stays empty and the light
-stays dim — the terminal itself is never affected.</p>
-<h3 id="worked-example-adding-a-project-and-a-snippet">Worked example:
-adding a project and a snippet</h3>
-<p>Edit <code>~/.claudiu/config.json</code> (or the file
-<code>CLAUDIU_CONFIG</code> points at) and add to the
-<code>projects</code> and <code>snippets</code> lists:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;projects&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span><span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;My App&quot;</span><span class="fu">,</span> <span class="dt">&quot;path&quot;</span><span class="fu">:</span> <span class="st">&quot;C:/code/my-app&quot;</span><span class="fu">,</span> <span class="dt">&quot;args&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;--continue&quot;</span><span class="ot">]</span><span class="fu">}</span></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span><span class="fu">,</span></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;snippets&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span><span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;run tests&quot;</span><span class="fu">,</span> <span class="dt">&quot;text&quot;</span><span class="fu">:</span> <span class="st">&quot;run the test suite and fix any failures&quot;</span><span class="fu">,</span></span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>     <span class="dt">&quot;send&quot;</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">}</span></span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
-<p>Restart the server to pick up the change (config is loaded once at
-startup; refreshing the page alone does not reload it). “My App” now
-appears in the project launcher, and “run tests” appears as a button in
-the snippets bar and in the <code>Ctrl+k</code> palette; because
-<code>send</code> is <code>true</code>, choosing it types the text and
-presses Enter.</p>
-<h2 id="shortcuts">Shortcuts</h2>
-<p>Interface-level keyboard shortcuts, all remappable via the
-<code>shortcuts</code> config key. They never intercept keys the CLI
-itself needs (plain <code>Ctrl+C</code>, <code>Ctrl+R</code>, arrow
-keys, and so on).</p>
-<table>
-<colgroup>
-<col style="width: 50%" />
-<col style="width: 50%" />
-</colgroup>
-<thead>
-<tr>
-<th>Action</th>
-<th>Default key</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>tab_1</code></td>
-<td><code>Alt+1</code> — switch to tab 1</td>
-</tr>
-<tr>
-<td><code>tab_2</code></td>
-<td><code>Alt+2</code> — switch to tab 2</td>
-</tr>
-<tr>
-<td><code>tab_3</code></td>
-<td><code>Alt+3</code> — switch to tab 3</td>
-</tr>
-<tr>
-<td><code>tab_4</code></td>
-<td><code>Alt+4</code> — switch to tab 4</td>
-</tr>
-<tr>
-<td><code>tab_5</code></td>
-<td><code>Alt+5</code> — switch to tab 5</td>
-</tr>
-<tr>
-<td><code>tab_6</code></td>
-<td><code>Alt+6</code> — switch to tab 6</td>
-</tr>
-<tr>
-<td><code>tab_7</code></td>
-<td><code>Alt+7</code> — switch to tab 7</td>
-</tr>
-<tr>
-<td><code>tab_8</code></td>
-<td><code>Alt+8</code> — switch to tab 8</td>
-</tr>
-<tr>
-<td><code>tab_9</code></td>
-<td><code>Alt+9</code> — switch to tab 9</td>
-</tr>
-<tr>
-<td><code>tab_prev</code></td>
-<td><code>Alt+ArrowLeft</code> — previous tab</td>
-</tr>
-<tr>
-<td><code>tab_next</code></td>
-<td><code>Alt+ArrowRight</code> — next tab</td>
-</tr>
-<tr>
-<td><code>new_session</code></td>
-<td><code>Alt+t</code> — open the new-session launcher</td>
-</tr>
-<tr>
-<td><code>close_tab</code></td>
-<td><code>Alt+w</code> — close the active tab (asks; killing the session
-needs explicit confirmation)</td>
-</tr>
-<tr>
-<td><code>font_bigger</code></td>
-<td><code>Alt+=</code> — increase this tab’s font size</td>
-</tr>
-<tr>
-<td><code>font_smaller</code></td>
-<td><code>Alt+-</code> — decrease this tab’s font size</td>
-</tr>
-<tr>
-<td><code>font_reset</code></td>
-<td><code>Alt+0</code> — reset this tab’s font size</td>
-</tr>
-<tr>
-<td><code>search</code></td>
-<td><code>Ctrl+Shift+f</code> — search this tab’s scrollback</td>
-</tr>
-<tr>
-<td><code>snippet_palette</code></td>
-<td><code>Ctrl+k</code> — open the fuzzy-searchable snippet palette</td>
-</tr>
-<tr>
-<td><code>help</code></td>
-<td><code>Alt+h</code> — show the shortcut list (also the <code>?</code>
-button in the tab bar)</td>
-</tr>
-</tbody>
-</table>
-<p>You do not need this table open while working: the <code>?</code>
-button at the right of the tab bar (or <code>Alt+h</code>) shows the
-live bindings — including any you remapped — every tab’s tooltip names
-its switch key, and the new-session launcher’s footer repeats the two
-you need most.</p>
-<p><strong>Why Alt-based defaults:</strong> Chrome reserves
-<code>Ctrl+T</code>, <code>Ctrl+W</code>, <code>Ctrl+Tab</code>, and
-<code>Ctrl+1</code>…<code>Ctrl+9</code> at the browser level — a web
-page cannot intercept them — so none of those combinations can ever be a
-working interface default; CLAUDIU’s defaults use <code>Alt</code>
-instead. For the same reason, do not rebind any shortcut to bare
-<code>Escape</code>: the shortcut handler runs in the capture phase and
-would suppress the dialog-closing <code>Escape</code> handler that the
-launcher and rename dialogs rely on.</p>
-<h2 id="restws-api">REST/WS API</h2>
-<table>
-<colgroup>
-<col style="width: 50%" />
-<col style="width: 50%" />
-</colgroup>
-<thead>
-<tr>
-<th>Route</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>GET /api/sessions</code></td>
-<td>list live sessions</td>
-</tr>
-<tr>
-<td><code>POST /api/sessions</code></td>
-<td>create a session (body: path, args, title)</td>
-</tr>
-<tr>
-<td><code>PATCH /api/sessions/&lt;id&gt;</code></td>
-<td>rename a session (body: title)</td>
-</tr>
-<tr>
-<td><code>DELETE /api/sessions/&lt;id&gt;</code></td>
-<td>kill a session</td>
-</tr>
-<tr>
-<td><code>GET /api/config</code></td>
-<td>effective config plus load warnings</td>
-</tr>
-<tr>
-<td><code>GET /api/resume</code></td>
-<td>recent resumable Claude sessions</td>
-</tr>
-<tr>
-<td><code>GET /api/status</code></td>
-<td>per-session status: last prompt, busy/ready, context use</td>
-</tr>
-<tr>
-<td><code>GET /api/conversation</code></td>
-<td>controlled conversation model for a session (query:
-<code>id</code>)</td>
-</tr>
-<tr>
-<td><code>GET /api/recent</code></td>
-<td>recently launched folders (<code>~/.claudiu/recent.json</code>)</td>
-</tr>
-<tr>
-<td><code>GET /api/dirs</code></td>
-<td>list sub-directories of a path (launcher folder picker)</td>
-</tr>
-<tr>
-<td><code>POST /api/mkdir</code></td>
-<td>create a folder (body: <code>parent</code>, <code>name</code>)</td>
-</tr>
-<tr>
-<td><code>WS /ws/&lt;id&gt;</code></td>
-<td>terminal stream (terminado protocol)</td>
-</tr>
-</tbody>
-</table>
-<p><code>GET /api/resume</code> scans the real
-<code>~/.claude/projects</code> directory of the user running the server
-— the resume list you see is your own Claude Code history on that
-machine, in that account. Each project entry includes an
-<code>exists</code> flag (<code>true</code>/<code>false</code>) so the
-launcher can skip projects whose directory has since moved or been
-deleted.</p>
-<h2 id="command-line">Command line</h2>
-<pre><code>python -m claudiu [--config PATH] [--port PORT] [--log-dir DIR]
-                  [--no-browser] [--verbose | --quiet] [--version]</code></pre>
-<table>
-<colgroup>
-<col style="width: 50%" />
-<col style="width: 50%" />
-</colgroup>
-<thead>
-<tr>
-<th>Flag</th>
-<th>Help</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>--config</code></td>
-<td>path to config.json (default: <code>~/.claudiu/config.json</code>,
-or <code>$CLAUDIU_CONFIG</code>)</td>
-</tr>
-<tr>
-<td><code>--port</code></td>
-<td>override the config port (config default: 8642)</td>
-</tr>
-<tr>
-<td><code>--log-dir</code></td>
-<td>directory for audit logs (default:
-<code>&lt;config dir&gt;/logs</code>)</td>
-</tr>
-<tr>
-<td><code>--no-browser</code></td>
-<td>do not open the browser automatically</td>
-</tr>
-<tr>
-<td><code>--verbose</code></td>
-<td>debug output on the console</td>
-</tr>
-<tr>
-<td><code>--quiet</code></td>
-<td>warnings and errors only on the console</td>
-</tr>
-<tr>
-<td><code>--version</code></td>
-<td>print the version and exit</td>
-</tr>
-<tr>
-<td><code>--help</code></td>
-<td>print the argument summary and exit</td>
-</tr>
-</tbody>
-</table>
-<h2 id="logs">Logs</h2>
-<p>Every run writes an audit log to
-<code>&lt;config dir&gt;/logs/claudiu-&lt;timestamp&gt;.log</code>
-(override the directory with <code>--log-dir</code>) recording: the
-command line invoked, CLAUDIU/Python/Tornado/Terminado versions, any
-config load warnings, session start/rename/kill events, and how the run
-ended. Console verbosity is independent of the log file:
-<code>--verbose</code> prints debug lines to the console too,
-<code>--quiet</code> restricts the console to warnings and errors; the
-log file itself is always written at debug level.</p>
-<h2 id="rebuilding-this-manual">Rebuilding this manual</h2>
-<p>This document is the source of truth; <code>USER_MANUAL.html</code>
-(and <code>USER_MANUAL.pdf</code>, when the tools are available) are
-built from it and committed so readers need no tooling of their own. To
-regenerate them after editing this file:</p>
-<pre><code>python docs/build_manual.py</code></pre>
-<p>Uses <code>pandoc</code> for the HTML and <code>pandoc</code> +
-<code>xelatex</code> for the PDF when both are on <code>PATH</code>;
-otherwise falls back to a small stdlib-only Markdown renderer for the
-HTML and prints that the PDF was skipped. Always exits 0.
-<code>--src</code> and <code>--outdir</code> override the input file and
-output directory.</p>
-<h2 id="launching-from-inside-claude-code">Launching from inside Claude
-Code</h2>
-<p>If you start <code>claudiu</code> from a Claude Code session (a shell
-tool, a hook, a sub-agent), the server inherits that session’s
-environment, and every <code>claude</code> it spawned would otherwise
-inherit it too — the CLI then treats itself as a nested child session
-and turns transcript saving off (“Transcript saving is off — inherited
-CLAUDE_CODE_CHILD_SESSION marker”). CLAUDIU strips the nesting markers
-(<code>CLAUDECODE</code>, <code>CLAUDE_CODE_CHILD_SESSION</code>,
-<code>CLAUDE_CODE_SESSION_ID</code>, <code>CLAUDE_PID</code>, the
-messaging/bridge/entrypoint/execpath variables) from each session’s
-environment, so sessions started here are ordinary top-level sessions
-with normal transcript saving and <code>--resume</code> behaviour. User
-configuration such as <code>CLAUDE_CODE_MAX_OUTPUT_TOKENS</code> is
-passed through untouched.</p>
-<h2 id="known-limitations">Known limitations</h2>
-<ul>
-<li><strong>Windows-first.</strong> Development and hand-testing happen
-on Windows. Linux and macOS are exercised only by CI (unit, integration,
-and end-to-end tests all run there too) — they are not hand-tested.</li>
-<li><strong>One browser page per server.</strong> The server assumes a
-single open page; it is not designed for multiple browser tabs/windows
-pointed at the same running instance.</li>
-<li><strong>No split panes.</strong> One session per interface tab; no
-multi-pane layouts.</li>
-<li><strong>No remote access.</strong> The server binds
-<code>127.0.0.1</code> only — it is not reachable from other devices,
-and there is no plan to make it so. Requests must also originate from
-the page itself: a foreign <code>Origin</code> or <code>Host</code>
-header (CSRF, or DNS rebinding to 127.0.0.1) is refused with 403.</li>
-<li><strong>No transcript export.</strong> CLAUDIU does not render or
-export session transcripts; that is the job of the separate
-claude-session-publisher tool.</li>
-<li><strong><code>localStorage</code> use is minimal.</strong> The only
-thing CLAUDIU stores in the browser’s <code>localStorage</code> is each
-tab’s remembered font size — nothing else about a session lives in the
-browser; the browser is a disposable view onto server-side
-sessions.</li>
-<li><strong>The status strip is read from Claude Code’s transcript
-files.</strong> It depends on their current record shapes
-(<code>last-prompt</code>, <code>stop_reason</code>,
-<code>usage</code>); a future Claude Code release that changes them
-degrades the strip to “unknown” (dim light, no gauge, no prompt) — never
-to a wrong answer, and never to a broken terminal.</li>
-<li><strong>Keystrokes during a reconnect gap are dropped.</strong> If
-you type while a tab’s websocket is reconnecting (the “reconnecting…”
-strip is visible), those keystrokes are not queued and are lost — wait
-for the strip to clear before typing.</li>
-</ul>
+<h2 id="records">Records</h2>
+<p>Every session appends to
+<code>&lt;records-dir&gt;/&lt;session&gt;.jsonl</code>: each protocol
+frame verbatim (before any interpretation) plus every client action —
+prompts, permission answers, file-access decisions with the policy that
+made them. This is the audit trail and the ground truth; the UI’s
+<code>raw_ref</code> numbers index into it.</p>
+<h2 id="security-notes">Security notes</h2>
+<p>The server binds 127.0.0.1 only; every request needs the launch
+token; foreign Host/Origin headers are refused. Agent file access is
+confined to the project directory (symlinks resolved). Adapter
+subprocesses run with a scrubbed environment (plus the profile’s
+declared runtime resolution and settings, written as the first record of
+the session) and die with their session. The record files never contain
+your token — but they do contain your conversation, so treat the records
+directory accordingly.</p>
 </body>
 </html>

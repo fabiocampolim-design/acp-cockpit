@@ -20,8 +20,12 @@ and rejects foreign `Host`/`Origin` headers.
 {"profiles": [{"id": "claude", "name": "Claude Code",
                "caveats": [{"id": "model-picker", "text": "..."}],
                "install_ok": true,
-               "install_hint": "npm install -g @zed-industries/claude-code-acp"}]}
+               "install_hint": "npm install -g @zed-industries/claude-code-acp",
+               "env_resolved": {"CLAUDE_CODE_EXECUTABLE": "C:\\Users\\me\\.local\\bin\\claude.exe"}}]}
 ```
+`env_resolved` is what the profile's `env_resolve` table resolved on this
+machine (empty when nothing resolved); show it so the user knows which
+runtime the adapter is pointed at.
 
 ### `POST /api/sessions` — body `{"profile": "claude", "cwd": "C:\\work\\proj"}`
 Returns `{"id": "<sid>"}`. Errors: `400` bad profile/cwd; `424` adapter not
@@ -101,7 +105,7 @@ Every server → client message is one event:
 | `permission_request` | `request` (id), `tool_call`, `options` (list of `{optionId, name, kind}`), `outside_boundary` (absolute paths mentioned by the tool call that fall outside the session boundary) | Modal approval dialog; explicit choice required. Non-empty `outside_boundary` MUST be shown prominently: shell execution is agent-side and the user's answer is the only control. Present one-shot options before standing grants. |
 | `permission_resolved` | `request`, `option`, `source` (`user`/`failsafe`) | Close the dialog; show fail-safe rejections distinctly. |
 | `fs_request` | `op` (`read`/`write`), `path`, `allowed` | Inline notice of agent file access and the policy verdict. |
-| `turn_ended` | `stop_reason` | Turn separator; re-enable composer. |
+| `turn_ended` | `stop_reason`; when `"error"` also `error` `{code, message}` | Turn separator; re-enable composer. A failed `session/prompt` still ends the turn (the same message arrives first as a `turn-error` anomaly). |
 | `anomaly` | `category`, `detail` | MUST be surfaced (chip + inline row); never dropped. |
 | `drift` | `flags` (list of strings) | MUST be surfaced (chip with details); protocol has outgrown the client. |
 | `unrecognized` | `why`, `frame` | MUST be surfaced; render as an explicit unknown with raw access. |

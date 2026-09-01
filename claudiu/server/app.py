@@ -18,7 +18,7 @@ from ..core.profiles import load_profiles
 from ..core.record import Recorder
 from ..core.sentinel import Sentinel
 from .auth import COOKIE_NAME
-from .procs import SubprocessAgentProcess
+from .procs import SubprocessAgentProcess, resolve_env
 from .ws import BufferedSink, SessionWS
 
 UI_DIR = Path(__file__).resolve().parents[1] / "ui" / "web"
@@ -72,12 +72,19 @@ class SessionManager:
         proc = SubprocessAgentProcess(
             command=profile.command, cwd=cwd,
             env_scrub=profile.env_scrub, env_set=profile.env_set,
+            env_resolve=profile.env_resolve,
             on_line=marshal(lambda ln: holder["s"].on_line(ln)),
             on_stderr=marshal(lambda ln: holder["s"].on_stderr(ln)),
             on_exit=marshal(lambda code: holder["s"].on_exit(code)))
+        recorder = Recorder(self.records_dir / f"{sid}.jsonl")
+        # First record of every session: what was launched and which
+        # runtime it was pointed at — the answer to "which CLI ran this?".
+        recorder.append({"dir": "client", "action": "spawn",
+                         "command": list(profile.command),
+                         "env_resolved": proc.resolved_env})
         session = AcpSession(
             sid=sid, profile=profile, proc=proc, sink=sink,
-            recorder=Recorder(self.records_dir / f"{sid}.jsonl"),
+            recorder=recorder,
             sentinel=Sentinel.load_default(),
             policy=PathPolicy(cwd), files=LocalFiles())
         holder["s"] = session
@@ -209,7 +216,8 @@ class ProfilesHandler(BaseHandler):
         self.write_json({"profiles": [
             {"id": p.id, "name": p.name, "caveats": p.caveats,
              "install_ok": shutil.which(p.command[0]) is not None,
-             "install_hint": p.install_hint}
+             "install_hint": p.install_hint,
+             "env_resolved": resolve_env(p.env_resolve, p.env_set)}
             for p in self.manager.profiles.values()]})
 
 

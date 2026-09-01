@@ -19,6 +19,7 @@ class AgentProfile:
     install_hint: str
     env_scrub: list[str]
     env_set: dict = field(default_factory=dict)
+    env_resolve: dict = field(default_factory=dict)  # VAR -> command name
     caveats: list = field(default_factory=list)
     extensions: list = field(default_factory=list)
 
@@ -36,10 +37,17 @@ def load_profile(path: Path) -> AgentProfile:
             raise ProfileError(f"{path}: missing required field {key!r}")
     if not isinstance(raw["command"], list) or not raw["command"]:
         raise ProfileError(f"{path}: 'command' must be a non-empty list")
+    env_resolve = raw.get("env_resolve", {})
+    if not isinstance(env_resolve, dict) or not all(
+            isinstance(k, str) and isinstance(v, str) and v
+            for k, v in env_resolve.items()):
+        raise ProfileError(f"{path}: 'env_resolve' must map variable names "
+                           "to command names")
     return AgentProfile(
         id=raw["id"], name=raw["name"], command=list(raw["command"]),
         install_hint=raw["install_hint"], env_scrub=list(raw["env_scrub"]),
         env_set=dict(raw.get("env_set", {})),
+        env_resolve=dict(env_resolve),
         caveats=list(raw.get("caveats", [])),
         extensions=list(raw.get("extensions", [])),
     )

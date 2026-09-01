@@ -36,7 +36,15 @@ Pick an **agent** (from `agents/*.toml` profiles; an agent whose adapter is
 not installed shows "adapter missing" with the install hint) and a
 **project directory** — the session's working directory and, importantly,
 its *file-access boundary*: the agent can only read/write inside it through
-this client. Known caveats of the selected agent are listed right there.
+this client. Known caveats of the selected agent are listed right there,
+followed by the **runtime** the adapter will be pointed at: for Claude,
+`CLAUDE_CODE_EXECUTABLE` resolves to your installed `claude` when there is
+one on `PATH`. The adapter bundles its own, older Claude CLI, which the
+API may refuse for newer models ("version 2.1.251 or newer is required"
+was the 2026-09-01 symptom); with no `claude` installed the bundled copy
+is used. The older adapter may then print harmless "Unexpected case"
+lines on stderr (shown as collapsible rows) for message types newer than
+it knows.
 **Find resumable sessions** asks the agent which of its own sessions exist
 for that directory (a throwaway adapter is started and closed for the
 query) and offers a **Resume** button per session.
@@ -106,6 +114,8 @@ made them. This is the audit trail and the ground truth; the UI's
 The server binds 127.0.0.1 only; every request needs the launch token;
 foreign Host/Origin headers are refused. Agent file access is confined to
 the project directory (symlinks resolved). Adapter subprocesses run with a
-scrubbed environment and die with their session. The record files never
+scrubbed environment (plus the profile's declared runtime resolution and
+settings, written as the first record of the session) and die with their
+session. The record files never
 contain your token — but they do contain your conversation, so treat the
 records directory accordingly.

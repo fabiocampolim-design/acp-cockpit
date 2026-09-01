@@ -22,6 +22,9 @@ env_scrub = []
           json.dumps(str(Path("tests/fixtures/basic_turn.json").resolve())))
 
 
+PY_NAME = Path(sys.executable).name          # python.exe / python3 / python
+
+
 class ServerTest(tornado.testing.AsyncHTTPTestCase):
     def get_app(self):
         self.tmpdir = Path(tempfile.mkdtemp())
@@ -29,6 +32,12 @@ class ServerTest(tornado.testing.AsyncHTTPTestCase):
         profs.mkdir()
         (profs / "fake.toml").write_text(
             FIXTURE_PROFILE.format(python=sys.executable), encoding="utf-8")
+        # same adapter, plus an env_resolve entry that resolves on PATH
+        (profs / "resolving.toml").write_text(
+            FIXTURE_PROFILE.format(python=sys.executable).replace(
+                'id = "fake"', 'id = "resolving"')
+            + "[env_resolve]\nEXTRA_VAR = " + json.dumps(PY_NAME) + "\n",
+            encoding="utf-8")
         self.auth = TokenAuth()
         return make_app(profiles_dir=profs,
                         records_dir=self.tmpdir / "records", auth=self.auth)
@@ -41,6 +50,27 @@ class ServerTest(tornado.testing.AsyncHTTPTestCase):
         assert resp.code == 200
         data = json.loads(resp.body)
         assert data["profiles"][0]["id"] == "fake"
+        by_id = {p["id"]: p for p in data["profiles"]}
+        assert by_id["fake"]["env_resolved"] == {}
+        import shutil
+        assert by_id["resolving"]["env_resolved"] == \
+            {"EXTRA_VAR": shutil.which(PY_NAME)}
+
+    def test_spawn_is_recorded_with_the_resolved_environment(self):
+        import shutil
+        resp = self.fetch("/api/sessions", method="POST",
+                          headers=self._headers(),
+                          body=json.dumps({"profile": "resolving",
+                                           "cwd": str(self.tmpdir)}))
+        assert resp.code == 200
+        sid = json.loads(resp.body)["id"]
+        self.fetch(f"/api/sessions/{sid}", method="DELETE",
+                   headers=self._headers())
+        first = json.loads((self.tmpdir / "records" / f"{sid}.jsonl")
+                           .read_text(encoding="utf-8").splitlines()[0])
+        assert first["dir"] == "client" and first["action"] == "spawn"
+        assert first["command"][1:] and first["command"][0]
+        assert first["env_resolved"] == {"EXTRA_VAR": shutil.which(PY_NAME)}
 
     def test_no_token_is_403(self):
         resp = self.fetch("/api/profiles")

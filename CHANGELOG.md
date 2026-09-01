@@ -2,6 +2,28 @@
 
 All notable changes to CLAUDIU are documented in this file.
 
+## Unreleased — post-outage resume (2026-09-01)
+
+- **The adapter's bundled Claude CLI was refused by the API.** After the
+  default model moved to a newer family, every prompt failed with
+  `Claude Code 2.1.44 does not support this model; version 2.1.251 or newer
+  is required` — claude-code-acp 0.16.2 (the newest release) ships CLI
+  2.1.44 inside its Agent SDK, while the installed `claude` was 2.1.257.
+  New profile field **`env_resolve`** (variable → command name, resolved on
+  `PATH` at spawn, *after* the scrub — the `CLAUDE_CODE_*` guard would strip
+  an inherited value — with `env_set` winning): the Claude profile sets
+  `CLAUDE_CODE_EXECUTABLE = "claude"`, so the user's CLI runs instead of the
+  bundled copy. Verified against the real adapter: the turn completes, zero
+  drift flags. What resolved is the first record of every session
+  (`action: "spawn"`), is returned by `GET /api/profiles` (`env_resolved`)
+  and shown in the launcher; caveat `bundled-cli` states the trade (the
+  older SDK prints harmless "Unexpected case" stderr lines for message
+  types newer than it knows).
+- A `session/prompt` answered with a JSON-RPC **error now ends the turn**:
+  `turn_ended` carries `stop_reason: "error"` plus `error {code, message}`,
+  and the `turn-error` anomaly shows the message text instead of a dict
+  repr. Found by the contract test, which waits for the turn end.
+
 ## Unreleased — first live-test feedback (2026-08-31 20:41)
 
 Every item traced to its recorded frames before fixing:
