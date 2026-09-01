@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
+import json
 import re
 import subprocess
 import sys
@@ -15,9 +16,15 @@ def server():
     tmp = Path(tempfile.mkdtemp())
     profs = tmp / "agents"
     profs.mkdir()
-    from tests.test_server import FIXTURE_PROFILE
+    from tests.test_server import FIXTURE_PROFILE, PY_NAME
     (profs / "fake.toml").write_text(
         FIXTURE_PROFILE.format(python=sys.executable), encoding="utf-8")
+    # same adapter plus an env_resolve entry: the launcher must show it
+    (profs / "resolving.toml").write_text(
+        FIXTURE_PROFILE.format(python=sys.executable).replace(
+            'id = "fake"', 'id = "resolving"')
+        + "[env_resolve]" + chr(10) + "EXTRA_VAR = " + json.dumps(PY_NAME)
+        + chr(10), encoding="utf-8")
     proc = subprocess.Popen(
         [sys.executable, "-m", "claudiu", "--profiles", str(profs),
          "--records", str(tmp / "rec"), "--no-drift-online"],
@@ -76,3 +83,21 @@ def test_permission_reject_path(server):
         page.click('#perm-options button[data-option="n"]')
         page.wait_for_selector("#permission", state="hidden")
         page.wait_for_selector('[data-kind="turn_ended"]')
+
+
+def test_launcher_shows_the_resolved_runtime(server):
+    # The runtime line is the user-visible half of the 2026-09-01 fix: it
+    # says which CLI the adapter will be pointed at (or nothing at all).
+    url, tmp = server
+    import shutil
+    from tests.test_server import PY_NAME
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = pw.chromium.launch().new_page()
+        page.goto(url)
+        page.select_option("#profile", "resolving")
+        page.wait_for_selector("#caveats .runtime")
+        assert page.inner_text("#caveats .runtime") == \
+            f"runtime: EXTRA_VAR → {shutil.which(PY_NAME)}"
+        page.select_option("#profile", "fake")
+        assert page.query_selector("#caveats .runtime") is None
