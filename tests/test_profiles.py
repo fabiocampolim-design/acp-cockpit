@@ -11,7 +11,8 @@ def test_claude_profile_loads():
     assert "CLAUDECODE" in p.env_scrub
     assert any("CLAUDE_CODE_" in s for s in p.env_scrub)
     assert p.install_hint.startswith("npm install")
-    assert any(c["id"] == "model-picker" for c in p.caveats)
+    assert any(c["id"] == "shell-escapes-boundary" for c in p.caveats)
+    assert "session/set_model" in p.extensions
 
 
 def test_missing_field_is_a_profile_error(tmp_path):

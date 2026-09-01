@@ -14,7 +14,10 @@ KINDS = frozenset({
     "plan",
     "commands",            # {"commands": [...]}
     "mode",                # {"current": str|None, "available": [...]}
-    "permission_request",  # {"request": int, "tool_call": dict, "options": [...]}
+    "model",               # {"current": str|None, "available": [{modelId, name, description}]}
+    "stderr",              # {"line": str} — adapter stderr, recorded, low severity
+    "permission_request",  # {"request": int, "tool_call": dict, "options": [...],
+                           #  "outside_boundary": [paths mentioned outside the policy root]}
     "permission_resolved", # {"request": int, "option": str|None, "source": "user"|"failsafe"}
     "fs_request",          # {"op": "read"|"write", "path": str, "allowed": bool}
     "turn_ended",          # {"stop_reason": str}

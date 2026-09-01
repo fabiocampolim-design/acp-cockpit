@@ -8,14 +8,22 @@ install_hint = "npm install -g @zed-industries/claude-code-acp"
 # Nested-session guard: the Claude SDK refuses to start when these are set.
 env_scrub = ["CLAUDECODE", "CLAUDE_CODE_*"]
 
-# Vendor _meta extension names the adapter is known to use (surfaced, not interpreted).
-extensions = []
+# Adapter extensions beyond the stable ACP schema that this client uses.
+extensions = ["session/set_model"]
 
 [env_set]
 
 [[caveats]]
-id = "model-picker"
-text = "The interactive /model picker has no ACP equivalent; model choice follows the underlying claude configuration."
+id = "shell-escapes-boundary"
+text = "The project-directory boundary is enforced only for file access routed through this client. Shell commands run by the agent itself are not confined; the approval dialog flags out-of-boundary paths and your answer is the only control. 'Always Allow' is a standing grant for the whole session."
+
+[[caveats]]
+id = "thinking-redacted"
+text = "Thinking is delivered as empty markers (content redacted by the adapter); the view shows that thinking happened, not its text."
+
+[[caveats]]
+id = "slash-commands-on-stderr"
+text = "Built-in slash commands (e.g. /context) echo their output on the adapter's stderr as well as in the reply; the stderr copy appears as collapsible rows."
 
 [[caveats]]
 id = "terminal-unadvertised"

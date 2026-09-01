@@ -30,6 +30,8 @@ for raw in sys.stdin:
             if rule["if_prompt_contains"] not in text:
                 continue
         matched = True
+        for err in rule.get("stderr", []):
+            print(err, file=sys.stderr, flush=True)
         for note in rule.get("notify", []):
             note = json.loads(json.dumps(note).replace("$SESSION", SESSION))
             send(note)

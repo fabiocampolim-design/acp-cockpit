@@ -33,6 +33,10 @@ def walk(node):
     elif isinstance(node, list):
         for x in node:
             walk(x)
+    elif isinstance(node, str):
+        # method names also live in titles/descriptions/x-method fields
+        for x in re.findall(r"(?:session|fs|terminal|elicitation)/[a-z_]+", node):
+            found.add(x)
 
 walk(schema)
 novel = sorted(x for x in found if x not in known and

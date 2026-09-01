@@ -67,8 +67,7 @@ class SessionManager:
             command=profile.command, cwd=cwd,
             env_scrub=profile.env_scrub, env_set=profile.env_set,
             on_line=marshal(lambda ln: holder["s"].on_line(ln)),
-            on_stderr=marshal(lambda ln: holder["s"]._emit(
-                "anomaly", {"category": "stderr", "detail": ln})),
+            on_stderr=marshal(lambda ln: holder["s"].on_stderr(ln)),
             on_exit=marshal(lambda code: holder["s"].on_exit(code)))
         session = AcpSession(
             sid=sid, profile=profile, proc=proc, sink=sink,

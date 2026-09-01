@@ -1,0 +1,34 @@
+[
+  {"on_method": "initialize",
+   "respond": {"protocolVersion": 1, "agentCapabilities": {}}},
+  {"on_method": "session/new",
+   "notify": [
+     {"jsonrpc": "2.0", "method": "session/update",
+      "params": {"sessionId": "$SESSION",
+        "update": {"sessionUpdate": "available_commands_update",
+                    "availableCommands": [
+                      {"name": "context", "description": "Show context usage"},
+                      {"name": "compact", "description": "Compact history"}]}}}],
+   "respond": {"sessionId": "$SESSION",
+               "models": {"currentModelId": "default",
+                           "availableModels": [
+                             {"modelId": "default", "name": "Default"},
+                             {"modelId": "sonnet", "name": "Sonnet"}]},
+               "modes": {"currentModeId": "default",
+                          "availableModes": [{"id": "default",
+                                              "name": "Default"}]}}},
+  {"on_method": "session/set_model", "respond": {}},
+  {"on_method": "session/prompt",
+   "stderr": ["<local-command-stdout>## Context Usage",
+              "</local-command-stdout>"],
+   "notify": [
+     {"jsonrpc": "2.0", "method": "session/update",
+      "params": {"sessionId": "$SESSION",
+        "update": {"sessionUpdate": "agent_thought_chunk",
+                    "content": {"type": "text", "text": ""}}}},
+     {"jsonrpc": "2.0", "method": "session/update",
+      "params": {"sessionId": "$SESSION",
+        "update": {"sessionUpdate": "agent_message_chunk",
+                    "content": {"type": "text", "text": "ran it"}}}}],
+   "respond": {"stopReason": "end_turn"}}
+]

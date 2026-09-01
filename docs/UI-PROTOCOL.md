@@ -54,8 +54,13 @@ server messages are JSON commands:
 {"cmd": "prompt", "text": "the user's message"}
 {"cmd": "cancel"}
 {"cmd": "set_mode", "mode": "acceptEdits"}
+{"cmd": "set_model", "model": "sonnet"}
 {"cmd": "permission", "request": 44, "option": "allow"}
 ```
+
+`set_model` uses the agent's `session/set_model` extension (listed in the
+profile's `extensions`); agents without it answer with an error that
+surfaces as an `anomaly`.
 
 A malformed or ill-timed command comes back as an `anomaly` event with
 category `command-error` (it never kills the socket).
@@ -78,7 +83,9 @@ Every server → client message is one event:
 | `plan` | `entries` (list of `{content, status, priority}`) | Plan panel. |
 | `commands` | `commands` (list of `{name, description, input}`) | Command palette source. |
 | `mode` | `current`, `available` (list of `{id, name}`) | Mode selector. |
-| `permission_request` | `request` (id), `tool_call`, `options` (list of `{optionId, name, kind}`) | Modal approval dialog; explicit choice required. |
+| `model` | `current`, `available` (list of `{modelId, name, description}`) | Model selector (from `session/new`'s `models`; empty `available` = current changed only). |
+| `stderr` | `line` | Adapter stderr, recorded (`dir: "err"`). Low severity: collapsible row, no warning chip. Claude's adapter prints slash-command output here. |
+| `permission_request` | `request` (id), `tool_call`, `options` (list of `{optionId, name, kind}`), `outside_boundary` (absolute paths mentioned by the tool call that fall outside the session boundary) | Modal approval dialog; explicit choice required. Non-empty `outside_boundary` MUST be shown prominently: shell execution is agent-side and the user's answer is the only control. Present one-shot options before standing grants. |
 | `permission_resolved` | `request`, `option`, `source` (`user`/`failsafe`) | Close the dialog; show fail-safe rejections distinctly. |
 | `fs_request` | `op` (`read`/`write`), `path`, `allowed` | Inline notice of agent file access and the policy verdict. |
 | `turn_ended` | `stop_reason` | Turn separator; re-enable composer. |

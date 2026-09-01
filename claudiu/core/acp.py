@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import json
+import re
 
 from .events import make_event
 from .protocol import JsonRpcConn
+
+# Windows drive paths (JSON-escaped backslashes included) and POSIX paths.
+_ABS_PATH = re.compile(r"[A-Za-z]:(?:\\\\|/)[^\s\"'`<>|&;]+|(?<![\w:])/[\w./-]{2,}")
 
 _UPDATE_TO_EVENT = {
     "agent_message_chunk": ("message_chunk", "agent"),
@@ -39,6 +43,7 @@ class AcpSession:
         self._turn_id = None
         self._last_raw_ref = None
         self._pending_perms: dict = {}
+        self._early_updates: list = []
         self._conn = JsonRpcConn(self._on_request, self._on_notify,
                                  self._on_anomaly)
 
@@ -108,7 +113,21 @@ class AcpSession:
         if modes:
             self._emit("mode", {"current": modes.get("currentModeId"),
                                 "available": modes.get("availableModes", [])})
+        models = result.get("models") or {}
+        if models:
+            self._emit("model", {"current": models.get("currentModelId"),
+                                 "available": models.get("availableModels", [])})
+        early, self._early_updates = self._early_updates, []
+        for params, ref in early:
+            self._last_raw_ref = ref
+            self._on_notify("session/update", params)
         self._set_state("ready")
+
+    def on_stderr(self, line: str) -> None:
+        """Adapter stderr: recorded and surfaced at low severity. Claude's
+        adapter prints slash-command output here; it is not an anomaly."""
+        ref = self.recorder.append({"dir": "err", "line": line})
+        self._emit("stderr", {"line": line}, ref)
 
     def _fail(self, detail: str):
         self._set_state("failed", detail)
@@ -157,6 +176,11 @@ class AcpSession:
     def _on_notify(self, method, params):
         if method != "session/update":
             return  # tolerated per spec; sentinel already flagged unknowns
+        if self.acp_session_id is None:
+            # Updates can precede the session/new result; hold them and
+            # replay once the id is known — never drop, never guess.
+            self._early_updates.append((params, self._last_raw_ref))
+            return
         if params.get("sessionId") != self.acp_session_id:
             self._emit("anomaly", {
                 "category": "unknown-session",
@@ -190,16 +214,31 @@ class AcpSession:
         ref = self._last_raw_ref
         if method == "session/request_permission":
             self._pending_perms[msg_id] = params.get("options") or []
+            tool_call = params.get("toolCall") or {}
             self._emit("permission_request", {
                 "request": msg_id,
-                "tool_call": params.get("toolCall") or {},
-                "options": params.get("options") or []}, ref)
+                "tool_call": tool_call,
+                "options": params.get("options") or [],
+                "outside_boundary": self._paths_outside(tool_call)}, ref)
             return  # answered later by answer_permission / fail_safe_reject
         if method in ("fs/read_text_file", "fs/write_text_file"):
             self._handle_fs(msg_id, method, params, ref)
         else:
             self._conn.error(msg_id, -32601, f"unsupported method: {method}")
         self._flush()
+
+    def _paths_outside(self, tool_call: dict) -> list[str]:
+        """Heuristic: absolute paths mentioned anywhere in a tool call that
+        fall outside the session boundary. Shell execution is agent-side and
+        cannot be fenced by the client, so the user must SEE the escape."""
+        text = json.dumps(tool_call, ensure_ascii=False)
+        found = []
+        for m in _ABS_PATH.finditer(text):
+            candidate = m.group(0).replace("\\\\", "\\")
+            candidate = candidate.rstrip("`'\"),;\\")   # JSON-escaped quote tail
+            if candidate not in found and not self.policy.allowed(candidate):
+                found.append(candidate)
+        return found
 
     def _handle_fs(self, msg_id, method, params, ref):
         op = "read" if method == "fs/read_text_file" else "write"
@@ -283,6 +322,23 @@ class AcpSession:
         self._conn.request("session/set_mode",
                            {"sessionId": self.acp_session_id,
                             "modeId": mode_id}, done)
+        self._flush()
+
+    def set_model(self, model_id: str) -> None:
+        """Adapter extension (claude-code-acp `session/set_model`); listed in
+        the profile's extensions, recorded like every other client action."""
+        self.recorder.append({"dir": "client", "action": "set_model",
+                              "model": model_id})
+
+        def done(result, error):
+            if error:
+                self._emit("anomaly", {"category": "set-model-error",
+                                       "detail": str(error)})
+            else:
+                self._emit("model", {"current": model_id, "available": []})
+        self._conn.request("session/set_model",
+                           {"sessionId": self.acp_session_id,
+                            "modelId": model_id}, done)
         self._flush()
 
     def load(self, acp_session_id: str, cwd: str) -> None:

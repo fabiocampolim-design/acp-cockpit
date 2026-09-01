@@ -2,6 +2,29 @@
 
 All notable changes to CLAUDIU are documented in this file.
 
+## Unreleased — first live-test feedback (2026-08-31 20:41)
+
+Every item traced to its recorded frames before fixing:
+- `[hidden]` was overridden by author `display:` rules — the command
+  palette never folded back and the workspace was visible under the
+  launcher. Root fix: `[hidden] { display: none !important }`.
+- Adapter stderr (Claude's slash-command echo, ~100 lines for `/context`)
+  was surfaced as anomalies and not recorded. Now recorded (`dir: "err"`)
+  and shown as collapsible low-severity `stderr` rows; the anomaly chip is
+  reserved for real anomalies, chips carry counts and clear on click.
+- Thinking arrives as empty chunks (redacted); the view now shows a
+  "· thinking ·" marker instead of an invisible block.
+- Model selection: `session/new` advertises models and the adapter's
+  `session/set_model` works — model selector added (`set_model` command,
+  `model` event); the "no /model" caveat is retired.
+- Approval dialog: options ordered one-shot first / standing grants last
+  (the adapter lists "Always Allow" first), standing grants visibly
+  cautionary, and a prominent warning listing any paths outside the
+  session boundary mentioned by the tool call — shell execution is
+  agent-side and cannot be fenced by the client; caveat + README updated.
+- Registry: five schema methods added (`session/close|delete|list|resume|
+  set_config_option`); the drift tool now scans all schema strings.
+
 ## 0.2.0 — 2026-08-31 — the ACP pivot
 
 CLAUDIU is now a **browser client for AI coding agents over the Agent

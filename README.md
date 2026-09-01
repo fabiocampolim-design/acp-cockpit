@@ -72,8 +72,11 @@ agents/*.toml Data        everything agent-specific (see PROFILE-SCHEMA.md)
   rejected; strict CSP; no external resources.
 - ACP lets the agent ask the client to read/write files: every such request
   is checked against the session's path boundary (project directory;
-  symlink-resolved) and refused outside it. The `terminal` capability is
-  deliberately not advertised in v1.
+  symlink-resolved) and refused outside it. **Shell commands the agent runs
+  itself are not confined by this** — they execute agent-side; the approval
+  dialog flags any out-of-boundary paths it can see and your answer is the
+  control ("Always Allow" is a standing grant for the session). The
+  `terminal` capability is deliberately not advertised in v1.
 - Adapter subprocesses run with a scrubbed environment (profile
   `env_scrub`) and are terminated with their session. Records never contain
   the auth token.
@@ -87,7 +90,7 @@ python -m pyflakes claudiu tools tests
 python tools/check_schema_drift.py
 ```
 
-Verified by 70 checks (plus the opt-in real-adapter contract test). See
+Verified by 77 checks (plus the opt-in real-adapter contract test). See
 `AGENTS.md` for the working rules and `docs/superpowers/specs/` for the
 design history. The v0.1 terminal-mirror app lives in `archive/claudiu-v0.1`
 with its own git history.
