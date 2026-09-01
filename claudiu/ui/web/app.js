@@ -141,18 +141,30 @@ function handleEvent(ev) {
       break;
     }
     case "stderr": {
-      agg.currentKey = null;
+      // Consecutive stderr lines coalesce into ONE collapsible row
+      // (Claude's /context echoes ~130 lines); every line stays visible.
+      if (agg.currentKey === "stderr:" && agg.node) {
+        const pre = agg.node.querySelector("pre");
+        pre.textContent += "\n" + d.line;
+        agg.node.stderrLines += 1;
+        agg.node.querySelector("summary").textContent =
+          `adapter stderr (${agg.node.stderrLines} lines)`;
+        break;
+      }
       const node = document.createElement("div");
       node.dataset.kind = "stderr";
+      node.stderrLines = 1;
       const det = document.createElement("details");
       const sum = document.createElement("summary");
-      sum.textContent = "adapter stderr";
+      sum.textContent = "adapter stderr (1 lines)";
       const pre = document.createElement("pre");
       pre.textContent = d.line;
       det.append(sum, pre);
       node.append(det);
       addRawToggle(node, ev);
       $("#conversation").append(node);
+      agg.currentKey = "stderr:";
+      agg.node = node;
       break;
     }
     case "tool_call":
