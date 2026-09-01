@@ -30,6 +30,9 @@ for raw in sys.stdin:
             if rule["if_prompt_contains"] not in text:
                 continue
         matched = True
+        if rule.get("delay_ms"):
+            import time
+            time.sleep(rule["delay_ms"] / 1000)
         for err in rule.get("stderr", []):
             print(err, file=sys.stderr, flush=True)
         for note in rule.get("notify", []):

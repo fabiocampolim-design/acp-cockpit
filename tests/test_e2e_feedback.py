@@ -86,12 +86,17 @@ def test_model_selector_and_thinking_marker_and_stderr(server):
         page = start(pw, url, tmp)
         page.wait_for_selector("#model:not([hidden])")
         assert page.input_value("#model") == "default"
+        # the description is the real identity ("Default" is Opus)
+        assert "Opus" in page.inner_text("#model option[value=default]")
         page.select_option("#model", "sonnet")
         # selector wait, not wait_for_function: the page's CSP forbids eval
         page.wait_for_selector("#status .model:text-is('sonnet')")
         page.fill("#prompt-input", "go")
         page.click("#send")
+        page.wait_for_selector("#working")          # visible while the turn runs
+        assert "working" in page.inner_text("#working")
         page.wait_for_selector('[data-kind="turn_ended"]')
+        assert page.query_selector("#working") is None   # gone when it ends
         thought = page.inner_text(
             '[data-kind="message_chunk"][data-role="thought"]')
         assert "thinking" in thought.lower()

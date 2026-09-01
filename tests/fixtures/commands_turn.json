@@ -12,13 +12,15 @@
    "respond": {"sessionId": "$SESSION",
                "models": {"currentModelId": "default",
                            "availableModels": [
-                             {"modelId": "default", "name": "Default"},
+                             {"modelId": "default", "name": "Default",
+                              "description": "Opus 4.6 - Most capable"},
                              {"modelId": "sonnet", "name": "Sonnet"}]},
                "modes": {"currentModeId": "default",
                           "availableModes": [{"id": "default",
                                               "name": "Default"}]}}},
   {"on_method": "session/set_model", "respond": {}},
   {"on_method": "session/prompt",
+   "delay_ms": 1500,
    "stderr": ["<local-command-stdout>## Context Usage",
               "</local-command-stdout>"],
    "notify": [

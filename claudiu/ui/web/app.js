@@ -55,12 +55,38 @@ function connect() {
 
 let uiState = "starting";
 
+let workingTimer = null;
+
 function setState(s) {
   uiState = s;
   $("#status .state").textContent = s;
   turnActive = (s === "turn");
   $("#send").disabled = (s !== "ready");
   $("#cancel").hidden = !turnActive;
+  showWorking(turnActive);
+}
+
+// Visible progress while the agent's turn runs (slash commands like
+// /insights can take minutes with no output until the end).
+function showWorking(on) {
+  let w = $("#working");
+  if (!on) {
+    if (w) w.remove();
+    if (workingTimer) { clearInterval(workingTimer); workingTimer = null; }
+    return;
+  }
+  if (w) return;
+  w = document.createElement("div");
+  w.id = "working";
+  const started = Date.now();
+  const render = () => {
+    const secs = Math.round((Date.now() - started) / 1000);
+    w.textContent = `agent working… ${secs}s — Stop cancels the turn`;
+  };
+  render();
+  workingTimer = setInterval(render, 1000);
+  $("#conversation").append(w);
+  w.scrollIntoView({block: "end"});
 }
 
 const agg = {};   // aggregation state for consecutive same-role chunks
@@ -82,7 +108,8 @@ function addBlock(kind, role, text) {
   span.className = "text";
   span.textContent = text;
   div.append(span);
-  $("#conversation").append(div);
+  const working = $("#working");   // keep the progress row last
+  if (working) working.before(div); else $("#conversation").append(div);
   agg.currentKey = key;
   agg.node = div;
   div.scrollIntoView({block: "end"});
@@ -131,8 +158,9 @@ function handleEvent(ev) {
         sel.replaceChildren(...d.available.map(m => {
           const o = document.createElement("option");
           o.value = m.modelId;
-          o.textContent = m.name || m.modelId;
-          if (m.description) o.title = m.description;
+          // The description carries the real identity ("Default" = Opus).
+          o.textContent = (m.name || m.modelId) +
+            (m.description ? ` — ${m.description}` : "");
           return o;
         }));
       }

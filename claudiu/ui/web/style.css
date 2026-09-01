@@ -101,6 +101,12 @@ pre.raw {
   padding: .5rem; overflow-x: auto; font-size: .8em; clear: both;
 }
 
+#working {
+  color: var(--accent); font-size: .85em; text-align: center;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+@keyframes pulse { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
+
 #plan {
   border-top: 1px solid var(--border); background: var(--bg-raised);
   padding: .5rem .8rem; font-size: .85em; max-height: 8rem; overflow-y: auto;

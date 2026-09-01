@@ -24,6 +24,10 @@ Every item traced to its recorded frames before fixing:
   agent-side and cannot be fenced by the client; caveat + README updated.
 - Registry: five schema methods added (`session/close|delete|list|resume|
   set_config_option`); the drift tool now scans all schema strings.
+- Second round (21:21): model options now show their description ("Default
+  (recommended) — Opus 4.6 · …" — Opus was there under "Default"); a
+  pulsing "agent working… Ns" row with the Stop hint shows during long
+  turns (`/insights`); consecutive stderr lines coalesce into one row.
 
 ## 0.2.0 — 2026-08-31 — the ACP pivot
 
