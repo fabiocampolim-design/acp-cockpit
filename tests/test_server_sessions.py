@@ -112,3 +112,13 @@ class SessionsTest(tornado.testing.AsyncHTTPTestCase):
         live = json.loads(self.fetch("/api/sessions",
                                      headers=self._headers()).body)
         assert live["sessions"][0]["title"] == "Fixture session"
+
+    def test_cwd_is_normalized_to_native_form(self):
+        slashy = str(self.tmpdir).replace("\\", "/")
+        resp = self.fetch("/api/sessions", method="POST",
+                          headers=self._headers(),
+                          body=json.dumps({"profile": "cmds", "cwd": slashy}))
+        assert resp.code == 200
+        live = json.loads(self.fetch("/api/sessions",
+                                     headers=self._headers()).body)
+        assert live["sessions"][0]["cwd"] == str(self.tmpdir.resolve())

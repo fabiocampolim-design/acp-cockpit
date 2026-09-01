@@ -28,6 +28,13 @@ CSP = ("default-src 'self'; img-src 'self' data:; "
        "style-src 'self'; script-src 'self'")
 
 
+def native_dir(cwd: str) -> str:
+    """Agents match session cwd as an exact string (claude-code-acp's
+    session/list finds nothing for C:/x but everything for C:\\x), so
+    always hand them the resolved native form."""
+    return str(Path(cwd).resolve())
+
+
 class LocalFiles:
     def read_text(self, path: str) -> str:
         return Path(path).read_text(encoding="utf-8")
@@ -217,6 +224,7 @@ class SessionsHandler(BaseHandler):
         if profile_id not in self.manager.profiles or not cwd or \
                 not Path(cwd).is_dir():
             raise tornado.web.HTTPError(400, "bad profile or cwd")
+        cwd = native_dir(cwd)
         profile = self.manager.profiles[profile_id]
         if shutil.which(profile.command[0]) is None:
             self.set_status(424)
@@ -239,6 +247,7 @@ class ProfileSessionsHandler(BaseHandler):
         cwd = self.get_query_argument("cwd", "")
         if profile_id not in self.manager.profiles or not Path(cwd).is_dir():
             raise tornado.web.HTTPError(400, "bad profile or cwd")
+        cwd = native_dir(cwd)
         profile = self.manager.profiles[profile_id]
         if shutil.which(profile.command[0]) is None:
             return self.write_json({"sessions": [],
