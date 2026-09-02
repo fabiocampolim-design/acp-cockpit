@@ -29,7 +29,7 @@ CSP = ("default-src 'self'; img-src 'self' data:; "
 
 
 def native_dir(cwd: str) -> str:
-    """Agents match session cwd as an exact string (claude-code-acp's
+    """Agents match session cwd as an exact string (the Claude adapter's
     session/list finds nothing for C:/x but everything for C:\\x), so
     always hand them the resolved native form."""
     return str(Path(cwd).resolve())
@@ -269,12 +269,20 @@ class DriftHandler(BaseHandler):
 
     async def get(self):
         pinned = (VENDOR / "VERSION").read_text(encoding="utf-8").strip()
-        result = {"pinned_schema": pinned, "flags": [], "online": False}
+        # The adapter to check is named by the profile (`npm_package`), never
+        # by the server: ?profile=<id>, else the first profile that has one.
+        profiles = self.manager.profiles
+        wanted = self.get_query_argument("profile", None)
+        profile = profiles.get(wanted) if wanted else next(
+            (p for p in profiles.values() if p.npm_package), None)
+        package = profile.npm_package if profile else None
+        result = {"pinned_schema": pinned, "flags": [], "online": False,
+                  "adapter_package": package}
         if self.application.settings.get("drift_online"):
             result["online"] = True
             try:
                 latest = await tornado.ioloop.IOLoop.current().\
-                    run_in_executor(None, _latest_versions)
+                    run_in_executor(None, _latest_versions, package)
                 result["flags"] = Sentinel.load_default().compare_versions(
                     pinned, latest.get("schema"),
                     latest.get("adapter_installed"),
@@ -285,29 +293,30 @@ class DriftHandler(BaseHandler):
         self.write_json(result)
 
 
-def _latest_versions() -> dict:
+def _latest_versions(npm_package: str | None = None) -> dict:
     """Blocking lookups, run in an executor. External systems addressed
     generically: a GitHub releases URL and the npm registry, both plain
-    HTTPS JSON — no vendor SDKs."""
+    HTTPS JSON — no vendor SDKs. `npm_package` comes from the profile."""
     import json as _json
     import os as _os
     import subprocess as _sp
     import urllib.request as _rq
-    out: dict = {}
+    out: dict = {"adapter_latest": None, "adapter_installed": None}
     with _rq.urlopen("https://api.github.com/repos/agentclientprotocol/"
                      "agent-client-protocol/releases/latest",
                      timeout=10) as r:
         out["schema"] = _json.load(r).get("tag_name")
-    with _rq.urlopen("https://registry.npmjs.org/@zed-industries/"
-                     "claude-code-acp/latest", timeout=10) as r:
+    if not npm_package:
+        return out
+    with _rq.urlopen(f"https://registry.npmjs.org/{npm_package}/latest",
+                     timeout=10) as r:
         out["adapter_latest"] = _json.load(r).get("version")
     try:
-        ls = _sp.run(["npm", "ls", "-g", "@zed-industries/claude-code-acp",
-                      "--json"], capture_output=True, text=True, timeout=30,
+        ls = _sp.run(["npm", "ls", "-g", npm_package, "--json"],
+                     capture_output=True, text=True, timeout=30,
                      shell=(_os.name == "nt"))
         deps = _json.loads(ls.stdout or "{}").get("dependencies", {})
-        out["adapter_installed"] = deps.get(
-            "@zed-industries/claude-code-acp", {}).get("version")
+        out["adapter_installed"] = deps.get(npm_package, {}).get("version")
     except Exception:
         out["adapter_installed"] = None
     return out

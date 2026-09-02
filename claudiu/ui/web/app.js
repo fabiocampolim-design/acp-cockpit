@@ -212,14 +212,19 @@ class Session {
   renderStatus() {
     if (!this.isActive) return;
     $("#status .state").textContent = this.state;
-    $("#status .mode").textContent = this.mode.current || "";
-    $("#status .model").textContent = this.model.current || "";
+    // Prefer the config option's display name ("Manual", "Fable") when the
+    // agent offers mode/model that way; fall back to the legacy fields.
+    const modeCfg = this.configCurrent("mode"), modelCfg = this.configCurrent("model");
+    $("#status .mode").textContent = modeCfg ? modeCfg.name : (this.mode.current || "");
+    const modelEl = $("#status .model");
+    modelEl.textContent = modelCfg ? modelCfg.name : (this.model.current || "");
+    modelEl.title = modelCfg && modelCfg.value !== modelCfg.name ? String(modelCfg.value) : "";
     const u = this.usage;
     const usageEl = $("#status .usage");
     if (u && u.size) {
       const pct = Math.round(100 * u.used / u.size);
       usageEl.textContent = `${fmtK(u.used)} / ${fmtK(u.size)} (${pct}%)` +
-        (u.cost ? ` · ${u.cost.amount} ${u.cost.currency}` : "");
+        (u.cost ? ` · ${fmtCost(u.cost)}` : "");
       usageEl.style.setProperty("--pct", pct + "%");
     } else usageEl.textContent = "";
     for (const [sel, c] of Object.entries(this.chips)) {
@@ -233,13 +238,26 @@ class Session {
     $("#cancel").hidden = this.state !== "turn";
   }
 
+  /* Current value of a config option, with its display name. */
+  configCurrent(id) {
+    const opt = this.config.find(o => o.id === id);
+    if (!opt) return null;
+    const hit = (opt.options || []).find(o => o.value === opt.currentValue);
+    return {value: opt.currentValue,
+            name: hit ? (hit.name || String(hit.value)) : String(opt.currentValue)};
+  }
+
   renderControls() {
     if (!this.isActive) return;
-    fillSelect($("#mode"), this.mode.available.map(m => [m.id, m.name || m.id]),
+    // Newer agents offer mode/model as config options too: the config option
+    // wins and the legacy select hides — never two controls for one thing.
+    const cfgIds = new Set(this.config.map(o => o.id));
+    fillSelect($("#mode"), cfgIds.has("mode") ? [] :
+               this.mode.available.map(m => [m.id, m.name || m.id, m.description]),
                this.mode.current);
-    fillSelect($("#model"), this.model.available.map(m =>
-      [m.modelId, (m.name || m.modelId) + (m.description ? ` — ${m.description}` : "")]),
-      this.model.current);
+    fillSelect($("#model"), cfgIds.has("model") ? [] :
+               this.model.available.map(m => [m.modelId, m.name || m.modelId, m.description]),
+               this.model.current);
     const box = $("#config-options");
     box.replaceChildren(...this.config.map(opt => {
       const wrap = document.createElement("label");
@@ -259,6 +277,7 @@ class Session {
         for (const o of opt.options || []) {
           const el = document.createElement("option");
           el.value = o.value; el.textContent = o.name || o.value;
+          if (o.description) el.title = o.description;
           sel.append(el);
         }
         sel.value = opt.currentValue;
@@ -460,16 +479,25 @@ class Session {
 }
 
 function fmtK(n) { return n >= 1000 ? (n / 1000).toFixed(n >= 100000 ? 0 : 1) + "k" : String(n); }
+function fmtCost(c) {
+  const a = Number(c.amount);
+  if (!isFinite(a)) return `${c.amount} ${c.currency || ""}`.trim();
+  return `${a >= 0.01 ? a.toFixed(2) : a.toFixed(4)} ${c.currency || ""}`.trim();
+}
 
 function fillSelect(sel, pairs, current) {
   if (pairs.length) {
     sel.hidden = false;
-    sel.replaceChildren(...pairs.map(([v, label]) => {
+    sel.replaceChildren(...pairs.map(([v, label, title]) => {
       const o = document.createElement("option");
-      o.value = v; o.textContent = label; return o;
+      o.value = v; o.textContent = label;
+      if (title) o.title = title;      // long descriptions live in the tooltip
+      return o;
     }));
   } else sel.hidden = true;
   if (current !== null && current !== undefined) sel.value = current;
+  const chosen = sel.selectedOptions[0];
+  if (chosen && chosen.title) sel.title = chosen.title;
 }
 
 function summarize(ev) {

@@ -117,6 +117,12 @@ class AcpSession:
         if models:
             self._emit("model", {"current": models.get("currentModelId"),
                                  "available": models.get("availableModels", [])})
+        # ACP 1.x agents hand mode/model/effort/... over as configOptions in
+        # the session/new result itself (claude-agent-acp 0.73); dropping
+        # them here left the View without its selectors on 2026-09-01.
+        cfg = result.get("configOptions")
+        if cfg:
+            self._emit("config_option", {"options": cfg})
         early, self._early_updates = self._early_updates, []
         for params, ref in early:
             self._last_raw_ref = ref
@@ -343,8 +349,10 @@ class AcpSession:
         self._flush()
 
     def set_model(self, model_id: str) -> None:
-        """Adapter extension (claude-code-acp `session/set_model`); listed in
-        the profile's extensions, recorded like every other client action."""
+        """Vendor method `session/set_model` (claude-code-acp <= 0.16;
+        claude-agent-acp 0.73 moved model choice to config options, so the
+        View hides this control when a `model` config option exists).
+        Recorded like every other client action."""
         self.recorder.append({"dir": "client", "action": "set_model",
                               "model": model_id})
 

@@ -4,7 +4,7 @@ A **browser client for AI coding agents speaking the Agent Client Protocol
 (ACP)** — Windows-native (no WSL, no pty), agent-agnostic, and built around
 one guarantee: *nothing that crosses the wire is ever lost or silently
 misread*. The first configured agent is Claude Code via the
-[`claude-code-acp`](https://github.com/zed-industries/claude-code-acp)
+[`claude-agent-acp`](https://github.com/agentclientprotocol/claude-agent-acp)
 adapter.
 
 > Working name only. This project is not affiliated with, endorsed by, or
@@ -23,7 +23,7 @@ JetBrains, Neovim, Emacs); a browser client is the missing piece.
 ## Quickstart
 
 ```
-npm install -g @zed-industries/claude-code-acp   # the Claude adapter
+npm install -g @agentclientprotocol/claude-agent-acp   # the Claude adapter
 pip install -e .                                 # Python >= 3.11
 python -m claudiu
 ```
@@ -93,7 +93,7 @@ python -m pyflakes claudiu tools tests
 python tools/check_schema_drift.py
 ```
 
-Verified by 98 checks (plus the opt-in real-adapter contract test). See
+Verified by 99 checks (plus the opt-in real-adapter contract test). See
 `AGENTS.md` for the working rules and `docs/superpowers/specs/` for the
 design history. The v0.1 terminal-mirror app lives in `archive/claudiu-v0.1`
 with its own git history.

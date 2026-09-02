@@ -24,6 +24,25 @@ All notable changes to CLAUDIU are documented in this file.
   and the `turn-error` anomaly shows the message text instead of a dict
   repr. Found by the contract test, which waits for the turn end.
 
+- **Adapter migrated to `@agentclientprotocol/claude-agent-acp` 0.73.0.**
+  `@zed-industries/claude-code-acp` is deprecated on npm (renamed) and
+  frozen at 0.16.2; the successor ships Agent SDK 0.3.257 (current CLI),
+  still honours `CLAUDE_CODE_EXECUTABLE`, advertises `list`/`resume`/`fork`,
+  and emits `usage_update` (the context gauge works, with cost) and
+  `session_info_update`. Model choice moved from the vendor
+  `session/set_model` method to standard **config options** (`mode`,
+  `model`, `effort`, `agent`): the View shows one control per thing (a
+  config option hides the legacy select) and the status strip shows the
+  option's display name. New profile field `npm_package` names the package
+  for `GET /api/drift` (`adapter_package`, `?profile=<id>`); the server no
+  longer hardcodes an adapter. Contract tier against 0.73.0: PASS, zero
+  drift.
+- **Composer layout**: prompt on top, one toolbar row beneath — selectors
+  left with short labels (descriptions as tooltips), Stop/Send right.
+- Known gap, stated in the launcher: Claude Code's predicted next-prompt
+  suggestions do not cross ACP yet (the adapter neither enables the SDK's
+  `promptSuggestions` option nor forwards `prompt_suggestion`).
+
 ## Unreleased — first live-test feedback (2026-08-31 20:41)
 
 Every item traced to its recorded frames before fixing:

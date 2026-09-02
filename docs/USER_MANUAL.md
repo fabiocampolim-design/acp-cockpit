@@ -42,9 +42,8 @@ followed by the **runtime** the adapter will be pointed at: for Claude,
 one on `PATH`. The adapter bundles its own, older Claude CLI, which the
 API may refuse for newer models ("version 2.1.251 or newer is required"
 was the 2026-09-01 symptom); with no `claude` installed the bundled copy
-is used. The older adapter may then print harmless "Unexpected case"
-lines on stderr (shown as collapsible rows) for message types newer than
-it knows.
+is used. Adapter diagnostics (one `[session/query] …` line per session)
+arrive on stderr and are shown as collapsible rows.
 **Find resumable sessions** asks the agent which of its own sessions exist
 for that directory (a throwaway adapter is started and closed for the
 query) and offers a **Resume** button per session.
@@ -72,6 +71,11 @@ opens the command palette listing the agent's own slash commands; picking
 one only fills the composer — nothing is sent until you press Send, and
 the agent's response to a command is always rendered.
 
+Claude Code's *prompt suggestions* (the predicted next prompt the terminal
+offers after a turn) are not available here yet: the Agent SDK provides
+them, but the ACP adapter neither enables the option nor forwards the
+message. The launcher lists this under the agent's caveats.
+
 ## Approvals
 
 When the agent wants to do something that needs permission, a dialog shows
@@ -85,9 +89,11 @@ as fail-safe rejections.
 
 The strip shows the session state, the current permission mode, a
 **context gauge** (tokens used / window size, percentage, and cost when
-the agent reports it) and the current model. Selectors next to the
-composer switch **mode**, **model** (with the agent's description — Claude's
-"Default" is Opus) and any **configuration options** the agent advertises.
+the agent reports it) and the current model. The toolbar under the prompt
+holds the selectors: **mode**, **model** and whatever other **configuration
+options** the agent advertises (Claude Agent 0.73 offers mode, model, effort
+and agent). Each thing appears once — a config option replaces the legacy
+select for the same thing — and long descriptions are tooltips.
 While a turn runs, a pulsing "agent working… 42s · last activity 3s ago
 (tool_call: Edit hello.py)" row sits at the end of the conversation — the
 elapsed time tells you the turn is alive, the last-activity part tells you

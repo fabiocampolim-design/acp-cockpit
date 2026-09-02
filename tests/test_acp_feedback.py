@@ -103,3 +103,28 @@ def test_prompt_error_ends_the_turn_visibly(tmp_path):
     assert anomaly.data["category"] == "turn-error"
     assert anomaly.data["detail"] == msg
     assert session.state == "ready"
+
+
+def test_config_options_in_session_new_become_a_config_option_event(tmp_path):
+    # claude-agent-acp 0.73 advertises mode/model/effort/agent as
+    # configOptions in the session/new RESULT (no `models`, no update).
+    session, proc, sink = make_session(tmp_path)
+    session.start(cwd="C:/work/proj")
+    init = sent_frames(proc)[0]
+    feed(session, {"jsonrpc": "2.0", "id": init["id"],
+                   "result": {"protocolVersion": 1, "agentCapabilities": {}}})
+    new = sent_frames(proc)[1]
+    opts = [{"id": "model", "name": "Model", "type": "select",
+             "currentValue": "opus",
+             "options": [{"value": "opus", "name": "Opus"},
+                         {"value": "sonnet", "name": "Sonnet"}]},
+            {"id": "effort", "name": "Effort", "type": "select",
+             "currentValue": "default",
+             "options": [{"value": "default", "name": "Default"}]}]
+    feed(session, {"jsonrpc": "2.0", "id": new["id"], "result": {
+        "sessionId": "acp-123", "configOptions": opts}})
+    ev = [e for e in sink.events if e.kind == "config_option"]
+    assert len(ev) == 1 and ev[0].data["options"] == opts
+    assert "model" not in sink.kinds()          # nothing invented
+    assert session.state == "ready"
+

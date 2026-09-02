@@ -7,12 +7,13 @@ from claudiu.core.profiles import AgentProfile, ProfileError, load_profile, load
 def test_claude_profile_loads():
     p = load_profile(Path("agents/claude.toml"))
     assert p.id == "claude"
-    assert p.command[0] == "claude-code-acp"
+    assert p.command[0] == "claude-agent-acp"
+    assert p.npm_package == "@agentclientprotocol/claude-agent-acp"
     assert "CLAUDECODE" in p.env_scrub
     assert any("CLAUDE_CODE_" in s for s in p.env_scrub)
     assert p.install_hint.startswith("npm install")
     assert any(c["id"] == "shell-escapes-boundary" for c in p.caveats)
-    assert "session/set_model" in p.extensions
+    assert "_claude/rateLimit" in p.extensions
 
 
 def test_missing_field_is_a_profile_error(tmp_path):

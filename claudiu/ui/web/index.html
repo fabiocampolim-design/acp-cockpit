@@ -31,11 +31,17 @@
   <div id="composer">
     <textarea id="prompt-input" rows="3"
       placeholder="Prompt — Enter sends, Shift+Enter for newline, / for commands"></textarea>
-    <button id="send" disabled>Send</button>
-    <button id="cancel" hidden>Stop</button>
-    <select id="mode" hidden></select>
-    <select id="model" hidden></select>
-    <span id="config-options"></span>
+    <div id="toolbar">
+      <div class="controls">
+        <select id="mode" hidden title="permission mode"></select>
+        <select id="model" hidden title="model"></select>
+        <span id="config-options"></span>
+      </div>
+      <div class="actions">
+        <button id="cancel" hidden>Stop</button>
+        <button id="send" disabled>Send</button>
+      </div>
+    </div>
   </div>
 </div>
 <dialog id="permission">

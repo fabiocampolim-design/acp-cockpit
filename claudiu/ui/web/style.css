@@ -132,10 +132,7 @@ body {
   background: linear-gradient(to right, color-mix(in srgb, var(--accent) 35%, transparent) var(--pct, 0%), transparent var(--pct, 0%));
   border: 1px solid var(--border); border-radius: 4px; padding: 0 .5em;
 }
-.config-option { font-size: .85em; color: var(--fg-dim); display: inline-flex;
-  align-items: center; gap: .3rem; }
-.config-option select { background: var(--bg); color: var(--fg);
-  border: 1px solid var(--border); border-radius: 6px; padding: .3rem; }
+.config-option { display: inline-flex; align-items: center; gap: .3rem; }
 .working.stale { color: var(--warn); animation: none; }
 [data-kind="turn_ended"] { color: var(--fg-dim); text-align: center;
   font-size: .8em; }
@@ -163,24 +160,38 @@ pre.raw {
   padding: .5rem .8rem; font-size: .85em; max-height: 8rem; overflow-y: auto;
 }
 
-/* ---- composer ---- */
+/* ---- composer: the prompt on top, one toolbar row beneath it ---- */
 #composer {
-  display: flex; gap: .5rem; padding: .6rem .8rem; position: relative;
-  border-top: 1px solid var(--border); background: var(--bg-raised);
-  align-items: flex-end;
+  display: flex; flex-direction: column; gap: .45rem; padding: .6rem .8rem;
+  position: relative; border-top: 1px solid var(--border);
+  background: var(--bg-raised);
 }
 #prompt-input {
-  flex: 1; resize: vertical; padding: .5rem; border-radius: 6px;
+  width: 100%; resize: vertical; padding: .5rem; border-radius: 6px;
   border: 1px solid var(--border); background: var(--bg); color: var(--fg);
+  font: inherit;
+}
+#toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: .6rem; flex-wrap: wrap;
+}
+#toolbar .controls {
+  display: flex; align-items: center; gap: .7rem; flex-wrap: wrap;
+  min-width: 0; font-size: .85em; color: var(--fg-dim);
+}
+#toolbar .actions { display: flex; gap: .5rem; margin-left: auto; }
+#composer select {
+  background: var(--bg); color: var(--fg); border: 1px solid var(--border);
+  border-radius: 6px; padding: .3rem .4rem; font: inherit; max-width: 13rem;
+  text-overflow: ellipsis;
 }
 #composer button {
-  padding: .45rem 1rem; border: 1px solid var(--border); border-radius: 6px;
-  background: var(--accent); color: var(--bg); cursor: pointer;
+  padding: .45rem 1.1rem; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--accent); color: var(--bg); cursor: pointer; font: inherit;
+  font-weight: 600;
 }
 #composer button:disabled { opacity: .4; cursor: default; }
 #cancel { background: var(--danger); }
-#mode { background: var(--bg); color: var(--fg);
-  border: 1px solid var(--border); border-radius: 6px; padding: .4rem; }
 
 #palette {
   position: absolute; bottom: 100%; left: .8rem; right: .8rem;

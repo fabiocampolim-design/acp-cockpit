@@ -1,20 +1,26 @@
-# Agent profile: Claude Code over the claude-code-acp adapter.
+# Agent profile: Claude Code over the claude-agent-acp adapter
+# (npm @agentclientprotocol/claude-agent-acp; formerly @zed-industries/claude-code-acp,
+# deprecated and frozen at 0.16.2 since 2026-03).
 # Everything Claude-specific lives HERE, not in the engine.
 id = "claude"
 name = "Claude Code"
-command = ["claude-code-acp"]
-install_hint = "npm install -g @zed-industries/claude-code-acp"
+command = ["claude-agent-acp"]
+install_hint = "npm install -g @agentclientprotocol/claude-agent-acp"
+npm_package = "@agentclientprotocol/claude-agent-acp"
 
 # Nested-session guard: the Claude SDK refuses to start when these are set.
 env_scrub = ["CLAUDECODE", "CLAUDE_CODE_*"]
 
-# Adapter extensions beyond the stable ACP schema that this client uses.
-extensions = ["session/set_model"]
+# Vendor `_meta` extensions the adapter is known to attach (surfaced in the
+# record, never interpreted). claude-agent-acp 0.73 dropped the old
+# `session/set_model` method: model choice is a standard config option now.
+extensions = ["_claude/rateLimit", "_claude/origin", "claudeCode.promptQueueing"]
 
 [env_set]
 
-# The adapter ships its own copy of the Claude CLI (2.1.44 in claude-code-acp
-# 0.16.2) and the API refuses old CLIs for new models ("version 2.1.251 or
+# The adapter ships its own copy of the Claude CLI inside the Agent SDK it pins
+# (2.1.44 in the deprecated 0.16.2; 2.1.257 in 0.73.0) and the API refuses old
+# CLIs for new models ("version 2.1.251 or
 # newer is required", 2026-09-01). When a `claude` is installed on PATH the
 # adapter is pointed at it instead. Resolved AFTER the scrub above, which
 # would strip an inherited CLAUDE_CODE_EXECUTABLE; an explicit [env_set]
@@ -28,15 +34,19 @@ text = "The project-directory boundary is enforced only for file access routed t
 
 [[caveats]]
 id = "thinking-redacted"
-text = "Thinking is delivered as empty markers (content redacted by the adapter); the view shows that thinking happened, not its text."
+text = "Thinking may arrive as empty markers (content redacted by the adapter, observed with claude-code-acp 0.16); the view then shows that thinking happened, not its text."
 
 [[caveats]]
 id = "slash-commands-on-stderr"
-text = "Built-in slash commands (e.g. /context) echo their output on the adapter's stderr as well as in the reply; the stderr copy appears as collapsible rows."
+text = "Adapter diagnostics (one `[session/query] ...` line per session) and some built-in slash-command output arrive on the adapter's stderr; they appear as collapsible rows, not as anomalies."
 
 [[caveats]]
 id = "bundled-cli"
-text = "The adapter bundles its own Claude CLI, which the API may refuse for newer models. When `claude` is installed on PATH this client points the adapter at it instead (CLAUDE_CODE_EXECUTABLE, shown below as runtime); the adapter may then print harmless 'Unexpected case' lines on stderr for message types newer than it knows."
+text = "The adapter bundles its own Claude CLI, which the API may refuse for newer models. When `claude` is installed on PATH this client points the adapter at it instead (CLAUDE_CODE_EXECUTABLE, shown below as runtime)."
+
+[[caveats]]
+id = "no-prompt-suggestions"
+text = "Claude Code's predicted next-prompt suggestions do not cross ACP yet: the adapter neither enables the SDK's promptSuggestions option nor forwards the prompt_suggestion message (claude-agent-acp 0.73)."
 
 [[caveats]]
 id = "terminal-unadvertised"

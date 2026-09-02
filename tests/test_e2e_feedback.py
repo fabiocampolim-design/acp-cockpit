@@ -86,8 +86,10 @@ def test_model_selector_and_thinking_marker_and_stderr(server):
         page = start(pw, url, tmp)
         page.wait_for_selector("#model:not([hidden])")
         assert page.input_value("#model") == "default"
-        # the description is the real identity ("Default" is Opus)
-        assert "Opus" in page.inner_text("#model option[value=default]")
+        # short label in the box, the description (the real identity —
+        # "Default" is Opus) in the tooltip
+        assert page.inner_text("#model option[value=default]").strip() == "Default"
+        assert "Opus" in page.get_attribute("#model option[value=default]", "title")
         page.select_option("#model", "sonnet")
         # selector wait, not wait_for_function: the page's CSP forbids eval
         page.wait_for_selector("#status .model:text-is('sonnet')")

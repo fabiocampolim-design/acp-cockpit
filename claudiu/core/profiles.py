@@ -20,6 +20,7 @@ class AgentProfile:
     env_scrub: list[str]
     env_set: dict = field(default_factory=dict)
     env_resolve: dict = field(default_factory=dict)  # VAR -> command name
+    npm_package: str | None = None   # for the installed-vs-latest drift check
     caveats: list = field(default_factory=list)
     extensions: list = field(default_factory=list)
 
@@ -43,11 +44,15 @@ def load_profile(path: Path) -> AgentProfile:
             for k, v in env_resolve.items()):
         raise ProfileError(f"{path}: 'env_resolve' must map variable names "
                            "to command names")
+    npm_package = raw.get("npm_package")
+    if npm_package is not None and not isinstance(npm_package, str):
+        raise ProfileError(f"{path}: 'npm_package' must be a string")
     return AgentProfile(
         id=raw["id"], name=raw["name"], command=list(raw["command"]),
         install_hint=raw["install_hint"], env_scrub=list(raw["env_scrub"]),
         env_set=dict(raw.get("env_set", {})),
         env_resolve=dict(env_resolve),
+        npm_package=npm_package,
         caveats=list(raw.get("caveats", [])),
         extensions=list(raw.get("extensions", [])),
     )

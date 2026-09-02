@@ -151,3 +151,4 @@ class ServerTest(tornado.testing.AsyncHTTPTestCase):
         data = json.loads(resp.body)
         assert data["pinned_schema"].startswith("schema-v")
         assert data["online"] is False
+        assert data["adapter_package"] is None      # fixture declares none
