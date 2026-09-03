@@ -147,7 +147,7 @@ body {
 [data-kind="fs_request"], [data-kind="permission_resolved"] {
   font-family: ui-monospace, Consolas, monospace;
 }
-.view-toggle { display: inline-flex; align-items: center; gap: .3rem; margin-left: .4rem; }
+.view-toggle { display: inline-flex; align-items: center; gap: .4rem; margin-left: .8rem; }
 [data-kind="tool_call"] summary { cursor: pointer; color: var(--fg-dim); }
 .tool-text { white-space: pre-wrap; margin: .3rem 0; }
 .locations { color: var(--fg-dim); }
@@ -162,7 +162,7 @@ body {
   background: linear-gradient(to right, color-mix(in srgb, var(--accent) 35%, transparent) var(--pct, 0%), transparent var(--pct, 0%));
   border: 1px solid var(--border); border-radius: 4px; padding: 0 .5em;
 }
-.config-option { display: inline-flex; align-items: center; gap: .3rem; }
+.config-option { display: inline-flex; align-items: center; gap: .45rem; }
 .working.stale { color: var(--warn); animation: none; }
 [data-kind="turn_ended"] { color: var(--fg-dim); text-align: center;
   font-size: .8em; }
@@ -203,13 +203,13 @@ pre.raw {
 }
 #toolbar {
   display: flex; align-items: center; justify-content: space-between;
-  gap: .6rem; flex-wrap: wrap;
+  gap: 1rem; flex-wrap: wrap;
 }
 #toolbar .controls {
-  display: flex; align-items: center; gap: .7rem; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 1.2rem; flex-wrap: wrap;
   min-width: 0; font-size: .85em; color: var(--fg-dim);
 }
-#toolbar .actions { display: flex; gap: .5rem; margin-left: auto; }
+#toolbar .actions { display: flex; gap: .75rem; margin-left: auto; }
 #composer select {
   background: var(--bg); color: var(--fg); border: 1px solid var(--border);
   border-radius: 6px; padding: .3rem .4rem; font: inherit; max-width: 13rem;

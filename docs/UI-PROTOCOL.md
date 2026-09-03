@@ -32,8 +32,10 @@ Returns `{"id": "<sid>"}`. Errors: `400` bad profile/cwd (JSON body
 `{"error": "..."}` — show it verbatim); `424` adapter not installed (body
 carries `install_hint`). Add `"resume": "<agent session
 id>"` (from the listing below) to attach to an existing agent session
-instead of creating one (`session/resume` when advertised, else
-`session/load`).
+instead of creating one: `session/load` when the agent advertises
+`loadSession` — the conversation so far is replayed as ordinary events
+before `session_state: ready` — else `session/resume`, which attaches
+without history.
 
 ### `GET /api/profiles/<id>/sessions?cwd=<dir>`
 Sessions the *agent* knows for that directory — a throwaway adapter is

@@ -46,10 +46,13 @@ one on `PATH`. The adapter bundles its own, older Claude CLI, which the
 API may refuse for newer models ("version 2.1.251 or newer is required"
 was the 2026-09-01 symptom); with no `claude` installed the bundled copy
 is used. Adapter diagnostics (one `[session/query] …` line per session)
-arrive on stderr and are counted in the **stderr** chip of the status strip.
+arrive on stderr and are counted in the **log** chip of the status strip.
 **Find resumable sessions** asks the agent which of its own sessions exist
 for that directory (a throwaway adapter is started and closed for the
-query) and offers a **Resume** button per session.
+query) and offers a **Resume** button per session. Resuming replays the
+conversation so far — prompts, answers, tool calls — before the composer
+enables (for the rare agent that can only attach without history, the
+pane starts empty).
 
 ## The conversation
 
@@ -123,9 +126,11 @@ of silence). Three chips can appear; the first two should not be ignored:
 - **anomalies** — something out of order happened (malformed frame,
   adapter crash, rejected command…); the conversation shows the details
   inline with raw-frame access.
-- **stderr (n)** — the adapter's diagnostics (one `[session/query] …` line
-  per session, sometimes echoed command output). Click to open the drawer
-  under the strip. Never shown inline, never dropped — it is in the record.
+- **log (n)** — the adapter's own log (its stderr: one `[session/query] …`
+  line per session, sometimes echoed command output). These are
+  diagnostics, not errors; real problems come as anomalies. Click to open
+  the drawer under the strip. Never shown inline, never dropped — it is in
+  the record.
 
 ## Records
 

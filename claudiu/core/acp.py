@@ -44,6 +44,8 @@ class AcpSession:
         self._last_raw_ref = None
         self._pending_perms: dict = {}
         self._early_updates: list = []
+        self._exited = False
+        self._close_record_on_exit = False
         self._conn = JsonRpcConn(self._on_request, self._on_notify,
                                  self._on_anomaly)
 
@@ -143,10 +145,18 @@ class AcpSession:
         if self.state not in ("failed", "closed"):
             self._set_state("closed")
         self.proc.kill()
-        self.recorder.close()
+        # The adapter keeps talking for a moment after the kill; those frames
+        # are still recorded. The record closes when the process has exited.
+        if self._exited:
+            self.recorder.close()
+        else:
+            self._close_record_on_exit = True
 
     def on_exit(self, code) -> None:
+        self._exited = True
         if self.state in ("closed", "failed"):
+            if self._close_record_on_exit:
+                self.recorder.close()
             return
         detail = f"adapter exited with code {code}"
         recoverable = self.state == "turn"
@@ -385,8 +395,8 @@ class AcpSession:
 
     # ---- attaching to existing agent sessions ---------------------------
     def load(self, acp_session_id: str, cwd: str) -> None:
-        """Attach to an existing agent session: `session/resume` when the
-        agent advertises it, else `session/load` (which replays history)."""
+        """Attach to an existing agent session: `session/load` (replays the
+        history) when advertised, else `session/resume` (no history)."""
         if self.state != "starting":
             raise StateError("load only from a fresh session")
         self._cwd = cwd
@@ -402,7 +412,16 @@ class AcpSession:
             return self._fail(f"initialize for load failed: {error}")
         self.agent_capabilities = result.get("agentCapabilities") or {}
         caps = self.agent_capabilities.get("sessionCapabilities") or {}
-        method = "session/resume" if "resume" in caps else "session/load"
+        # session/load replays the conversation so far; session/resume
+        # attaches WITHOUT it (spec). A browser client keeps no history of
+        # its own, so history wins whenever the agent offers it.
+        if self.agent_capabilities.get("loadSession"):
+            method = "session/load"
+        elif "resume" in caps:
+            method = "session/resume"
+        else:
+            return self._fail("agent offers neither session/load nor "
+                              "session/resume")
 
         def done(res, err):
             if err:

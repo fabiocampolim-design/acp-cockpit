@@ -90,10 +90,13 @@ for newer models (“version 2.1.251 or newer is required” was the
 2026-09-01 symptom); with no <code>claude</code> installed the bundled
 copy is used. Adapter diagnostics (one <code>[session/query] …</code>
 line per session) arrive on stderr and are counted in the
-<strong>stderr</strong> chip of the status strip. <strong>Find resumable
+<strong>log</strong> chip of the status strip. <strong>Find resumable
 sessions</strong> asks the agent which of its own sessions exist for
 that directory (a throwaway adapter is started and closed for the query)
-and offers a <strong>Resume</strong> button per session.</p>
+and offers a <strong>Resume</strong> button per session. Resuming
+replays the conversation so far — prompts, answers, tool calls — before
+the composer enables (for the rare agent that can only attach without
+history, the pane starts empty).</p>
 <h2 id="the-conversation">The conversation</h2>
 <ul>
 <li><strong>Agent text</strong> streams as it is produced;
@@ -169,9 +172,10 @@ due.</li>
 <li><strong>anomalies</strong> — something out of order happened
 (malformed frame, adapter crash, rejected command…); the conversation
 shows the details inline with raw-frame access.</li>
-<li><strong>stderr (n)</strong> — the adapter’s diagnostics (one
+<li><strong>log (n)</strong> — the adapter’s own log (its stderr: one
 <code>[session/query] …</code> line per session, sometimes echoed
-command output). Click to open the drawer under the strip. Never shown
+command output). These are diagnostics, not errors; real problems come
+as anomalies. Click to open the drawer under the strip. Never shown
 inline, never dropped — it is in the record.</li>
 </ul>
 <h2 id="records">Records</h2>

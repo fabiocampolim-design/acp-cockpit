@@ -70,7 +70,7 @@ class SessionsTest(tornado.testing.AsyncHTTPTestCase):
                 if ev["kind"] == "session_state" and \
                         ev["data"]["state"] == "ready":
                     break
-            assert modes[-1] == "plan"        # from session/resume's result
+            assert modes[-1] == "plan"        # from session/load's result
             conn.close()
         self.io_loop.run_sync(drive, timeout=30)
         live = json.loads(self.fetch("/api/sessions",

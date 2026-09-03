@@ -105,7 +105,7 @@ def test_model_selector_and_thinking_marker_and_stderr(server):
         # stderr: a counted chip in the strip and a drawer on click — never
         # an inline row, never an anomaly
         page.wait_for_selector("#status .stderr-chip:not([hidden])")
-        assert page.inner_text("#status .stderr-chip").startswith("stderr (")
+        assert page.inner_text("#status .stderr-chip").startswith("log (")
         assert page.query_selector_all('#conversation [data-kind="stderr"]') == []
         page.click("#status .stderr-chip")
         page.wait_for_selector("#stderr-drawer:not([hidden])")

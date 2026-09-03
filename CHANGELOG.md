@@ -2,6 +2,21 @@
 
 All notable changes to CLAUDIU are documented in this file.
 
+## Unreleased — live-test round 5 (2026-09-01 late)
+
+- **Resume now replays the conversation.** The engine preferred
+  `session/resume`, which the spec defines as attaching *without* the
+  previous messages; a resumed session therefore opened empty ("no tool
+  output") with only the adapter's log line to look at. `session/load`
+  (history replayed as ordinary events) is used whenever the agent
+  advertises `loadSession`; `session/resume` remains the fallback.
+- The status-strip chip for adapter stderr is now **`log (n)`** — it is
+  the adapter's diagnostics, not an error channel.
+- Frames arriving after a session is closed are still recorded; the record
+  closes when the adapter process has exited (was: `ValueError: I/O
+  operation on closed file` in the server log).
+- Toolbar: more horizontal space between the selectors and the buttons.
+
 ## Unreleased — live-test round 4 (2026-09-01 evening)
 
 - **Resume from the launcher failed with a bare `400`.** Cause: an empty

@@ -19,7 +19,9 @@ class Recorder:
                 self._lineno = sum(1 for _ in f)
         self._fh = io.open(self._path, "a", encoding="utf-8")
 
-    def append(self, entry: dict) -> int:
+    def append(self, entry: dict) -> int | None:
+        if self._fh.closed:
+            return None          # after close(): nothing left to write to
         entry = {"t": now_iso(), **entry}
         self._fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
         self._fh.flush()

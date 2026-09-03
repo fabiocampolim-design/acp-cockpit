@@ -128,3 +128,22 @@ def test_config_options_in_session_new_become_a_config_option_event(tmp_path):
     assert "model" not in sink.kinds()          # nothing invented
     assert session.state == "ready"
 
+
+def test_frames_after_close_are_recorded_until_the_adapter_exits(tmp_path):
+    # The adapter keeps talking for a moment after the kill (2026-09-01:
+    # usage/session_info updates hit a closed record file -> ValueError in
+    # the server log). Record them; close the record when the process ends.
+    session, proc, sink = make_session(tmp_path)
+    do_handshake(session, proc)
+    session.close()
+    assert proc.killed and session.state == "closed"
+    feed(session, {"jsonrpc": "2.0", "method": "session/update", "params": {
+        "sessionId": "acp-123", "update": {"sessionUpdate": "usage_update",
+                                           "used": 1, "size": 2}}})
+    late = [e for _, e in session.recorder.replay()
+            if (e.get("frame") or {}).get("params", {}).get("update", {})
+            .get("sessionUpdate") == "usage_update"]
+    assert late, "frame after close() must still be recorded"
+    session.on_exit(0)
+    assert session.recorder.append({"dir": "client", "action": "x"}) is None
+

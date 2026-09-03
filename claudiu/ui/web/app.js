@@ -244,7 +244,7 @@ class Session {
     }
     const sc = $("#status .stderr-chip");
     sc.hidden = this.stderr.length === 0;
-    sc.textContent = `stderr (${this.stderr.length})`;
+    sc.textContent = `log (${this.stderr.length})`;   // stderr = diagnostics, not errors
     sc.onclick = () => { this.stderrOpen = !this.stderrOpen; this.renderStderrDrawer(); };
     $("#send").disabled = this.state !== "ready";
     $("#cancel").hidden = this.state !== "turn";

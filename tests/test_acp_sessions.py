@@ -46,7 +46,9 @@ def test_set_config_option_roundtrip(tmp_path):
     assert cfg.data["options"][0]["currentValue"] == "low"
 
 
-def test_load_prefers_session_resume_when_advertised(tmp_path):
+def test_load_prefers_session_load_for_history_when_advertised(tmp_path):
+    # session/resume attaches WITHOUT the previous messages (spec); a browser
+    # client keeps no history of its own, so session/load wins when offered.
     session, proc, sink = make_session(tmp_path)
     session.load("acp-old", cwd="C:\\work\\proj")
     init = sent_frames(proc)[0]
@@ -55,7 +57,7 @@ def test_load_prefers_session_resume_when_advertised(tmp_path):
         "agentCapabilities": {"loadSession": True,
                               "sessionCapabilities": {"resume": {}}}}})
     req = sent_frames(proc)[1]
-    assert req["method"] == "session/resume"
+    assert req["method"] == "session/load"
     assert req["params"]["sessionId"] == "acp-old"
     feed(session, {"jsonrpc": "2.0", "id": req["id"], "result": {
         "modes": {"currentModeId": "plan", "availableModes": []}}})
@@ -84,3 +86,25 @@ def test_probe_sessions_lists_without_creating(tmp_path):
                       "title": "Old work"}], None)]
     assert session.state == "starting"          # never became a session
     assert all(f["method"] != "session/new" for f in sent_frames(proc))
+
+
+def test_load_falls_back_to_session_resume_without_load_support(tmp_path):
+    session, proc, sink = make_session(tmp_path)
+    session.load("acp-old", cwd="C:\\work\\proj")
+    init = sent_frames(proc)[0]
+    feed(session, {"jsonrpc": "2.0", "id": init["id"], "result": {
+        "protocolVersion": 1,
+        "agentCapabilities": {"sessionCapabilities": {"resume": {}}}}})
+    req = sent_frames(proc)[1]
+    assert req["method"] == "session/resume"
+    assert req["params"]["sessionId"] == "acp-old"
+
+
+def test_load_fails_closed_when_neither_method_is_offered(tmp_path):
+    session, proc, sink = make_session(tmp_path)
+    session.load("acp-old", cwd="C:\\work\\proj")
+    init = sent_frames(proc)[0]
+    feed(session, {"jsonrpc": "2.0", "id": init["id"], "result": {
+        "protocolVersion": 1, "agentCapabilities": {}}})
+    assert session.state == "failed" and proc.killed
+
