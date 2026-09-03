@@ -54,6 +54,22 @@ spawned for `session/list` and closed. `{"sessions": [{"sessionId",
 
 ### `DELETE /api/sessions/<sid>` — closes the session. `{"ok": true}`.
 
+### `GET /api/dirs?path=<dir>`
+The launcher's folder picker (a page cannot learn an absolute path from
+the OS folder dialog, so the server walks the tree). Empty `path` = the
+home directory.
+```json
+{"path": "C:\\work", "parent": "C:\\", "roots": ["C:\\", "D:\\"],
+ "dirs": [{"name": "proj", "path": "C:\\work\\proj"}], "error": null}
+```
+`path` comes back resolved (native form, symlinks followed); `parent` is
+`null` at a filesystem root; `roots` are the drives on Windows and `["/"]`
+elsewhere; `dirs` holds subdirectories only (files never appear), plain
+names first and dot-directories last, sorted case-insensitively. `400`
+with `"dirs": []` and `error` set when `path` is not a directory or cannot
+be listed. Exposure equals what the token already grants (a session may be
+started in any directory); the route is gated like every other.
+
 ### `GET /api/drift`
 ```json
 {"pinned_schema": "schema-v1.21.0", "flags": [], "online": true,

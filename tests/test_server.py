@@ -91,6 +91,46 @@ class ServerTest(tornado.testing.AsyncHTTPTestCase):
         resp = self.fetch("/api/profiles")
         assert resp.code == 403
 
+    # ---- /api/dirs: the launcher's folder picker (2026-09-03) ----
+
+    def test_dirs_lists_subdirectories_with_parent_and_roots(self):
+        (self.tmpdir / "beta").mkdir()
+        (self.tmpdir / "alpha").mkdir()
+        (self.tmpdir / ".hidden").mkdir()
+        (self.tmpdir / "afile.txt").write_text("x", encoding="utf-8")
+        resp = self.fetch("/api/dirs?path=" + str(self.tmpdir),
+                          headers=self._headers())
+        assert resp.code == 200
+        data = json.loads(resp.body)
+        assert data["path"] == str(self.tmpdir.resolve())
+        assert data["parent"] == str(self.tmpdir.resolve().parent)
+        # files excluded; plain names first, dot-dirs last; native paths
+        assert [d["name"] for d in data["dirs"]] == \
+            ["agents", "alpha", "beta", ".hidden"]
+        assert data["dirs"][1]["path"] == str((self.tmpdir / "alpha").resolve())
+        assert data["roots"] and all(Path(r).is_dir() for r in data["roots"])
+        assert data["error"] is None
+
+    def test_dirs_empty_path_is_the_home_directory(self):
+        resp = self.fetch("/api/dirs?path=", headers=self._headers())
+        assert resp.code == 200
+        assert json.loads(resp.body)["path"] == str(Path.home().resolve())
+
+    def test_dirs_root_has_no_parent(self):
+        root = Path(self.tmpdir.resolve().anchor)
+        resp = self.fetch("/api/dirs?path=" + str(root),
+                          headers=self._headers())
+        assert resp.code == 200
+        data = json.loads(resp.body)
+        assert data["parent"] is None and data["path"] == str(root)
+
+    def test_dirs_missing_path_is_a_json_400(self):
+        resp = self.fetch("/api/dirs?path=" + str(self.tmpdir / "nope"),
+                          headers=self._headers())
+        assert resp.code == 400
+        data = json.loads(resp.body)
+        assert data["dirs"] == [] and "directory" in data["error"]
+
     def test_session_lifecycle_and_ws_stream(self):
         resp = self.fetch("/api/sessions", method="POST",
                           headers=self._headers(),

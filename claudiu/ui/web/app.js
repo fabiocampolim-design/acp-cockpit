@@ -50,6 +50,70 @@ async function initLauncher() {
   $("#start").onclick = () => startSession(null);
   $("#refresh-recent").onclick = loadRecent;
   $("#tab-add").onclick = showLauncher;
+  // the last directory a session was started in (this browser only)
+  try {
+    const last = localStorage.getItem(CWD_KEY);
+    if (last && !$("#cwd").value) $("#cwd").value = last;
+  } catch (e) {}
+  initPicker();
+}
+
+/* ---------------- folder picker ----------------
+   A page cannot learn an absolute path from the OS folder dialog, so the
+   server lists directories (GET /api/dirs) and the dialog walks them. */
+
+const CWD_KEY = "claudiu.cwd";
+
+async function browseTo(path) {
+  const dlg = $("#dirpick");
+  let data;
+  try {
+    data = await api("/api/dirs?path=" + encodeURIComponent(path || ""));
+  } catch (e) {
+    if (path) return browseTo("");        // typed path is not a directory
+    $("#dirpick-error").textContent = e.message;
+    $("#dirpick-error").hidden = false;
+    return;
+  }
+  $("#dirpick-error").hidden = true;
+  dlg.dataset.path = data.path;
+  dlg.dataset.parent = data.parent || "";
+  $("#dirpick-path").textContent = data.path;
+  $("#dirpick-up").disabled = !data.parent;
+  $("#dirpick-roots").replaceChildren(...data.roots.map(r => {
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = r;
+    b.onclick = () => browseTo(r);
+    return b;
+  }));
+  const list = $("#dirpick-list");
+  if (!data.dirs.length) { list.replaceChildren(li("(no subfolders)")); return; }
+  list.replaceChildren(...data.dirs.map(d => {
+    const item = document.createElement("li");
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = d.name; b.dataset.name = d.name;
+    b.onclick = () => browseTo(d.path);
+    item.append(b);
+    return item;
+  }));
+  list.scrollTop = 0;
+}
+
+function initPicker() {
+  const dlg = $("#dirpick");
+  $("#browse").onclick = () => {
+    dlg.showModal();
+    browseTo($("#cwd").value.trim());
+  };
+  $("#dirpick-up").onclick = () => {
+    if (dlg.dataset.parent) browseTo(dlg.dataset.parent);
+  };
+  $("#dirpick-cancel").onclick = () => dlg.close();
+  $("#dirpick-use").onclick = () => {
+    if (dlg.dataset.path) $("#cwd").value = dlg.dataset.path;
+    dlg.close();
+    $("#cwd").focus();
+  };
 }
 
 async function loadRecent() {
@@ -96,6 +160,7 @@ async function startSession(resume, resumeCwd) {
     alertBanner(e.message);
     return;
   }
+  try { localStorage.setItem(CWD_KEY, cwd); } catch (e) {}
   const S = new Session(id, profile, cwd);
   sessions.set(id, S);
   activate(S);

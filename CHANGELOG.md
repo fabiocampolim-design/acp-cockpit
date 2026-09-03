@@ -2,6 +2,24 @@
 
 All notable changes to CLAUDIU are documented in this file.
 
+## Unreleased — launcher fixes (2026-09-03)
+
+- **Tab bar squashed to a sliver.** The body is a 100vh flex column and
+  the tab bar could shrink; once the launcher's caveat list outgrew a
+  short window the bar collapsed to a thin strip with the `+` pushed above
+  the top edge. The bar is now `flex: none` and the launcher scrolls
+  inside the body instead of growing it. End-to-end test at a 900×420
+  viewport.
+- **Folder picker for the project directory.** A **Browse…** button next
+  to the field opens a dialog that walks the filesystem through the new
+  `GET /api/dirs` route (subdirectories only, dot-directories last, drive
+  roots as one-click chips, **↑ Up**, **Use this folder**). A browser page
+  cannot learn an absolute path from the OS folder dialog, so the server
+  lists; the route is token-gated like every other and exposes nothing
+  the token does not already grant. The browser remembers the last
+  directory a session was started in (`localStorage`). Server, security,
+  end-to-end and protocol-doc tests.
+
 ## Unreleased — daily-use assessment (2026-09-01 23:00)
 
 - **Plan-mode exit re-asserts the mode.** Approving a plan makes the CLI

@@ -25,6 +25,9 @@ body {
 #tabs {
   display: flex; gap: .25rem; padding: .3rem .5rem 0; background: var(--bg);
   border-bottom: 1px solid var(--border); overflow-x: auto;
+  /* never shrink: the body is 100vh and a tall launcher once squashed
+     this bar to a sliver with the "+" pushed above the top (2026-09-03) */
+  flex: none;
 }
 .tab {
   display: flex; align-items: center; gap: .5rem; padding: .3rem .7rem;
@@ -42,7 +45,14 @@ body {
 .tab.add { font-weight: 700; }
 
 /* ---- launcher ---- */
-#launcher { max-width: 34rem; margin: 12vh auto; padding: 0 1rem; }
+/* The launcher scrolls inside the 100vh body (its caveat list grows). */
+#launcher {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  width: 100%; max-width: 34rem; margin: 0 auto; padding: 10vh 1rem 2rem;
+}
+#launcher .row { display: flex; gap: .5rem; align-items: stretch; }
+#launcher .row input { flex: 1; min-width: 0; }
+#launcher .row button { margin: 0; white-space: nowrap; }
 #launcher h1 { font-weight: 600; letter-spacing: .18em; color: var(--accent); }
 #launcher label { display: block; margin: .8rem 0 .3rem; color: var(--fg-dim); }
 #launcher select, #launcher input {
@@ -241,6 +251,42 @@ pre.raw {
   border: 1px solid var(--warn); border-radius: 10px; max-width: 40rem;
 }
 #permission::backdrop { background: rgba(0, 0, 0, .55); }
+
+/* ---- folder picker ---- */
+#dirpick {
+  background: var(--bg-raised); color: var(--fg);
+  border: 1px solid var(--accent); border-radius: 10px; width: min(36rem, 92vw);
+}
+#dirpick::backdrop { background: rgba(0, 0, 0, .55); }
+#dirpick h2 { margin-top: 0; color: var(--accent); font-size: 1.05em; }
+#dirpick-roots { display: flex; gap: .3rem; flex-wrap: wrap; margin-bottom: .4rem; }
+#dirpick-path {
+  font-family: var(--mono, monospace); font-size: .85em; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 6px; padding: .4rem .6rem;
+  overflow-x: auto; white-space: nowrap;
+}
+#dirpick-list {
+  list-style: none; padding: 0; margin: .5rem 0; max-height: 45vh;
+  overflow-y: auto; border: 1px solid var(--border); border-radius: 6px;
+}
+#dirpick-list li { margin: 0; color: var(--fg-dim); padding: .35rem .6rem; }
+#dirpick-list li:has(button) { padding: 0; }
+#dirpick-list li button {
+  display: block; width: 100%; text-align: left; padding: .35rem .6rem;
+  border: none; border-bottom: 1px solid var(--border); background: transparent;
+  color: var(--fg); cursor: pointer; font: inherit;
+}
+#dirpick-list li button::before { content: "▸ "; color: var(--fg-dim); }
+#dirpick-list li button:hover { background: var(--bg-hover); }
+#dirpick-roots button, #dirpick .actions button {
+  padding: .3rem .7rem; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg); color: var(--fg); cursor: pointer; font: inherit;
+}
+#dirpick .actions { display: flex; gap: .5rem; justify-content: flex-end; }
+#dirpick .actions #dirpick-up { margin-right: auto; }
+#dirpick button:disabled { opacity: .4; cursor: default; }
+#dirpick-use { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600; }
+#dirpick-error { color: var(--danger); font-size: .85em; margin-bottom: .5rem; }
 #permission h2 { margin-top: 0; color: var(--warn); font-size: 1.05em; }
 #perm-tool {
   background: var(--bg); border: 1px solid var(--border); border-radius: 6px;

@@ -39,7 +39,11 @@ Pick an **agent** (from `agents/*.toml` profiles; an agent whose adapter is
 not installed shows "adapter missing" with the install hint) and a
 **project directory** — the session's working directory and, importantly,
 its *file-access boundary*: the agent can only read/write inside it through
-this client. Known caveats of the selected agent are listed right there,
+this client. Type the path or click **Browse…**: a folder picker lists the
+subdirectories of the current path (drive roots are one click away, **↑ Up**
+goes to the parent) and **Use this folder** fills the field; the browser
+remembers the last directory a session was started in. Known caveats of
+the selected agent are listed right there,
 followed by the **runtime** the adapter will be pointed at: for Claude,
 `CLAUDE_CODE_EXECUTABLE` resolves to your installed `claude` when there is
 one on `PATH`. The adapter bundles its own, older Claude CLI, which the

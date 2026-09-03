@@ -17,5 +17,5 @@ def test_every_ws_command_documented():
 
 def test_every_rest_route_documented():
     for route in ("/api/profiles", "/api/sessions", "/api/drift",
-                  "/ws/sessions/"):
+                  "/api/dirs", "/ws/sessions/"):
         assert route in DOC

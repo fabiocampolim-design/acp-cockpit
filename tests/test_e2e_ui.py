@@ -101,3 +101,46 @@ def test_launcher_shows_the_resolved_runtime(server):
             f"runtime: EXTRA_VAR → {shutil.which(PY_NAME)}"
         page.select_option("#profile", "fake")
         assert page.query_selector("#caveats .runtime") is None
+
+
+def test_tab_bar_stays_visible_when_the_launcher_is_taller_than_the_window(server):
+    # 2026-09-03: the caveat list outgrew a short window and the flex body
+    # squashed the tab bar to a sliver with the "+" pushed above the top.
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        # the fixture agent has no caveats: a very short window stands in
+        # for the long caveat list of a real profile
+        page = pw.chromium.launch().new_page(viewport={"width": 900,
+                                                       "height": 240})
+        page.goto(url)
+        page.wait_for_selector("#start")
+        box = page.locator("#tab-add").bounding_box()
+        assert box["y"] >= 0 and box["height"] >= 20, box
+        # the launcher itself scrolls; the page body does not grow
+        assert page.evaluate("document.body.scrollHeight <= innerHeight + 1")
+
+
+def test_folder_picker_navigates_and_fills_the_directory(server):
+    url, tmp = server
+    sub = tmp / "proj-a"
+    sub.mkdir(exist_ok=True)
+    (sub / "inner").mkdir(exist_ok=True)
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = pw.chromium.launch().new_page()
+        page.goto(url)
+        page.fill("#cwd", str(tmp))
+        page.click("#browse")
+        page.wait_for_selector("#dirpick[open]")
+        assert page.inner_text("#dirpick-path") == str(tmp.resolve())
+        page.click('#dirpick-list button[data-name="proj-a"]')
+        page.wait_for_selector('#dirpick-list button[data-name="inner"]')
+        assert page.inner_text("#dirpick-path") == str(sub.resolve())
+        page.click("#dirpick-up")
+        page.wait_for_selector('#dirpick-list button[data-name="proj-a"]')
+        page.click('#dirpick-list button[data-name="proj-a"]')
+        page.wait_for_selector('#dirpick-list button[data-name="inner"]')
+        page.click("#dirpick-use")
+        page.wait_for_selector("#dirpick", state="hidden")
+        assert page.input_value("#cwd") == str(sub.resolve())

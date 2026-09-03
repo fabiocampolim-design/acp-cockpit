@@ -11,7 +11,10 @@
 <div id="launcher">
   <h1>CLAUDIU</h1>
   <label>Agent <select id="profile"></select></label>
-  <label>Project directory <input id="cwd" spellcheck="false"></label>
+  <label for="cwd">Project directory</label>
+  <div class="row"><input id="cwd" spellcheck="false">
+    <button id="browse" class="secondary" type="button"
+      title="pick a folder instead of typing the path">Browse…</button></div>
   <button id="start">Start session</button>
   <button id="refresh-recent" class="secondary">Find resumable sessions</button>
   <ul id="caveats"></ul>
@@ -53,6 +56,18 @@
   <div id="perm-warning" hidden></div>
   <pre id="perm-tool"></pre>
   <div id="perm-options"></div>
+</dialog>
+<dialog id="dirpick">
+  <h2>Choose a project directory</h2>
+  <div id="dirpick-roots"></div>
+  <div id="dirpick-path"></div>
+  <ul id="dirpick-list"></ul>
+  <div id="dirpick-error" hidden></div>
+  <div class="actions">
+    <button id="dirpick-up" type="button" title="parent directory">↑ Up</button>
+    <button id="dirpick-cancel" type="button">Cancel</button>
+    <button id="dirpick-use" type="button">Use this folder</button>
+  </div>
 </dialog>
 <script src="/ui/app.js"></script>
 </body>

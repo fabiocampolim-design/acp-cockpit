@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
+import string
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -270,6 +272,57 @@ class ProfileSessionsHandler(BaseHandler):
         self.write_json(await self.manager.list_agent_sessions(profile_id, cwd))
 
 
+def list_roots() -> list[str]:
+    """Filesystem roots for the picker: drive letters on Windows, "/" else."""
+    if os.name == "nt":
+        listdrives = getattr(os, "listdrives", None)     # 3.12+
+        if listdrives is not None:
+            return list(listdrives())
+        return [f"{c}:\\" for c in string.ascii_uppercase
+                if Path(f"{c}:\\").is_dir()]
+    return ["/"]
+
+
+class DirsHandler(BaseHandler):
+    """The launcher's folder picker (2026-09-03): the subdirectories of
+    `path` (the home directory when empty), its parent (None at a root) and
+    the roots. Files are never listed. A browser page cannot learn an
+    absolute path from the OS folder dialog, so the server walks the tree.
+    Exposure equals what the token already grants — a session may be
+    started in any directory — so this is gated exactly like the rest."""
+
+    def get(self):
+        raw = self.get_query_argument("path", "")
+        path = Path(raw).expanduser() if raw else Path.home()
+        reply = {"path": raw, "parent": None, "dirs": [],
+                 "roots": list_roots(), "error": None}
+        if not path.is_dir():
+            self.set_status(400)
+            reply["error"] = f"not a directory: {raw!r}"
+            return self.write_json(reply)
+        path = path.resolve()
+        names = []
+        try:
+            for entry in os.scandir(path):
+                try:
+                    if entry.is_dir():
+                        names.append(entry.name)
+                except OSError:
+                    continue            # unreadable entry: skip, not fail
+        except OSError as e:
+            self.set_status(400)
+            reply["path"] = str(path)
+            reply["error"] = f"cannot list directory {path}: {e.strerror}"
+            return self.write_json(reply)
+        # plain names first, dot-directories last, case-insensitive
+        names.sort(key=lambda n: (n.startswith("."), n.casefold()))
+        parent = path.parent
+        reply.update(path=str(path),
+                     parent=None if parent == path else str(parent),
+                     dirs=[{"name": n, "path": str(path / n)} for n in names])
+        self.write_json(reply)
+
+
 class DriftHandler(BaseHandler):
     """Spec §6: report the pinned schema and, when online checks are
     enabled, whether the pin or the installed adapter is behind."""
@@ -340,6 +393,7 @@ def make_app(profiles_dir, records_dir, auth,
         (r"/api/sessions/([0-9a-f]+)", SessionHandler, common),
         (r"/api/profiles/([A-Za-z0-9_-]+)/sessions", ProfileSessionsHandler,
          common),
+        (r"/api/dirs", DirsHandler, common),
         (r"/api/drift", DriftHandler, common),
         (r"/ws/sessions/([0-9a-f]+)", SessionWS, common),
         (r"/ui/(.*)", tornado.web.StaticFileHandler, {"path": str(UI_DIR)}),

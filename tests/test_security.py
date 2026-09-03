@@ -26,6 +26,8 @@ class SecurityTest(tornado.testing.AsyncHTTPTestCase):
 
     def test_missing_token_403(self):
         assert self.fetch("/api/sessions").code == 403
+        # the folder picker lists the filesystem: token-gated like the rest
+        assert self.fetch("/api/dirs?path=").code == 403
 
     def test_wrong_token_403(self):
         r = self.fetch("/api/sessions",
