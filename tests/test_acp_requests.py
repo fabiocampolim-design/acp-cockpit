@@ -130,3 +130,40 @@ def test_load_reaches_ready(tmp_path):
     feed(session, {"jsonrpc": "2.0", "id": load["id"], "result": None})
     assert session.state == "ready"
     assert session.acp_session_id == "acp-old"
+
+
+def _permission(session, request_id, options):
+    feed(session, {"jsonrpc": "2.0", "id": request_id,
+                   "method": "session/request_permission", "params": {
+                       "sessionId": "acp-123",
+                       "toolCall": {"toolCallId": "t-plan", "title": "Approve Plan"},
+                       "options": options}})
+
+
+def test_plan_approval_reasserts_the_implied_mode(tmp_path):
+    # claude-agent-acp 0.73 sends no mode update after ExitPlanMode; the
+    # profile maps the answer to a mode and the engine sets it explicitly.
+    session, proc, sink = make_session(tmp_path)
+    do_handshake(session, proc)
+    _permission(session, 90, [
+        {"optionId": "exit-plan-default", "name": "Yes, manually approve edits", "kind": "allow_once"},
+        {"optionId": "exit-plan-auto", "name": "Yes, and use auto mode", "kind": "allow_always"},
+        {"optionId": "reject", "name": "No, keep planning", "kind": "reject_once"}])
+    session.answer_permission(90, "exit-plan-default")
+    frames = sent_frames(proc)
+    reply = [f for f in frames if f.get("id") == 90][0]
+    assert reply["result"]["outcome"]["optionId"] == "exit-plan-default"
+    follow = [f for f in frames if f.get("method") == "session/set_mode"]
+    assert follow and follow[-1]["params"] == {"sessionId": "acp-123",
+                                              "modeId": "default"}
+
+
+def test_rejecting_the_plan_leaves_the_mode_alone(tmp_path):
+    session, proc, sink = make_session(tmp_path)
+    do_handshake(session, proc)
+    _permission(session, 91, [
+        {"optionId": "exit-plan-default", "name": "Yes", "kind": "allow_once"},
+        {"optionId": "reject", "name": "No, keep planning", "kind": "reject_once"}])
+    session.answer_permission(91, "reject")
+    assert not [f for f in sent_frames(proc) if f.get("method") == "session/set_mode"]
+

@@ -74,3 +74,28 @@ misread.**
 - **Publication.** Name and collision check, first CI run on Linux/macOS
   (the README check-count test assumes Playwright is installed), and a
   release cadence are the author's calls.
+
+## 5. Roadmap pins (2026-09-01, after the first day of live use)
+
+Recorded decisions, not open questions — each waits for the stated trigger.
+
+- **A CLAUDIU-owned fork of the adapter is parked** (the author: "pin").
+  The facts stay on record (§4); the trigger is a dropped message that
+  blocks daily work, or upstream declining the patches.
+- **Prompt suggestions** wait for upstream (`prompt_suggestion` is dropped
+  by the adapter); the request is drafted.
+- **AskUserQuestion is not loaded in adapter sessions** (the CLI runs
+  non-interactively there): the agent asks in plain text and the user
+  answers in the next prompt. Skills built on the tool degrade to text.
+  Trigger: the adapter or the CLI exposing it over ACP.
+- **Plan-mode exit**: the adapter sends no mode update after
+  `ExitPlanMode`; the profile's `permission_mode_followups` re-asserts the
+  implied mode. Remove the rule when the adapter announces the change.
+- **Prompt queueing while a turn runs** is agent-supported
+  (`_meta.claudeCode.promptQueueing`) but the View gates Send on `ready`.
+  Trigger: the author asking for it — the terminal allows typing ahead.
+- **Image paste and `@file` completion** in the composer: not built;
+  the adapter advertises image prompts. Trigger: need.
+- **Version bump and publication** wait for a "better state" (the author,
+  2026-09-01); rule-26 files are in place.
+

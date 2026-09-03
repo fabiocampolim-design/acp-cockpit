@@ -316,6 +316,14 @@ class AcpSession:
         self._resolve_permission(
             request_id, {"outcome": "selected", "optionId": option_id},
             option_id, "user")
+        # Some approvals change the agent's mode without a mode update
+        # (claude-agent-acp 0.73 after ExitPlanMode): the profile says which
+        # answer implies which mode, and we re-assert it so the strip never
+        # shows "Plan" while the agent edits.
+        for rule in getattr(self.profile, "permission_mode_followups", []):
+            if rule.get("option_id") == option_id:
+                self.set_mode(rule["mode"])
+                break
 
     def fail_safe_reject(self, request_id: int) -> None:
         options = self._pending_perms.get(request_id) or []

@@ -55,3 +55,19 @@ def test_env_resolve_values_must_be_command_names(tmp_path):
     f.write_text(MINIMAL + "[env_resolve]\nX = 1\n", encoding="utf-8")
     with pytest.raises(ProfileError):
         load_profile(f)
+
+
+def test_claude_profile_declares_plan_exit_followups():
+    p = load_profile(Path("agents/claude.toml"))
+    by_option = {f["option_id"]: f["mode"] for f in p.permission_mode_followups}
+    assert by_option["exit-plan-default"] == "default"
+    assert by_option["exit-plan-auto"] == "auto"
+
+
+def test_permission_mode_followups_are_validated(tmp_path):
+    f = tmp_path / "a.toml"
+    f.write_text(MINIMAL + "[[permission_mode_followups]]\noption_id = 1\n",
+                 encoding="utf-8")
+    with pytest.raises(ProfileError):
+        load_profile(f)
+

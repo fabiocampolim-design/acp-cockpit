@@ -2,6 +2,22 @@
 
 All notable changes to CLAUDIU are documented in this file.
 
+## Unreleased — daily-use assessment (2026-09-01 23:00)
+
+- **Plan-mode exit re-asserts the mode.** Approving a plan makes the CLI
+  leave plan mode, but the adapter sends no `current_mode_update`, so the
+  strip kept saying "Plan" (dangerous when the answer was "use auto
+  mode"). New profile field `permission_mode_followups` maps an approval
+  option to the mode it implies; the engine issues `session/set_mode`,
+  which the agent echoes back. Tests for the rule and for rejection.
+- Caveats added: AskUserQuestion is not loaded in adapter sessions (the
+  agent asks in plain text); plan-exit mode handling.
+- `docs/DESIGN.md` §5: roadmap pins (adapter fork parked, prompt
+  suggestions, prompt queueing, image paste, publication).
+- Verified live for the assessment: Stop mid-turn (`cancelled`), plan mode
+  end to end, MCP servers present (same set as the terminal), resume with
+  history, approvals with the agent's own options.
+
 ## Unreleased — live-test round 5 (2026-09-01 late)
 
 - **Resume now replays the conversation.** The engine preferred

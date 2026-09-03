@@ -28,6 +28,20 @@ extensions = ["_claude/rateLimit", "_claude/origin", "claudeCode.promptQueueing"
 [env_resolve]
 CLAUDE_CODE_EXECUTABLE = "claude"
 
+# Approving a plan makes the CLI leave plan mode by itself, but the adapter
+# sends no current_mode_update (0.73, observed 2026-09-01): the strip kept
+# saying "Plan" while the agent was in default/auto mode. Re-assert the mode
+# each answer implies (the agent echoes it back as a mode update).
+[[permission_mode_followups]]
+option_id = "exit-plan-default"
+mode = "default"
+[[permission_mode_followups]]
+option_id = "exit-plan-auto"
+mode = "auto"
+[[permission_mode_followups]]
+option_id = "exit-plan-clear-auto"
+mode = "auto"
+
 [[caveats]]
 id = "shell-escapes-boundary"
 text = "The project-directory boundary is enforced only for file access routed through this client. Shell commands run by the agent itself are not confined; the approval dialog flags out-of-boundary paths and your answer is the only control. 'Always Allow' is a standing grant for the whole session."
@@ -47,6 +61,14 @@ text = "The adapter bundles its own Claude CLI, which the API may refuse for new
 [[caveats]]
 id = "no-prompt-suggestions"
 text = "Claude Code's predicted next-prompt suggestions do not cross ACP yet: the adapter neither enables the SDK's promptSuggestions option nor forwards the prompt_suggestion message (claude-agent-acp 0.73)."
+
+[[caveats]]
+id = "no-ask-user-question"
+text = "The agent's AskUserQuestion tool (multiple-choice questions to you) is not loaded in adapter sessions; the agent asks in plain text instead - answer in your next prompt. Skills that rely on it degrade to text."
+
+[[caveats]]
+id = "plan-exit-mode"
+text = "After you approve a plan the agent changes its own permission mode without announcing it; this client re-asserts the mode your answer implies (manual approval -> Manual, auto -> Auto) so the strip stays truthful."
 
 [[caveats]]
 id = "terminal-unadvertised"
