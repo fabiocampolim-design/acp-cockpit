@@ -16,10 +16,13 @@ python -m claudiu
 
 Options: `--port N` (default 0 = OS-assigned), `--profiles DIR` (default
 `agents/`), `--records DIR` (default `~/.claudiu/records`),
-`--no-drift-online` (skip the update check). The server prints a URL with a
-one-time token — open it; the token becomes a cookie and the address bar
-cleans itself. Each launch gets a fresh token; old URLs die with the
-server.
+`--no-drift-online` (skip the update check), `--token-file FILE` (keep the
+auth token across launches). The server prints a URL with a token — open
+it; the token becomes a cookie and the address bar cleans itself. By
+default each launch gets a fresh token and old URLs die with the server;
+with `--port` and `--token-file` together the URL is stable and can be
+bookmarked (the file is created owner-only where the OS supports it —
+treat it like a password).
 
 ## Tabs
 
@@ -43,7 +46,7 @@ one on `PATH`. The adapter bundles its own, older Claude CLI, which the
 API may refuse for newer models ("version 2.1.251 or newer is required"
 was the 2026-09-01 symptom); with no `claude` installed the bundled copy
 is used. Adapter diagnostics (one `[session/query] …` line per session)
-arrive on stderr and are shown as collapsible rows.
+arrive on stderr and are counted in the **stderr** chip of the status strip.
 **Find resumable sessions** asks the agent which of its own sessions exist
 for that directory (a throwaway adapter is started and closed for the
 query) and offers a **Resume** button per session.
@@ -56,6 +59,16 @@ query) and offers a **Resume** button per session.
   reports progress (pending → in progress → completed/failed, colour-coded
   edge). Edits arrive as real diffs (+/− lines); text output and file
   locations open under "details".
+- **Hierarchy, like the terminal**: text the agent produces *before* a
+  tool call is a step and renders attenuated; the final answer is bright.
+  Tool rows are dim with a status dot (blue pending, green done, red
+  failed).
+- **Markdown-lite**: `**bold**` is highlighted in the accent colour,
+  `` `code` `` and fenced blocks are monospaced, headings stand out. The
+  text is rendered as DOM nodes, never as HTML.
+- **Tool output is collapsed by default** (as in the terminal); the
+  "expand tool output" checkbox in the toolbar opens every result and is
+  remembered by the browser; each row's "details" toggle always works.
 - **Plan** entries (the agent's todo list) fill the panel above the
   composer.
 - **Turn ends** are marked with the protocol's stop reason.
@@ -81,7 +94,11 @@ message. The launcher lists this under the agent's caveats.
 When the agent wants to do something that needs permission, a dialog shows
 the tool call (with diff when provided) and the agent's own options —
 allow once, allow always, reject — as buttons (digits 1–9 work too).
-There is no Escape-to-dismiss: an explicit choice is required. Unanswered
+There is no Escape-to-dismiss: an explicit choice is required. The options
+and their number come from the agent: Claude offers a standing "Always
+Allow" for some tools only, so a third button appears only when the agent
+offers a third option. Standing grants are listed after the one-shot
+choices and drawn dashed/amber; they are never disabled. Unanswered
 requests are auto-rejected after a timeout (default one hour) and marked
 as fail-safe rejections.
 
@@ -98,7 +115,7 @@ While a turn runs, a pulsing "agent working… 42s · last activity 3s ago
 (tool_call: Edit hello.py)" row sits at the end of the conversation — the
 elapsed time tells you the turn is alive, the last-activity part tells you
 whether the agent is still producing events (it turns amber after a minute
-of silence). Two chips can appear and should not be ignored:
+of silence). Three chips can appear; the first two should not be ignored:
 
 - **drift** — the agent sent protocol data newer than this client's pinned
   ACP schema (hover for details). The client keeps working and keeps
@@ -106,6 +123,9 @@ of silence). Two chips can appear and should not be ignored:
 - **anomalies** — something out of order happened (malformed frame,
   adapter crash, rejected command…); the conversation shows the details
   inline with raw-frame access.
+- **stderr (n)** — the adapter's diagnostics (one `[session/query] …` line
+  per session, sometimes echoed command output). Click to open the drawer
+  under the strip. Never shown inline, never dropped — it is in the record.
 
 ## Records
 

@@ -97,6 +97,10 @@ def test_usage_gauge_config_options_and_diff(server):
         rows = page.query_selector_all('[data-kind="tool_call"]')
         assert len(rows) == 1, "tool_call + update must merge into one row"
         assert rows[0].get_attribute("data-status") == "completed"
+        # results are collapsed by default (like the terminal); the toolbar
+        # checkbox opens them
+        assert not page.query_selector('[data-kind="tool_call"] details').get_attribute("open")
+        page.check("#expand-tools")
         adds = [r.inner_text() for r in page.query_selector_all(".diff .add")]
         dels = [r.inner_text() for r in page.query_selector_all(".diff .del")]
         assert adds == ["+ B", "+ d"] and dels == ["- b"]

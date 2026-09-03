@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""CLI: python -m claudiu [--port N] [--profiles DIR] [--records DIR]"""
+"""CLI: python -m claudiu [--port N] [--profiles DIR] [--records DIR] [--token-file F]"""
 import argparse
 import signal
 from pathlib import Path
@@ -21,9 +21,12 @@ def main():
                     default=str(Path.home() / ".claudiu" / "records"))
     ap.add_argument("--no-drift-online", action="store_true",
                     help="disable the online schema/adapter version check")
+    ap.add_argument("--token-file", default=None,
+                    help="keep the auth token in this file across launches "
+                         "(with --port, the printed URL stays valid)")
     args = ap.parse_args()
 
-    auth = TokenAuth()
+    auth = TokenAuth.from_file(args.token_file) if args.token_file         else TokenAuth()
     app = make_app(Path(args.profiles), Path(args.records), auth,
                    drift_online=not args.no_drift_online)
     sockets = tornado.netutil.bind_sockets(args.port, address="127.0.0.1")

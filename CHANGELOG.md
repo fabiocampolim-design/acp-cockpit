@@ -2,6 +2,30 @@
 
 All notable changes to CLAUDIU are documented in this file.
 
+## Unreleased — live-test round 4 (2026-09-01 evening)
+
+- **Resume from the launcher failed with a bare `400`.** Cause: an empty
+  directory field — the listing endpoint accepted it (`Path("")` is the
+  server's own directory, so it listed CLAUDIU's own sessions) and the
+  resume then posted the empty cwd. Now: the listing rejects an empty or
+  non-directory cwd (`400` + JSON reason), `POST /api/sessions` answers
+  `400` with a JSON `error` the View shows verbatim, the View refuses to
+  query with an empty field, and **Resume uses the directory the agent
+  recorded for that session** (and refills the field).
+- **Adapter stderr left the conversation**: a counted `stderr (n)` chip in
+  the status strip opens a drawer; nothing inline, nothing dropped.
+- **Approval buttons**: standing grants are dashed/amber but no longer look
+  disabled; a third button appears only when the agent offers a third
+  option (Claude does so per tool).
+- **Tool output collapsed by default**, with an "expand tool output"
+  checkbox in the toolbar (remembered per browser).
+- **Visual hierarchy and markdown-lite**: agent text produced before a tool
+  call renders attenuated (a step), the final answer bright; tool rows dim
+  with a status dot; `**bold**` in the accent colour, `` `code` `` and
+  fenced blocks monospaced, headings emphasised — DOM nodes, never HTML.
+- **`--token-file`** keeps the auth token across launches; with `--port`
+  the URL is stable and bookmarkable.
+
 ## Unreleased — post-outage resume (2026-09-01)
 
 - **The adapter's bundled Claude CLI was refused by the API.** After the

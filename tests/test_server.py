@@ -72,6 +72,21 @@ class ServerTest(tornado.testing.AsyncHTTPTestCase):
         assert first["command"][1:] and first["command"][0]
         assert first["env_resolved"] == {"EXTRA_VAR": shutil.which(PY_NAME)}
 
+    def test_bad_cwd_is_a_json_400_the_view_can_show(self):
+        resp = self.fetch("/api/sessions", method="POST",
+                          headers=self._headers(),
+                          body=json.dumps({"profile": "fake", "cwd": ""}))
+        assert resp.code == 400
+        assert "cwd" in json.loads(resp.body)["error"]
+
+    def test_listing_rejects_an_empty_cwd(self):
+        # Path("") is the server's own directory: never list for it.
+        resp = self.fetch("/api/profiles/fake/sessions?cwd=",
+                          headers=self._headers())
+        assert resp.code == 400
+        data = json.loads(resp.body)
+        assert data["sessions"] == [] and "directory" in data["error"]
+
     def test_no_token_is_403(self):
         resp = self.fetch("/api/profiles")
         assert resp.code == 403

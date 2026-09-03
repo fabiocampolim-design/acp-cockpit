@@ -5,7 +5,7 @@
      "sessionCapabilities": {"list": {}, "resume": {}}}}},
   {"on_method": "session/list",
    "respond": {"sessions": [
-     {"sessionId": "old-1", "cwd": "/anywhere", "title": "Old work"}]}},
+     {"sessionId": "old-1", "cwd": "$CWD", "title": "Old work"}]}},
   {"on_method": "session/resume",
    "respond": {"modes": {"currentModeId": "plan",
                           "availableModes": [{"id": "plan", "name": "Plan"}]}}},

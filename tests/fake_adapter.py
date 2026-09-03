@@ -42,8 +42,12 @@ for raw in sys.stdin:
             req = json.loads(json.dumps(req).replace("$SESSION", SESSION))
             send(req)
         if "respond" in rule:
+            # $CWD -> the cwd of this request (JSON-escaped), so fixtures
+            # can point resumable sessions at a directory that exists.
+            cwd_json = json.dumps(frame.get("params", {}).get("cwd", ""))[1:-1]
             result = json.loads(
-                json.dumps(rule["respond"]).replace("$SESSION", SESSION))
+                json.dumps(rule["respond"]).replace("$SESSION", SESSION)
+                .replace("$CWD", cwd_json))
             send({"jsonrpc": "2.0", "id": mid, "result": result})
         break
     if not matched and mid is not None:

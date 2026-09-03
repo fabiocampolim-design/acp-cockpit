@@ -229,9 +229,12 @@ class SessionsHandler(BaseHandler):
         body = json.loads(self.request.body or b"{}")
         profile_id = body.get("profile")
         cwd = body.get("cwd")
-        if profile_id not in self.manager.profiles or not cwd or \
-                not Path(cwd).is_dir():
-            raise tornado.web.HTTPError(400, "bad profile or cwd")
+        if profile_id not in self.manager.profiles or not cwd or                 not Path(cwd).is_dir():
+            # JSON, not Tornado's HTML page: the View shows `error` verbatim.
+            self.set_status(400)
+            return self.write_json({"error": "bad profile or cwd: profile="
+                                    f"{profile_id!r}, cwd={cwd!r} (must be "
+                                    "an existing directory)"})
         cwd = native_dir(cwd)
         profile = self.manager.profiles[profile_id]
         if shutil.which(profile.command[0]) is None:
@@ -253,8 +256,12 @@ class ProfileSessionsHandler(BaseHandler):
 
     async def get(self, profile_id):
         cwd = self.get_query_argument("cwd", "")
-        if profile_id not in self.manager.profiles or not Path(cwd).is_dir():
-            raise tornado.web.HTTPError(400, "bad profile or cwd")
+        # An empty cwd is Path("."), the SERVER's directory — never list for
+        # it; the View must name a project directory (2026-09-01 live test).
+        if profile_id not in self.manager.profiles or not cwd or                 not Path(cwd).is_dir():
+            self.set_status(400)
+            return self.write_json({"sessions": [], "error":
+                                    "pick an existing project directory first"})
         cwd = native_dir(cwd)
         profile = self.manager.profiles[profile_id]
         if shutil.which(profile.command[0]) is None:

@@ -18,3 +18,16 @@ def test_verify():
 
 def test_cookie_name_stable():
     assert COOKIE_NAME == "claudiu_token"
+
+
+def test_token_file_persists_and_is_reused(tmp_path):
+    f = tmp_path / "state" / "token"          # parent created on demand
+    a = TokenAuth.from_file(f)
+    assert f.read_text(encoding="utf-8").strip() == a.token
+    b = TokenAuth.from_file(f)
+    assert b.token == a.token                  # a pinned URL keeps working
+    f.write_text("too-short", encoding="utf-8")
+    c = TokenAuth.from_file(f)                 # untrustworthy -> replaced
+    assert len(c.token) >= 43 and c.token != "too-short"
+    assert f.read_text(encoding="utf-8").strip() == c.token
+

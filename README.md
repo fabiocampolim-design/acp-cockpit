@@ -33,6 +33,9 @@ pick a project directory, start the session. The port is OS-assigned each
 run unless you pass `--port`. If a `claude` CLI is installed, the adapter
 is pointed at it instead of the older copy it bundles (the launcher shows
 which runtime resolved; `agents/PROFILE-SCHEMA.md` → `env_resolve`).
+For a stable address, pin the port and keep the token:
+`python -m claudiu --port 8642 --token-file ~/.claudiu/token` — bookmark the
+printed URL once (the token file is owner-only; treat it like a password).
 
 ## Architecture
 
@@ -93,7 +96,7 @@ python -m pyflakes claudiu tools tests
 python tools/check_schema_drift.py
 ```
 
-Verified by 99 checks (plus the opt-in real-adapter contract test). See
+Verified by 102 checks (plus the opt-in real-adapter contract test). See
 `AGENTS.md` for the working rules and `docs/superpowers/specs/` for the
 design history. The v0.1 terminal-mirror app lives in `archive/claudiu-v0.1`
 with its own git history.

@@ -24,8 +24,10 @@
   <div id="status"><span class="state">starting</span><span class="mode"></span>
     <span class="drift-chip" hidden>drift</span>
     <span class="anomaly-chip" hidden>anomalies</span>
+    <span class="stderr-chip" hidden title="adapter diagnostics">stderr</span>
     <span class="usage" title="context window"></span>
     <span class="model"></span></div>
+  <div id="stderr-drawer" data-kind="stderr" hidden><pre></pre></div>
   <div id="conversation"></div>
   <div id="plan" hidden></div>
   <div id="composer">
@@ -36,6 +38,8 @@
         <select id="mode" hidden title="permission mode"></select>
         <select id="model" hidden title="model"></select>
         <span id="config-options"></span>
+        <label class="view-toggle" title="open tool results by default (per-row toggles always work)">
+          <input type="checkbox" id="expand-tools"> expand tool output</label>
       </div>
       <div class="actions">
         <button id="cancel" hidden>Stop</button>

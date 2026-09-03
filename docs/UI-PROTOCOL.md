@@ -8,7 +8,7 @@ lockstep with the code.
 ## 1. Authentication
 
 The server prints a launch URL `http://127.0.0.1:<port>/?token=<token>` once
-per run. Opening it sets the `claudiu_token` cookie (HttpOnly, SameSite
+per run (with `--token-file` the token persists across runs). Opening it sets the `claudiu_token` cookie (HttpOnly, SameSite
 Strict) and redirects to `/`. Every REST call and WebSocket upgrade must
 carry that cookie; anything else is `403`. The server binds 127.0.0.1 only
 and rejects foreign `Host`/`Origin` headers.
@@ -28,8 +28,9 @@ machine (empty when nothing resolved); show it so the user knows which
 runtime the adapter is pointed at.
 
 ### `POST /api/sessions` — body `{"profile": "claude", "cwd": "C:\\work\\proj"}`
-Returns `{"id": "<sid>"}`. Errors: `400` bad profile/cwd; `424` adapter not
-installed (body carries `install_hint`). Add `"resume": "<agent session
+Returns `{"id": "<sid>"}`. Errors: `400` bad profile/cwd (JSON body
+`{"error": "..."}` — show it verbatim); `424` adapter not installed (body
+carries `install_hint`). Add `"resume": "<agent session
 id>"` (from the listing below) to attach to an existing agent session
 instead of creating one (`session/resume` when advertised, else
 `session/load`).
@@ -37,7 +38,10 @@ instead of creating one (`session/resume` when advertised, else
 ### `GET /api/profiles/<id>/sessions?cwd=<dir>`
 Sessions the *agent* knows for that directory — a throwaway adapter is
 spawned for `session/list` and closed. `{"sessions": [{"sessionId",
-"cwd", "title", "updatedAt"}], "error": null|str}`.
+"cwd", "title", "updatedAt"}], "error": null|str}`. `400` with
+`{"sessions": [], "error": "..."}` when `cwd` is empty or not a directory
+(an empty cwd would list the server's own directory). Resume with the
+`cwd` the agent reports for the session, not with whatever the field holds.
 
 ### `GET /api/sessions`
 ```json
@@ -101,7 +105,7 @@ Every server → client message is one event:
 | `commands` | `commands` (list of `{name, description, input}`) | Command palette source. |
 | `mode` | `current`, `available` (list of `{id, name}`) | Mode selector. |
 | `model` | `current`, `available` (list of `{modelId, name, description}`) | Model selector (from `session/new`'s `models`; empty `available` = current changed only). |
-| `stderr` | `line` | Adapter stderr, recorded (`dir: "err"`). Low severity: collapsible row, no warning chip. Claude's adapter prints slash-command output here. |
+| `stderr` | `line` | Adapter stderr: count it in a chip, show it in a drawer on demand — out of the conversation flow, never dropped (the engine records it). |
 | `usage` | `used`, `size` (tokens), `cost` (`{amount, currency}` or null) | Context gauge in the status strip. |
 | `session_info` | `title`, `updatedAt` (either may be null) | Session/tab title set by the agent. |
 | `config_option` | `options` — the FULL current set of `SessionConfigOption` (`id`, `name`, `type` `select`/`boolean`, `currentValue`, `options` for selects) | Generic selectors; changing one sends `set_config_option`. |

@@ -60,10 +60,14 @@ data, and every byte that crosses the wire is recorded.</p>
 <p>Options: <code>--port N</code> (default 0 = OS-assigned),
 <code>--profiles DIR</code> (default <code>agents/</code>),
 <code>--records DIR</code> (default <code>~/.claudiu/records</code>),
-<code>--no-drift-online</code> (skip the update check). The server
-prints a URL with a one-time token — open it; the token becomes a cookie
-and the address bar cleans itself. Each launch gets a fresh token; old
-URLs die with the server.</p>
+<code>--no-drift-online</code> (skip the update check),
+<code>--token-file FILE</code> (keep the auth token across launches).
+The server prints a URL with a token — open it; the token becomes a
+cookie and the address bar cleans itself. By default each launch gets a
+fresh token and old URLs die with the server; with <code>--port</code>
+and <code>--token-file</code> together the URL is stable and can be
+bookmarked (the file is created owner-only where the OS supports it —
+treat it like a password).</p>
 <h2 id="tabs">Tabs</h2>
 <p>Each session is a tab (Alt+1…9 switch, Alt+N opens the launcher, ×
 closes and ends the session). The tab shows the agent’s own title for
@@ -85,11 +89,11 @@ The adapter bundles its own, older Claude CLI, which the API may refuse
 for newer models (“version 2.1.251 or newer is required” was the
 2026-09-01 symptom); with no <code>claude</code> installed the bundled
 copy is used. Adapter diagnostics (one <code>[session/query] …</code>
-line per session) arrive on stderr and are shown as collapsible rows.
-<strong>Find resumable sessions</strong> asks the agent which of its own
-sessions exist for that directory (a throwaway adapter is started and
-closed for the query) and offers a <strong>Resume</strong> button per
-session.</p>
+line per session) arrive on stderr and are counted in the
+<strong>stderr</strong> chip of the status strip. <strong>Find resumable
+sessions</strong> asks the agent which of its own sessions exist for
+that directory (a throwaway adapter is started and closed for the query)
+and offers a <strong>Resume</strong> button per session.</p>
 <h2 id="the-conversation">The conversation</h2>
 <ul>
 <li><strong>Agent text</strong> streams as it is produced;
@@ -99,6 +103,18 @@ boxed.</li>
 as the agent reports progress (pending → in progress → completed/failed,
 colour-coded edge). Edits arrive as real diffs (+/− lines); text output
 and file locations open under “details”.</li>
+<li><strong>Hierarchy, like the terminal</strong>: text the agent
+produces <em>before</em> a tool call is a step and renders attenuated;
+the final answer is bright. Tool rows are dim with a status dot (blue
+pending, green done, red failed).</li>
+<li><strong>Markdown-lite</strong>: <code>**bold**</code> is highlighted
+in the accent colour, <code>`code`</code> and fenced blocks are
+monospaced, headings stand out. The text is rendered as DOM nodes, never
+as HTML.</li>
+<li><strong>Tool output is collapsed by default</strong> (as in the
+terminal); the “expand tool output” checkbox in the toolbar opens every
+result and is remembered by the browser; each row’s “details” toggle
+always works.</li>
 <li><strong>Plan</strong> entries (the agent’s todo list) fill the panel
 above the composer.</li>
 <li><strong>Turn ends</strong> are marked with the protocol’s stop
@@ -123,7 +139,11 @@ caveats.</p>
 <p>When the agent wants to do something that needs permission, a dialog
 shows the tool call (with diff when provided) and the agent’s own
 options — allow once, allow always, reject — as buttons (digits 1–9 work
-too). There is no Escape-to-dismiss: an explicit choice is required.
+too). There is no Escape-to-dismiss: an explicit choice is required. The
+options and their number come from the agent: Claude offers a standing
+“Always Allow” for some tools only, so a third button appears only when
+the agent offers a third option. Standing grants are listed after the
+one-shot choices and drawn dashed/amber; they are never disabled.
 Unanswered requests are auto-rejected after a timeout (default one hour)
 and marked as fail-safe rejections.</p>
 <h2 id="status-strip-and-warnings">Status strip and warnings</h2>
@@ -139,8 +159,8 @@ are tooltips. While a turn runs, a pulsing “agent working… 42s · last
 activity 3s ago (tool_call: Edit hello.py)” row sits at the end of the
 conversation — the elapsed time tells you the turn is alive, the
 last-activity part tells you whether the agent is still producing events
-(it turns amber after a minute of silence). Two chips can appear and
-should not be ignored:</p>
+(it turns amber after a minute of silence). Three chips can appear; the
+first two should not be ignored:</p>
 <ul>
 <li><strong>drift</strong> — the agent sent protocol data newer than
 this client’s pinned ACP schema (hover for details). The client keeps
@@ -149,6 +169,10 @@ due.</li>
 <li><strong>anomalies</strong> — something out of order happened
 (malformed frame, adapter crash, rejected command…); the conversation
 shows the details inline with raw-frame access.</li>
+<li><strong>stderr (n)</strong> — the adapter’s diagnostics (one
+<code>[session/query] …</code> line per session, sometimes echoed
+command output). Click to open the drawer under the strip. Never shown
+inline, never dropped — it is in the record.</li>
 </ul>
 <h2 id="records">Records</h2>
 <p>Every session appends to

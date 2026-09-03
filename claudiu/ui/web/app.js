@@ -13,7 +13,7 @@ async function api(path, opts = {}) {
                                   ...opts});
   if (!resp.ok) {
     let detail = "";
-    try { detail = (await resp.json()).install_hint || ""; } catch (e) {}
+    try { const j = await resp.json(); detail = j.error || j.install_hint || ""; } catch (e) {}
     throw new Error(`${path}: ${resp.status} ${detail}`.trim());
   }
   return resp.json();
@@ -56,6 +56,7 @@ async function loadRecent() {
   const cwd = $("#cwd").value.trim();
   const list = $("#recent-list");
   $("#recent").hidden = false;
+  if (!cwd) { list.replaceChildren(li("pick a project directory first")); return; }
   list.replaceChildren(li("looking…"));
   try {
     const data = await api(`/api/profiles/${$("#profile").value}/sessions?cwd=` +
@@ -68,7 +69,8 @@ async function loadRecent() {
       const b = document.createElement("button");
       b.textContent = "Resume";
       b.dataset.resume = s.sessionId;
-      b.onclick = () => startSession(s.sessionId);
+      // resume in the directory the AGENT recorded for that session
+      b.onclick = () => startSession(s.sessionId, s.cwd || cwd);
       item.prepend(b);
       return item;
     }));
@@ -81,9 +83,11 @@ function li(text) {
   const el = document.createElement("li"); el.textContent = text; return el;
 }
 
-async function startSession(resume) {
+async function startSession(resume, resumeCwd) {
   const profile = $("#profile").value;
-  const cwd = $("#cwd").value.trim();
+  const cwd = (resume && resumeCwd) ? resumeCwd : $("#cwd").value.trim();
+  if (resume && resumeCwd) $("#cwd").value = resumeCwd;
+  if (!cwd) { alertBanner("pick a project directory first"); return; }
   const body = JSON.stringify({profile, cwd, resume});
   let id;
   try {
@@ -162,6 +166,9 @@ class Session {
     this.chips = {".drift-chip": {n: 0, label: "drift", title: ""},
                   ".anomaly-chip": {n: 0, label: "anomalies", title: ""}};
     this.turnStarted = null; this.lastActivity = null;
+    this.stderr = [];             // adapter stderr lines: drawer, never inline
+    this.stderrOpen = false;
+    this.turnAgentNodes = [];     // agent text nodes of the running turn
     this.pane = document.createElement("div");
     this.pane.className = "pane";
     this.pane.dataset.session = sid;
@@ -206,6 +213,7 @@ class Session {
     this.renderStatus();
     this.renderControls();
     this.renderPlan();
+    this.renderStderrDrawer();
     showWorking(this, this.state === "turn");
   }
 
@@ -234,8 +242,19 @@ class Session {
       chip.title = c.title;
       chip.onclick = () => { c.n = 0; c.title = ""; this.renderStatus(); };
     }
+    const sc = $("#status .stderr-chip");
+    sc.hidden = this.stderr.length === 0;
+    sc.textContent = `stderr (${this.stderr.length})`;
+    sc.onclick = () => { this.stderrOpen = !this.stderrOpen; this.renderStderrDrawer(); };
     $("#send").disabled = this.state !== "ready";
     $("#cancel").hidden = this.state !== "turn";
+  }
+
+  renderStderrDrawer() {
+    if (!this.isActive) return;
+    const d = $("#stderr-drawer");
+    d.hidden = !this.stderrOpen || this.stderr.length === 0;
+    $("pre", d).textContent = this.stderr.join("\n");
   }
 
   /* Current value of a config option, with its display name. */
@@ -314,22 +333,33 @@ class Session {
   /* ----- conversation blocks ----- */
   addBlock(kind, role, text) {
     const key = kind + ":" + (role || "");
+    const rich = kind === "message_chunk" && role === "agent";   // markdown-lite
     if (this.agg.currentKey === key && this.agg.node) {
       if (text) { const m = $(".marker", this.agg.node); if (m) m.remove(); }
-      $(".text", this.agg.node).textContent += text;
-      return this.agg.node;
+      const node = this.agg.node;
+      node.rawText = (node.rawText || "") + text;
+      if (rich) renderRich($(".text", node), node.rawText);
+      else $(".text", node).textContent += text;
+      return node;
     }
     const div = document.createElement("div");
     div.dataset.kind = kind;
     if (role) div.dataset.role = role;
     const span = document.createElement("span");
     span.className = "text";
-    span.textContent = text;
+    div.rawText = text;
+    if (rich) renderRich(span, text); else span.textContent = text;
     div.append(span);
     this.appendRow(div);
     this.agg.currentKey = key;
     this.agg.node = div;
+    if (rich) this.turnAgentNodes.push(div);
     return div;
+  }
+
+  /* Agent text produced BEFORE a tool call is a step, not the answer. */
+  markInterim() {
+    for (const n of this.turnAgentNodes) n.dataset.interim = "1";
   }
 
   appendRow(node) {
@@ -345,7 +375,9 @@ class Session {
     const d = ev.data;
     if (ev.kind !== "session_state") this.touch(summarize(ev));
     switch (ev.kind) {
-      case "session_state": this.setState(d.state); break;
+      case "session_state":
+        if (d.state === "turn") this.turnAgentNodes = [];
+        this.setState(d.state); break;
       case "message_chunk": {
         const node = this.addBlock("message_chunk", d.role, d.text);
         if (d.role === "thought" && !$(".text", node).textContent &&
@@ -357,7 +389,8 @@ class Session {
         break;
       }
       case "tool_call":
-      case "tool_call_update": this.breakAgg(); this.renderTool(ev); break;
+      case "tool_call_update":
+        this.breakAgg(); this.markInterim(); this.renderTool(ev); break;
       case "plan": this.plan = d.entries; this.renderPlan(); break;
       case "commands": this.commands = d.commands; break;
       case "mode":
@@ -412,29 +445,11 @@ class Session {
   }
 
   renderStderr(ev) {
-    const line = ev.data.line;
-    if (this.agg.currentKey === "stderr:" && this.agg.node) {
-      const pre = $("pre", this.agg.node);
-      pre.textContent += "\n" + line;
-      this.agg.node.stderrLines += 1;
-      $("summary", this.agg.node).textContent =
-        `adapter stderr (${this.agg.node.stderrLines} lines)`;
-      return;
-    }
-    const node = document.createElement("div");
-    node.dataset.kind = "stderr";
-    node.stderrLines = 1;
-    const det = document.createElement("details");
-    const sum = document.createElement("summary");
-    sum.textContent = "adapter stderr (1 lines)";
-    const pre = document.createElement("pre");
-    pre.textContent = line;
-    det.append(sum, pre);
-    node.append(det);
-    addRawToggle(node, ev);
-    this.appendRow(node);
-    this.agg.currentKey = "stderr:";
-    this.agg.node = node;
+    // Recorded by the engine; shown OUT of the conversation flow: a chip
+    // with the count in the status strip, a drawer on click. Never dropped.
+    this.stderr.push(ev.data.line);
+    this.renderStatus();
+    this.renderStderrDrawer();
   }
 
   /* Tool calls: one row per toolCallId, updates merge into it. */
@@ -474,8 +489,69 @@ class Session {
       loc.textContent = t.locations.map(l => l.path + (l.line ? `:${l.line}` : "")).join(", ");
       entry.body.append(loc);
     }
-    if (entry.body.children.length) entry.node.querySelector("details").open = true;
+    if (entry.body.children.length && expandTools()) {
+      entry.node.querySelector("details").open = true;
+    }
   }
+}
+
+/* ---------------- markdown-lite for agent text ----------------
+   Fenced code, headings, **bold**, *em*, `code`, [text](url). Built from
+   DOM nodes only — the text is never interpreted as HTML. */
+function renderRich(el, text) {
+  el.replaceChildren();
+  const lines = text.split("\n");
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    const fence = line.match(/^\s*```(\w*)\s*$/);
+    if (fence) {
+      const buf = [];
+      i++;
+      while (i < lines.length && !/^\s*```\s*$/.test(lines[i])) buf.push(lines[i++]);
+      if (i < lines.length) i++;                     // closing fence
+      const pre = document.createElement("pre");
+      pre.className = "code";
+      if (fence[1]) pre.dataset.lang = fence[1];
+      pre.textContent = buf.join("\n");
+      el.append(pre);
+      continue;
+    }
+    const h = line.match(/^(#{1,6})\s+(.*)$/);
+    if (h) {
+      const s = document.createElement("span");
+      s.className = "md-h";
+      s.append(...inlineRich(h[2]));
+      el.append(s);
+    } else {
+      el.append(...inlineRich(line));
+    }
+    i++;
+    if (i < lines.length) el.append("\n");
+  }
+}
+
+function inlineRich(s) {
+  const out = [];
+  const re = /(`[^`]+`)|(\*\*[^*]+\*\*)|(\*[^*\s][^*]*\*)|(\[[^\]]+\]\([^)\s]+\))/g;
+  let last = 0, m;
+  while ((m = re.exec(s))) {
+    if (m.index > last) out.push(s.slice(last, m.index));
+    const tok = m[0];
+    let node;
+    if (m[1]) { node = document.createElement("code"); node.textContent = tok.slice(1, -1); }
+    else if (m[2]) { node = document.createElement("strong"); node.className = "hl"; node.textContent = tok.slice(2, -2); }
+    else if (m[3]) { node = document.createElement("em"); node.textContent = tok.slice(1, -1); }
+    else {
+      const mm = tok.match(/^\[([^\]]+)\]\(([^)\s]+)\)$/);
+      node = document.createElement("span");
+      node.className = "md-link"; node.textContent = mm[1]; node.title = mm[2];
+    }
+    out.push(node);
+    last = m.index + tok.length;
+  }
+  if (last < s.length) out.push(s.slice(last));
+  return out;
 }
 
 function fmtK(n) { return n >= 1000 ? (n / 1000).toFixed(n >= 100000 ? 0 : 1) + "k" : String(n); }
@@ -695,6 +771,21 @@ function sendPrompt() {
 }
 
 $("#send").onclick = sendPrompt;
+
+/* View preference: tool results collapsed by default (like the terminal);
+   the checkbox opens them all and persists per browser. */
+function expandTools() {
+  try { return localStorage.getItem("claudiu.expandTools") === "1"; } catch (e) { return false; }
+}
+function applyExpandTools(on) {
+  try { localStorage.setItem("claudiu.expandTools", on ? "1" : "0"); } catch (e) {}
+  for (const det of document.querySelectorAll('[data-kind="tool_call"] details')) {
+    det.open = on && $(".tool-body", det).children.length > 0;
+  }
+}
+const expandBox = $("#expand-tools");
+expandBox.checked = expandTools();
+expandBox.onchange = () => applyExpandTools(expandBox.checked);
 $("#cancel").onclick = () => active && active.send({cmd: "cancel"});
 promptEl.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendPrompt(); }

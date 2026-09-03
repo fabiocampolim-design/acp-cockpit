@@ -83,20 +83,26 @@ body {
 [data-kind="message_chunk"][data-role="thought"] .marker {
   opacity: .7; letter-spacing: .08em;
 }
-[data-kind="stderr"] {
-  color: var(--fg-dim); font-family: ui-monospace, Consolas, monospace;
-  font-size: .8em; border-left: 3px solid var(--border);
+/* adapter stderr lives in a drawer under the status strip, never inline */
+.stderr-chip {
+  border: 1px solid var(--border); border-radius: 999px; padding: 0 .6em;
+  cursor: pointer; color: var(--fg-dim);
 }
-[data-kind="stderr"] summary { cursor: pointer; }
-[data-kind="stderr"] pre { margin: .3rem 0 0; white-space: pre-wrap; }
+#stderr-drawer {
+  border-bottom: 1px solid var(--border); background: var(--bg-raised);
+  padding: .3rem .8rem; max-height: 10rem; overflow: auto; color: var(--fg-dim);
+  font-family: ui-monospace, Consolas, monospace; font-size: .75em;
+}
+#stderr-drawer pre { margin: 0; white-space: pre-wrap; }
 
 #perm-warning {
   background: var(--danger); color: var(--bg); border-radius: 6px;
   padding: .5rem .7rem; margin-bottom: .6rem; font-size: .9em;
 }
+/* standing grants: distinct (dashed, amber), not disabled-looking */
 #perm-options button[data-kind="allow_always"],
 #perm-options button[data-kind="reject_always"] {
-  border-style: dashed; color: var(--fg-dim);
+  border-style: dashed; color: var(--fg);
 }
 #perm-options button[data-kind="allow_always"] { border-color: var(--warn); }
 
@@ -111,13 +117,37 @@ body {
 [data-kind="message_chunk"][data-role="thought"] {
   color: var(--fg-dim); font-style: italic; font-size: .9em;
 }
+/* ---- visual hierarchy: steps attenuated, the answer bright ---- */
 [data-kind="tool_call"] {
   background: var(--bg-raised); border-left: 3px solid var(--accent);
   font-family: ui-monospace, Consolas, monospace; font-size: .85em;
+  color: var(--fg-dim);
 }
 [data-kind="tool_call"][data-status="completed"] { border-left-color: var(--ok); }
 [data-kind="tool_call"][data-status="failed"] { border-left-color: var(--danger); }
-[data-kind="tool_call"] .tool-head { font-weight: 600; }
+[data-kind="tool_call"] .tool-head { font-weight: 500; }
+[data-kind="tool_call"] .tool-head::before { content: "● "; color: var(--accent); }
+[data-kind="tool_call"][data-status="completed"] .tool-head::before { color: var(--ok); }
+[data-kind="tool_call"][data-status="failed"] .tool-head::before { color: var(--danger); }
+[data-kind="message_chunk"][data-role="agent"][data-interim] { color: var(--fg-dim); }
+[data-kind="message_chunk"][data-role="agent"] strong.hl { color: var(--accent); font-weight: 600; }
+[data-kind="message_chunk"][data-role="agent"] em { color: inherit; }
+[data-kind="message_chunk"][data-role="agent"] code {
+  font-family: ui-monospace, Consolas, monospace; font-size: .9em;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-radius: 3px; padding: 0 .25em;
+}
+[data-kind="message_chunk"][data-role="agent"] pre.code {
+  background: var(--bg-raised); border: 1px solid var(--border);
+  border-radius: 6px; padding: .5rem .7rem; overflow-x: auto;
+  font-size: .85em; margin: .3rem 0; white-space: pre;
+}
+.md-h { font-weight: 700; color: var(--accent); }
+.md-link { text-decoration: underline dotted; }
+[data-kind="fs_request"], [data-kind="permission_resolved"] {
+  font-family: ui-monospace, Consolas, monospace;
+}
+.view-toggle { display: inline-flex; align-items: center; gap: .3rem; margin-left: .4rem; }
 [data-kind="tool_call"] summary { cursor: pointer; color: var(--fg-dim); }
 .tool-text { white-space: pre-wrap; margin: .3rem 0; }
 .locations { color: var(--fg-dim); }
