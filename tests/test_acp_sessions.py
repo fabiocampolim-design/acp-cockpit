@@ -21,6 +21,7 @@ def test_usage_session_info_and_config_option_updates(tmp_path):
          "options": [{"value": "low", "name": "Low"},
                      {"value": "high", "name": "High"}]}]))
     usage = [e for e in sink.events if e.kind == "usage"][0]
+    assert usage.data.pop("models_used") == []   # none reported here
     assert usage.data == {"used": 59300, "size": 1000000,
                           "cost": {"amount": 0.42, "currency": "USD"}}
     info = [e for e in sink.events if e.kind == "session_info"][0]
@@ -164,3 +165,31 @@ def test_usage_without_rate_limit_meta_emits_no_rate_limit_event(tmp_path):
         "sessionId": "acp-123", "update": {
             "sessionUpdate": "usage_update", "used": 10, "size": 100}}})
     assert "rate_limit" not in sink.kinds()
+
+
+def test_the_canonical_model_id_travels_with_usage(tmp_path):
+    # `_meta.quota.model_usage` is the ONLY place the API's real model id
+    # appears; a config option carries the adapter's short value ("opus")
+    # and its label ("Opus"). Shape captured from ~/.claudiu/records.
+    session, proc, sink = make_session(tmp_path)
+    do_handshake(session, proc)
+    feed(session, update(
+        "usage_update", used=1000, size=200000,
+        _meta={"quota": {
+            "token_count": {"totalTokens": 1412931},
+            "model_usage": [
+                {"model": "claude-opus-5",
+                 "token_count": {"totalTokens": 1412931}},
+                {"model": "claude-haiku-4-5-20251001",
+                 "token_count": {"totalTokens": 900}}]}}))
+    usage = [e for e in sink.events if e.kind == "usage"][-1]
+    assert usage.data["models_used"] == ["claude-opus-5",
+                                         "claude-haiku-4-5-20251001"]
+
+
+def test_a_usage_update_without_a_quota_meta_reports_no_models(tmp_path):
+    session, proc, sink = make_session(tmp_path)
+    do_handshake(session, proc)
+    feed(session, update("usage_update", used=1, size=2,
+                         _meta={"quota": {"token_count": {}}}))
+    assert [e for e in sink.events if e.kind == "usage"][-1]         .data["models_used"] == []

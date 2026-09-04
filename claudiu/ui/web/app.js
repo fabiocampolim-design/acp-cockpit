@@ -128,20 +128,28 @@ async function browseTo(path) {
   list.scrollTop = 0;
 }
 
+/* The picker fills whichever box asked for it (the launcher's project
+   directory, the archive destination). */
+let pickTarget = null;
+
+function browseInto(input) {
+  pickTarget = input;
+  $("#dirpick").showModal();
+  browseTo(input.value.trim());
+}
+
 function initPicker() {
   const dlg = $("#dirpick");
-  $("#browse").onclick = () => {
-    dlg.showModal();
-    browseTo($("#cwd").value.trim());
-  };
+  $("#browse").onclick = () => browseInto($("#cwd"));
   $("#dirpick-up").onclick = () => {
     if (dlg.dataset.parent) browseTo(dlg.dataset.parent);
   };
   $("#dirpick-cancel").onclick = () => dlg.close();
   $("#dirpick-use").onclick = () => {
-    if (dlg.dataset.path) $("#cwd").value = dlg.dataset.path;
+    const target = pickTarget || $("#cwd");
+    if (dlg.dataset.path) target.value = dlg.dataset.path;
     dlg.close();
-    $("#cwd").focus();
+    target.focus();
   };
 }
 
@@ -239,6 +247,7 @@ function activate(S) {
 
 function closeSession(S) {
   S.closing = true;                    // a pending retry must not revive it
+  if (active === S) closeArchive();
   fetch(`/api/sessions/${S.sid}`, {method: "DELETE"}).catch(() => {});
   if (S.ws) { S.ws.onclose = null; S.ws.close(); }
   S.pane.remove();
@@ -269,6 +278,7 @@ class Session {
     this.mode = {current: null, available: []};
     this.model = {current: null, available: []};
     this.config = []; this.plan = []; this.usage = null; this.commands = [];
+    this.modelsUsed = [];         // canonical ids the API has reported
     // Chips count what happened and KEEP it: clicking one opens the
     // drawer, it never throws the entries away (that is what "surfaced,
     // never dropped" means — 2026-09-04, Fabio: "it seems to go away").
@@ -286,6 +296,10 @@ class Session {
     this.pane.className = "pane";
     this.pane.dataset.session = sid;
     $("#conversation").append(this.pane);
+    // Every other way the content can get taller — a tool result opening,
+    // the working line rewrapping, a diff arriving — without a row being
+    // appended. The observer is the belt to appendRow's braces.
+    paneGrowth.observe(this.pane);
     this.tab = document.createElement("button");
     this.tab.className = "tab";
     this.tab.onclick = () => activate(this);
@@ -377,9 +391,21 @@ class Session {
     // agent offers mode/model that way; fall back to the legacy fields.
     const modeCfg = this.configCurrent("mode"), modelCfg = this.configCurrent("model");
     $("#status .mode").textContent = modeCfg ? modeCfg.name : (this.mode.current || "");
+    // The API's own id for what is running (`claude-opus-5`), not the
+    // adapter's short label — it is the thing to quote in a bug report.
+    // It arrives in the usage meta's per-model tally; until the first
+    // reading, the selector's name is all there is (Fabio, 2026-09-04).
     const modelEl = $("#status .model");
-    modelEl.textContent = modelCfg ? modelCfg.name : (this.model.current || "");
-    modelEl.title = modelCfg && modelCfg.value !== modelCfg.name ? String(modelCfg.value) : "";
+    const chosen = modelCfg ? modelCfg.value : this.model.current;
+    const canonical = this.canonicalModel(chosen);
+    const label = modelCfg ? modelCfg.name : (this.model.current || "");
+    modelEl.textContent = canonical || label;
+    modelEl.dataset.canonical = canonical ? "1" : "";
+    modelEl.title = [label && `selected: ${label}`,
+                     chosen && `option value: ${chosen}`,
+                     canonical ? `model id reported by the API: ${canonical}`
+                       : "the API has not reported a model id yet"]
+      .filter(Boolean).join("\n");
     const u = this.usage;
     const usageEl = $("#status .usage");
     if (u && u.size) {
@@ -412,6 +438,21 @@ class Session {
     const d = $("#stderr-drawer");
     d.hidden = !this.stderrOpen || this.stderr.length === 0;
     $("pre", d).textContent = this.stderr.join("\n");
+  }
+
+  /* The API's id for the model behind a choice. `models_used` is the
+     per-model tally the agent sends with usage; the option value ("opus")
+     is a prefix of, or contained in, the real id ("claude-opus-5"). No
+     match, no guess: the caller falls back to the label. */
+  canonicalModel(chosen) {
+    if (!this.modelsUsed || !this.modelsUsed.length) return null;
+    if (chosen) {
+      const key = String(chosen).replace(/\[.*$/, "").toLowerCase();
+      const hit = this.modelsUsed.find(m => m.toLowerCase().includes(key)) ||
+        this.modelsUsed.find(m => key.includes(m.toLowerCase()));
+      if (hit) return hit;
+    }
+    return this.modelsUsed[this.modelsUsed.length - 1];
   }
 
   /* Current value of a config option, with its display name. */
@@ -503,6 +544,10 @@ class Session {
       // until the turn ended (audit 2026-09-04).
       if (rich) growRich(node, $(".text", node));
       else $(".text", node).append(text);
+      // The row GREW; no row was added. Following only on append is why a
+      // long streamed answer scrolled off the bottom as it arrived
+      // (Fabio, 2026-09-04).
+      if (this.isActive) scrollIfFollowing();
       return node;
     }
     const div = document.createElement("div");
@@ -585,7 +630,11 @@ class Session {
         this.model.current = d.current || this.model.current;
         this.renderStatus(); this.renderControls(); break;
       case "config_option": this.config = d.options; this.renderControls(); break;
-      case "usage": this.usage = d; this.renderStatus(); break;
+      case "usage":
+        this.usage = d;
+        if (d.models_used && d.models_used.length)
+          this.modelsUsed = d.models_used;
+        this.renderStatus(); break;
       case "rate_limit": recordRateLimit(d); break;
       case "session_info":
         if (d.title !== undefined) this.title = d.title;
@@ -949,6 +998,7 @@ function showWorking(S, on) {
       (la ? ` · last activity ${ago}s ago (${la.text})` : " · waiting for first event") +
       " — Stop cancels the turn";
     w.classList.toggle("stale", ago !== null && ago > 60);
+    scrollIfFollowing();      // the line rewraps as the text grows
   };
   render();
   if (workingTimer) clearInterval(workingTimer);
@@ -1073,6 +1123,11 @@ function renderAccount() {
    you back in the stream. */
 
 const FOLLOW_SLACK = 40;          // px from the bottom that still counts
+
+/* The conversation always ends with something live — the working line, its
+   timer rewriting itself every second — so "the last message" is only ever
+   visible if the view follows the pane's HEIGHT, not just its row count. */
+const paneGrowth = new ResizeObserver(() => scrollIfFollowing());
 
 function atBottom() {
   const el = $("#conversation");
@@ -1433,23 +1488,99 @@ $("#cancel").onclick = () => active && active.send({cmd: "cancel"});
 
 /* Archiving is the session publisher's job, not ours: the server runs the
    installed tool and we report exactly what it said. */
-$("#archive").onclick = async () => {
+/* ---------------- archiving ----------------
+
+   A side panel, not a banner: where to save, which formats, what happened.
+   The server says which formats it can actually write — all of them with
+   claude-session-publisher installed, plain Markdown without it — so the
+   panel never offers a choice that would fail. */
+
+const ARCHIVE_DEST_KEY = "claudiu.archiveDest";
+
+function archivePanel() { return $("#archive-panel"); }
+
+function closeArchive() {
+  archivePanel().hidden = true;
+  $("#archive-note").hidden = true;
+}
+
+async function openArchive() {
+  if (!active) return;
+  const panel = archivePanel();
+  const note = $("#archive-note");
+  note.hidden = true;
+  note.className = "";
+  panel.hidden = false;
+  const dest = $("#archive-dest");
+  const warn = $("#archive-warning");
+  const box = $("#archive-formats");
+  box.replaceChildren(li("asking the server what it can write…"));
+  let caps;
+  try {
+    caps = await api(`/api/sessions/${active.sid}/archive`);
+  } catch (e) {
+    warn.hidden = false;
+    warn.textContent = e.message;
+    box.replaceChildren();
+    return;
+  }
+  warn.hidden = !caps.warning;
+  if (caps.warning) warn.textContent = caps.warning;
+  let remembered = null;
+  try { remembered = localStorage.getItem(ARCHIVE_DEST_KEY); } catch (e) {}
+  if (!dest.value) dest.value = remembered || caps.default_dest || "";
+  box.replaceChildren(...caps.formats.map(f => {
+    const label = document.createElement("label");
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.value = f;
+    cb.checked = (caps.default_formats || []).includes(f);
+    label.append(cb, document.createTextNode(f));
+    return label;
+  }));
+}
+
+async function runArchive() {
   if (!active) return;
   const note = $("#archive-note");
+  const dest = $("#archive-dest").value.trim();
+  const formats = [...document.querySelectorAll("#archive-formats input:checked")]
+    .map(cb => cb.value);
+  if (!formats.length) {
+    note.hidden = false;
+    note.className = "error";
+    note.textContent = "pick at least one format";
+    return;
+  }
+  try { localStorage.setItem(ARCHIVE_DEST_KEY, dest); } catch (e) {}
   note.hidden = false;
   note.className = "";
-  note.textContent = "archiving…";
+  note.textContent = "saving…";
+  const S = active;
   try {
-    const r = await api(`/api/sessions/${active.sid}/archive`,
-                        {method: "POST", body: "{}"});
-    note.textContent = r.output && r.output.length
-      ? "archived:\n" + r.output.join("\n")
+    const r = await api(`/api/sessions/${S.sid}/archive`, {
+      method: "POST",
+      body: JSON.stringify({dest, formats}),
+    });
+    const where = (r.output || []).join("\n");
+    note.textContent = where
+      ? (r.fallback ? "saved (simple Markdown):\n" : "saved:\n") + where
       : "the archiver reported no output";
+    // and a line in the conversation's harness lane, so the record of what
+    // you did is where the rest of the session's history is
+    if (where) S.note(`archived to ${(r.output || []).join(", ")}`);
   } catch (e) {
     note.className = "error";
     note.textContent = e.message;
   }
+}
+
+$("#archive").onclick = () => {
+  if (archivePanel().hidden) openArchive(); else closeArchive();
 };
+$("#archive-close").onclick = closeArchive;
+$("#archive-run").onclick = runArchive;
+$("#archive-browse").onclick = () => browseInto($("#archive-dest"));
 promptEl.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendPrompt(); }
 });
@@ -1545,9 +1676,10 @@ function storedTheme() {
 }
 
 const HELP = [
-  ["The five lanes", "Switches in the status strip: thinking, tools, " +
-   "subagents, events, harness. Switching one off removes those rows from " +
-   "the page entirely; your prompts and the agent's answers are never hidden."],
+  ["The five lanes", "Switches in the panel under the prompt, with the " +
+   "other session controls: thinking, tools, subagents, events, harness. " +
+   "Switching one off removes those rows from the page entirely; your " +
+   "prompts and the agent's answers are never hidden."],
   ["Thinking", "What the agent is ASKED to think is chosen per session in " +
    "the launcher (summarized / omitted / off) — ACP fixes it when the " +
    "session starts. The lane switch only decides whether you see it."],
@@ -1562,8 +1694,16 @@ const HELP = [
   ["Approvals and questions", "The agent's permission requests and its own " +
    "multiple-choice questions arrive as dialogs; digits 1-9 answer an " +
    "approval, “Other” answers a question in your own words."],
-  ["Archive", "Hands the conversation to claude-session-publisher, which " +
-   "writes it into your usual archive directory."],
+  ["Archive", "Opens a panel beside the conversation: where to save, and " +
+   "which formats. With claude-session-publisher installed you get its " +
+   "full document (HTML, Markdown, text, LaTeX, PDF, fidelity report); " +
+   "without it ClaudIU writes a plain Markdown transcript from the session " +
+   "record and says so. Nothing covers the conversation, and the panel " +
+   "closes."],
+  ["The model in the strip", "The API's own id for what is running — " +
+   "`claude-opus-5`, not `Opus` — as soon as the agent reports one, because " +
+   "that is the string worth quoting in a bug report. The selector's label " +
+   "and the option value are in the tooltip."],
   ["Keyboard — every shortcut there is",
    "Esc stops the agent mid-turn (and closes the command list first, if it " +
    "is open) · Enter sends · Shift+Enter starts a new line · “/” in an " +

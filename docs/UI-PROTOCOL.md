@@ -81,14 +81,27 @@ with `"dirs": []` and `error` set when `path` is not a directory or cannot
 be listed. Exposure equals what the token already grants (a session may be
 started in any directory); the route is gated like every other.
 
-### `POST /api/sessions/<sid>/archive` — body `{"format": "html,markdown"}`
+### `GET /api/sessions/<sid>/archive`
 
-Hands the session's agent-session id to the archiver
-(claude-session-publisher's `transcript_archiver.py`, named by the server's
-`--archiver` / `CLAUDIU_ARCHIVER`; the tool is never vendored in). Answers
-`{"ok": true, "output": ["<file>", ...], "detail": "<tail of its output>"}`,
-**501** when no archiver is configured, **409** before the session has an
-agent session, **502** with `detail` when the archiver itself fails.
+What this server can actually write, so a View never offers a choice that
+would fail: `{"publisher": bool, "formats": [...], "default_formats": [...],
+"default_dest": "<path>", "agent_session": "<id>|null", "warning": null or a
+sentence saying the full publisher is not configured}`. With
+claude-session-publisher: html, markdown, text, latex, pdf. Without it:
+markdown, written by ClaudIU itself.
+
+### `POST /api/sessions/<sid>/archive` — body `{"formats": ["html", "markdown"], "dest": "<directory>"}`
+
+Writes the conversation. With the publisher configured it hands the
+session's agent-session id to `transcript_archiver.py` (named by the
+server's `--archiver` / `CLAUDIU_ARCHIVER`; the tool is never vendored in)
+and passes `--archive-dir`. **Without it the server writes a plain Markdown
+transcript from the session's own record** and marks the answer
+`"fallback": true` with a `warning` — refusing to save anything because
+an optional tool is missing is not an acceptable answer. Both answer
+`{"ok": true, "output": ["<file>", ...]}`; **400** for a format this server
+cannot write, **409** before the session has an agent session, **502** when
+the writer itself fails.
 
 ### `GET /api/drift`
 ```json
@@ -165,7 +178,7 @@ Every server → client message is one event:
 | `mode` | `current`, `available` (list of `{id, name}`) | Mode selector. |
 | `model` | `current`, `available` (list of `{modelId, name, description}`) | Model selector (from `session/new`'s `models`; empty `available` = current changed only). |
 | `stderr` | `line` | Adapter stderr: count it in a chip, show it in a drawer on demand — out of the conversation flow, never dropped (the engine records it). |
-| `usage` | `used`, `size` (tokens), `cost` (`{amount, currency}` or null) | Context gauge in the status strip. |
+| `usage` | `used`, `size` (tokens), `cost` (`{amount, currency}` or null), `models_used` (the canonical model ids the agent has billed this session to, e.g. `["claude-opus-5"]`, from its own per-model tally; empty until it reports one) | Context gauge in the status strip. `models_used` is the only place the API's real model id appears — a config option carries the adapter's short value and label — so show it where a reader would quote it. |
 | `rate_limit` | the agent's ACCOUNT rate-limit state, passed through whole. Claude reports the windows in `unifiedWindows` — a map of window name (`five_hour`, `seven_day`, `seven_day_overage_included`, ...) to `{utilization, resetsAt}` — and keeps `status`, `rateLimitType`, `resetsAt` and the overage/credits fields at the top level; a simpler payload has a single window as top-level `rateLimitType` + `utilization`. **`utilization` is a fraction (0.55 = 55 %).** | Account-wide, not session state: show the latest state of EVERY window reported, somewhere permanent (ClaudIU: top right, one chip each). Never invent a window that was not reported, and do not read only the top level — the usual payload carries no `utilization` there at all. |
 | `session_info` | `title`, `updatedAt` (either may be null) | Session/tab title set by the agent. |
 | `config_option` | `options` — the FULL current set of `SessionConfigOption` (`id`, `name`, `type` `select`/`boolean`, `currentValue`, `options` for selects) | Generic selectors; changing one sends `set_config_option`. |

@@ -285,9 +285,18 @@ class AcpSession:
             self._emit("mode", {"current": update.get("currentModeId"),
                                 "available": []}, ref)
         elif kind == "usage_update":
+            # `_meta.quota.model_usage` is the agent's own per-model tally,
+            # and the only place the API's canonical model id
+            # (`claude-opus-5`) appears at all — the config option carries
+            # the adapter's short value ("opus") and its label ("Opus").
+            meta = update.get("_meta") or {}
+            quota = meta.get("quota") or {}
+            models = [m.get("model") for m in (quota.get("model_usage") or [])
+                      if isinstance(m, dict) and m.get("model")]
             self._emit("usage", {"used": update.get("used"),
                                  "size": update.get("size"),
-                                 "cost": update.get("cost")}, ref)
+                                 "cost": update.get("cost"),
+                                 "models_used": models}, ref)
             # The account's rate-limit state rides on usage updates
             # (`_meta._claude/rateLimit`). It is account-wide, not session
             # state, so it travels as its own event, passed through whole.
