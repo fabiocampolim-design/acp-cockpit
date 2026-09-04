@@ -26,6 +26,10 @@ class AgentProfile:
     permission_mode_followups: list = field(default_factory=list)
     caveats: list = field(default_factory=list)
     extensions: list = field(default_factory=list)
+    # Agent-specific session options handed to the agent verbatim (the Claude
+    # adapter merges them into its SDK call via `_meta.claudeCode.options`).
+    # Passthrough: the engine validates the shape, never the contents.
+    client_options: dict = field(default_factory=dict)
 
 
 _REQUIRED = ("id", "name", "command", "install_hint", "env_scrub")
@@ -56,6 +60,9 @@ def load_profile(path: Path) -> AgentProfile:
             and isinstance(f.get("mode"), str) for f in followups):
         raise ProfileError(f"{path}: 'permission_mode_followups' must be a "
                            "list of {option_id, mode} tables")
+    client_options = raw.get("client_options", {})
+    if not isinstance(client_options, dict):
+        raise ProfileError(f"{path}: 'client_options' must be a table")
     return AgentProfile(
         id=raw["id"], name=raw["name"], command=list(raw["command"]),
         install_hint=raw["install_hint"], env_scrub=list(raw["env_scrub"]),
@@ -65,6 +72,7 @@ def load_profile(path: Path) -> AgentProfile:
         permission_mode_followups=[dict(f) for f in followups],
         caveats=list(raw.get("caveats", [])),
         extensions=list(raw.get("extensions", [])),
+        client_options=dict(client_options),
     )
 
 

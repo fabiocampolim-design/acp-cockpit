@@ -83,6 +83,15 @@ class AcpSession:
         self._emit("anomaly", {"category": category, "detail": str(detail)},
                    self._last_raw_ref)
 
+    def _session_meta(self) -> dict:
+        """`_meta` for a session-creating request: the profile's
+        `client_options` under the key the agent reads them from. Empty when
+        the profile asks for nothing, so the frame stays minimal."""
+        options = getattr(self.profile, "client_options", None) or {}
+        if not options:
+            return {}
+        return {"_meta": {"claudeCode": {"options": dict(options)}}}
+
     # ---- lifecycle ------------------------------------------------------
     def start(self, cwd: str) -> None:
         self._cwd = cwd
@@ -103,7 +112,8 @@ class AcpSession:
             return self._fail("protocol version mismatch")
         self.agent_capabilities = result.get("agentCapabilities") or {}
         self._conn.request("session/new",
-                           {"cwd": self._cwd, "mcpServers": []},
+                           {"cwd": self._cwd, "mcpServers": [],
+                            **self._session_meta()},
                            self._on_session_new)
         self._flush()
 
@@ -449,7 +459,7 @@ class AcpSession:
             self._set_state("ready")
         self._conn.request(method, {
             "sessionId": self._load_target, "cwd": self._cwd,
-            "mcpServers": []}, done)
+            "mcpServers": [], **self._session_meta()}, done)
         self._flush()
 
     def probe_sessions(self, cwd: str, on_result) -> None:

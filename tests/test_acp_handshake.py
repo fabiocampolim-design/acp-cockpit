@@ -118,3 +118,34 @@ def test_everything_is_recorded_raw(tmp_path):
     outs = [e["frame"]["method"] for e in entries
             if e["dir"] == "out" and "method" in e["frame"]]
     assert outs[:2] == ["initialize", "session/new"]
+
+
+MINIMAL_PROFILE = ('id = "bare"\nname = "Bare"\ncommand = ["bare"]\n'
+                   'install_hint = "get bare"\nenv_scrub = []\n')
+
+
+def test_session_new_carries_the_profile_client_options(tmp_path):
+    # claude-agent-acp merges `_meta.claudeCode.options` into the SDK call,
+    # which is the only way to ask for summarized thinking over ACP.
+    session, proc, sink = make_session(tmp_path)
+    session.start(cwd="C:\\work\\proj")
+    init = sent_frames(proc)[0]
+    feed(session, {"jsonrpc": "2.0", "id": init["id"],
+                   "result": {"protocolVersion": 1, "agentCapabilities": {}}})
+    new = sent_frames(proc)[1]
+    assert new["params"]["_meta"]["claudeCode"]["options"]["thinking"] == \
+        {"type": "adaptive", "display": "summarized"}
+
+
+def test_session_new_omits_meta_without_client_options(tmp_path):
+    from pathlib import Path
+    from claudiu.core.profiles import load_profile
+    bare = tmp_path / "bare.toml"
+    bare.write_text(MINIMAL_PROFILE, encoding="utf-8")
+    session, proc, sink = make_session(tmp_path,
+                                       profile=load_profile(Path(bare)))
+    session.start(cwd="C:\\work\\proj")
+    init = sent_frames(proc)[0]
+    feed(session, {"jsonrpc": "2.0", "id": init["id"],
+                   "result": {"protocolVersion": 1, "agentCapabilities": {}}})
+    assert "_meta" not in sent_frames(proc)[1]["params"]

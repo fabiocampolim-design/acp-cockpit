@@ -23,6 +23,7 @@ file here, never touching `core/`.
 | `permission_mode_followups` | array of tables `{option_id, mode}` | After the user answers a permission request with `option_id`, the engine issues `session/set_mode` with `mode`. For agents that change their own mode on an approval without sending a mode update (Claude after `ExitPlanMode`). Default `[]`. |
 | `caveats` | array of tables | Known limitations, each `{id, text}`; shown in the launcher and available over `GET /api/profiles`. |
 | `extensions` | list of strings | Vendor `_meta` extension names the agent is known to use; surfaced in the record, never interpreted by the engine. Default `[]`. |
+| `client_options` | table | Agent-specific session options sent verbatim with `session/new`, `session/load` and `session/resume` as `_meta.claudeCode.options` — the extension point the Claude adapter merges into its Agent SDK call. The engine validates that it is a table and never inspects the contents; an empty table sends no `_meta` at all. Default `{}`. Example: `[client_options.thinking] type = "adaptive", display = "summarized"` asks for thinking summaries, without which thought chunks arrive empty. |
 
 ## Example
 
@@ -36,6 +37,10 @@ env_scrub = ["CLAUDECODE", "CLAUDE_CODE_*"]
 
 [env_resolve]
 CLAUDE_CODE_EXECUTABLE = "claude"   # scrubbed above, resolved here
+
+[client_options.thinking]           # rides along on session creation
+type = "adaptive"
+display = "summarized"
 
 [[caveats]]
 id = "model-picker"

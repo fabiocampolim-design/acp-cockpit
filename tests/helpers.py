@@ -42,10 +42,12 @@ class FakeFiles:
 
 
 def make_session(tmp_path, **kw):
+    """`profile=` overrides the Claude profile — the engine's agent-specific
+    behaviour is profile data, so tests must be able to vary it."""
     proc, sink = FakeProc(), SinkList()
     session = AcpSession(
         sid="s1",
-        profile=load_profile(Path("agents/claude.toml")),
+        profile=kw.pop("profile", load_profile(Path("agents/claude.toml"))),
         proc=proc, sink=sink,
         recorder=Recorder(tmp_path / "s1.jsonl"),
         sentinel=Sentinel.load_default(),

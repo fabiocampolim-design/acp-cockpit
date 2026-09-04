@@ -42,3 +42,14 @@ def test_readme_check_count_is_current():
     assert int(m.group(1)) == collected - 1, (
         f"README says {m.group(1)} checks; suite collects {collected} "
         f"(minus 1 opt-in contract test) — update README")
+
+
+def test_profile_schema_documents_every_field():
+    # A profile knob nobody documented is a knob nobody can use: the schema
+    # doc is the contract for adding an agent without touching core/.
+    import dataclasses
+    from claudiu.core.profiles import AgentProfile
+    schema = Path("agents/PROFILE-SCHEMA.md").read_text(encoding="utf-8")
+    for f in dataclasses.fields(AgentProfile):
+        assert f"`{f.name}`" in schema, \
+            f"profile field {f.name} missing from agents/PROFILE-SCHEMA.md"

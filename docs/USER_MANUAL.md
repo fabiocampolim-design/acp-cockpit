@@ -61,7 +61,9 @@ pane starts empty).
 ## The conversation
 
 - **Agent text** streams as it is produced; *thinking* appears dimmed and
-  italic; your prompts are boxed.
+  italic; your prompts are boxed. Thinking is the model's own summary of
+  its reasoning — the API offers summaries or nothing for recent models —
+  and a turn with only a `· thinking ·` marker had no summary to send.
 - **Tool calls** are one row per call, updated in place as the agent
   reports progress (pending → in progress → completed/failed, colour-coded
   edge). Edits arrive as real diffs (+/− lines); text output and file

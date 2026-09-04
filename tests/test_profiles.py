@@ -71,3 +71,37 @@ def test_permission_mode_followups_are_validated(tmp_path):
     with pytest.raises(ProfileError):
         load_profile(f)
 
+
+
+def test_claude_profile_asks_for_summarized_thinking():
+    # The API offers "summarized" or "omitted" for recent models, never raw
+    # thinking text. The adapter merges `client_options` into the SDK call
+    # (`_meta.claudeCode.options`), so the profile is where the ask lives.
+    p = load_profile(Path("agents/claude.toml"))
+    assert p.client_options["thinking"] == {"type": "adaptive",
+                                            "display": "summarized"}
+
+
+def test_client_options_default_to_nothing(tmp_path):
+    f = tmp_path / "a.toml"
+    f.write_text(MINIMAL, encoding="utf-8")
+    assert load_profile(f).client_options == {}
+
+
+def test_client_options_must_be_a_table(tmp_path):
+    # Passthrough, so the contents are the agent's business — but the shape
+    # is ours: a list would produce an `_meta` the agent cannot read.
+    f = tmp_path / "a.toml"
+    f.write_text(MINIMAL + 'client_options = ["thinking"]\n', encoding="utf-8")
+    with pytest.raises(ProfileError):
+        load_profile(f)
+
+
+def test_thinking_caveat_describes_summaries_not_redaction():
+    # The client now asks for summarized thinking; the old caveat promised
+    # empty markers, which would be a lie in the launcher.
+    p = load_profile(Path("agents/claude.toml"))
+    ids = [c["id"] for c in p.caveats]
+    assert "thinking-redacted" not in ids
+    text = next(c["text"] for c in p.caveats if c["id"] == "thinking-summary")
+    assert "summar" in text.lower()

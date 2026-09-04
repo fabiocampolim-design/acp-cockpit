@@ -68,9 +68,13 @@ misread.**
   init/compacting/compact boundary (hooks, tasks, persisted files — its
   issue #1030). CLAUDIU cannot show what never reaches it; the options are
   upstream requests or a patched fork of the adapter (Apache-2.0).
-- **Thinking text.** Thoughts arrived as empty (redacted) chunks with the
-  older adapter; the View shows that thinking happened. Whether the newer
-  adapter forwards text is still to be observed.
+- **Thinking text — answered (2026-09-04).** The empty chunks were not
+  redaction by the adapter: recent models return *summarized* thinking or
+  none, and the summaries are only produced when the SDK is asked for them.
+  The profile now asks (`client_options.thinking`, forwarded as
+  `_meta.claudeCode.options` on session creation), so thoughts arrive as
+  the model's own summary. Raw thinking text is not on offer from the API
+  for these models and no client can show it.
 - **Publication.** Name and collision check, first CI run on Linux/macOS
   (the README check-count test assumes Playwright is installed), and a
   release cadence are the author's calls.

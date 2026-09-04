@@ -18,6 +18,14 @@ extensions = ["_claude/rateLimit", "_claude/origin", "claudeCode.promptQueueing"
 
 [env_set]
 
+# Session options the adapter merges into its Agent SDK call
+# (`_meta.claudeCode.options`, claude-agent-acp 0.73). Recent models never
+# return raw thinking text over the API - "summarized" is the most the
+# client can be given, and without this the thought chunks arrive empty.
+[client_options.thinking]
+type = "adaptive"
+display = "summarized"
+
 # The adapter ships its own copy of the Claude CLI inside the Agent SDK it pins
 # (2.1.44 in the deprecated 0.16.2; 2.1.257 in 0.73.0) and the API refuses old
 # CLIs for new models ("version 2.1.251 or
@@ -47,8 +55,8 @@ id = "shell-escapes-boundary"
 text = "The project-directory boundary is enforced only for file access routed through this client. Shell commands run by the agent itself are not confined; the approval dialog flags out-of-boundary paths and your answer is the only control. 'Always Allow' is a standing grant for the whole session."
 
 [[caveats]]
-id = "thinking-redacted"
-text = "Thinking may arrive as empty markers (content redacted by the adapter, observed with claude-code-acp 0.16); the view then shows that thinking happened, not its text."
+id = "thinking-summary"
+text = "Thinking arrives as the model's own summary of its reasoning, not the raw text: the API returns summarized thinking or nothing at all for recent models. This client asks for the summaries (client_options.thinking); a turn that shows only a thinking marker had none to send."
 
 [[caveats]]
 id = "slash-commands-on-stderr"

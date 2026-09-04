@@ -108,3 +108,31 @@ def test_load_fails_closed_when_neither_method_is_offered(tmp_path):
         "protocolVersion": 1, "agentCapabilities": {}}})
     assert session.state == "failed" and proc.killed
 
+
+
+def test_session_load_carries_the_profile_client_options(tmp_path):
+    # The adapter forwards `_meta` from session/load and session/resume into
+    # the same createSession path as session/new: a resumed session must
+    # think out loud exactly like a fresh one.
+    session, proc, sink = make_session(tmp_path)
+    session.load("acp-old", cwd="C:\\work\\proj")
+    init = sent_frames(proc)[0]
+    feed(session, {"jsonrpc": "2.0", "id": init["id"], "result": {
+        "protocolVersion": 1, "agentCapabilities": {"loadSession": True}}})
+    load = sent_frames(proc)[1]
+    assert load["method"] == "session/load"
+    assert load["params"]["_meta"]["claudeCode"]["options"]["thinking"] == \
+        {"type": "adaptive", "display": "summarized"}
+
+
+def test_session_resume_carries_the_profile_client_options(tmp_path):
+    session, proc, sink = make_session(tmp_path)
+    session.load("acp-old", cwd="C:\\work\\proj")
+    init = sent_frames(proc)[0]
+    feed(session, {"jsonrpc": "2.0", "id": init["id"], "result": {
+        "protocolVersion": 1,
+        "agentCapabilities": {"sessionCapabilities": {"resume": {}}}}})
+    resume = sent_frames(proc)[1]
+    assert resume["method"] == "session/resume"
+    assert resume["params"]["_meta"]["claudeCode"]["options"]["thinking"] == \
+        {"type": "adaptive", "display": "summarized"}

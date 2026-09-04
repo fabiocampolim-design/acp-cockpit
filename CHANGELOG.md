@@ -2,6 +2,21 @@
 
 All notable changes to CLAUDIU are documented in this file.
 
+## Unreleased - thinking summaries (2026-09-04)
+
+- **Thinking arrives with text.** The empty thought chunks were never
+  adapter redaction: recent models return *summarized* thinking, and only
+  when the Agent SDK is asked for it. New profile field `client_options`
+  is sent verbatim with `session/new`, `session/load` and `session/resume`
+  as `_meta.claudeCode.options` - the extension point the Claude adapter
+  merges into its SDK call - and `agents/claude.toml` now asks for
+  `thinking = {type = "adaptive", display = "summarized"}`. The engine
+  validates the shape and nothing else; a profile that asks for nothing
+  sends no `_meta`. The launcher caveat says what thinking now is (a
+  summary, never the raw text, which the API does not offer for these
+  models). Profile, engine and docs-guard tests; new guard: every
+  `AgentProfile` field must appear in `agents/PROFILE-SCHEMA.md`.
+
 ## Unreleased — launcher fixes (2026-09-03)
 
 - **Tab bar squashed to a sliver.** The body is a 100vh flex column and
