@@ -2,7 +2,12 @@
 
 All notable changes to CLAUDIU are documented in this file.
 
-## Unreleased - the agent can ask questions (2026-09-04)
+## 0.3.0 - 2026-09-04 - thinking, questions, and a client that fits daily use
+
+Everything below shipped between 0.2.0 (2026-08-31) and this release,
+during two weeks of daily use against claude-agent-acp 0.73.
+
+### the agent can ask questions (2026-09-04)
 
 - **AskUserQuestion works over ACP.** The adapter disables that tool
   unless the client advertises `elicitation.form`; CLAUDIU now does, and
@@ -18,7 +23,7 @@ All notable changes to CLAUDIU are documented in this file.
   cancel: the agent continues without an answer). Engine, server,
   protocol-doc and end-to-end tests.
 
-## Unreleased - thinking summaries (2026-09-04)
+### thinking summaries (2026-09-04)
 
 - **Thinking arrives with text.** The empty thought chunks were never
   adapter redaction: recent models return *summarized* thinking, and only
@@ -33,7 +38,7 @@ All notable changes to CLAUDIU are documented in this file.
   models). Profile, engine and docs-guard tests; new guard: every
   `AgentProfile` field must appear in `agents/PROFILE-SCHEMA.md`.
 
-## Unreleased — launcher fixes (2026-09-03)
+### launcher fixes (2026-09-03)
 
 - **Tab bar squashed to a sliver.** The body is a 100vh flex column and
   the tab bar could shrink; once the launcher's caveat list outgrew a
@@ -51,7 +56,7 @@ All notable changes to CLAUDIU are documented in this file.
   directory a session was started in (`localStorage`). Server, security,
   end-to-end and protocol-doc tests.
 
-## Unreleased — daily-use assessment (2026-09-01 23:00)
+### daily-use assessment (2026-09-01 23:00)
 
 - **Plan-mode exit re-asserts the mode.** Approving a plan makes the CLI
   leave plan mode, but the adapter sends no `current_mode_update`, so the
@@ -67,7 +72,7 @@ All notable changes to CLAUDIU are documented in this file.
   end to end, MCP servers present (same set as the terminal), resume with
   history, approvals with the agent's own options.
 
-## Unreleased — live-test round 5 (2026-09-01 late)
+### live-test round 5 (2026-09-01 late)
 
 - **Resume now replays the conversation.** The engine preferred
   `session/resume`, which the spec defines as attaching *without* the
@@ -82,7 +87,7 @@ All notable changes to CLAUDIU are documented in this file.
   operation on closed file` in the server log).
 - Toolbar: more horizontal space between the selectors and the buttons.
 
-## Unreleased — live-test round 4 (2026-09-01 evening)
+### live-test round 4 (2026-09-01 evening)
 
 - **Resume from the launcher failed with a bare `400`.** Cause: an empty
   directory field — the listing endpoint accepted it (`Path("")` is the
@@ -106,7 +111,7 @@ All notable changes to CLAUDIU are documented in this file.
 - **`--token-file`** keeps the auth token across launches; with `--port`
   the URL is stable and bookmarkable.
 
-## Unreleased — post-outage resume (2026-09-01)
+### post-outage resume (2026-09-01)
 
 - **The adapter's bundled Claude CLI was refused by the API.** After the
   default model moved to a newer family, every prompt failed with
@@ -147,7 +152,7 @@ All notable changes to CLAUDIU are documented in this file.
   suggestions do not cross ACP yet (the adapter neither enables the SDK's
   `promptSuggestions` option nor forwards `prompt_suggestion`).
 
-## Unreleased — first live-test feedback (2026-08-31 20:41)
+### first live-test feedback (2026-08-31 20:41)
 
 Every item traced to its recorded frames before fixing:
 - `[hidden]` was overridden by author `display:` rules — the command

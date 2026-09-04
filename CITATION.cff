@@ -1,22 +1,25 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 type: software
-title: "CLAUDIU (working codename): tabbed browser interface for Claude Code sessions"
-version: "0.1.0"
-date-released: 2026-08-30
+title: "CLAUDIU (working codename): a browser client for coding agents over the Agent Client Protocol"
+version: "0.3.0"
+date-released: 2026-09-04
 license: Apache-2.0
 authors:
   - family-names: Campolim
     given-names: Fabio
 abstract: >
-  A local, browser-based tabbed interface for running several Claude Code
-  CLI sessions at once. A small Python server spawns real `claude`
-  processes in pseudo-terminals and streams them into browser tabs via
-  xterm.js, adding tabs, an eye-friendly theme, adjustable fonts, prompt
-  snippets, and a project launcher on top of full terminal fidelity.
+  A local, browser-based client for coding agents that speak the Agent
+  Client Protocol (ACP). A small Python server spawns the agent's ACP
+  adapter as a subprocess and renders the structured conversation -
+  messages, thinking summaries, tool calls with diffs, plans - in tabbed
+  browser sessions. Everything agent-specific is data in a profile, file
+  access is confined to the project directory, approvals and the agent's
+  own questions are explicit dialogs, and every protocol frame is
+  recorded: what the protocol carries is shown, never silently dropped.
 keywords:
+  - agent-client-protocol
   - claude-code
-  - terminal
-  - xterm.js
+  - coding-agents
   - tornado
   - developer-tools
