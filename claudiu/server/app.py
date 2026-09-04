@@ -19,6 +19,7 @@ from ..core.policy import PathPolicy
 from ..core.profiles import load_profiles
 from ..core.record import Recorder
 from ..core.sentinel import Sentinel
+from ..core.transcript import write_markdown
 from .auth import COOKIE_NAME, origin_ok
 from .procs import SubprocessAgentProcess, resolve_env
 from .ws import BufferedSink, SessionWS
@@ -423,11 +424,50 @@ class DirsHandler(BaseHandler):
         self.write_json(reply)
 
 
+# What the installed publisher can write, and what this server can write
+# on its own when the publisher is absent.
+PUBLISHER_FORMATS = ["html", "markdown", "text", "latex", "pdf"]
+FALLBACK_FORMATS = ["markdown"]
+
+
+def default_archive_dir() -> str:
+    """Where a transcript goes unless the user says otherwise."""
+    return os.environ.get("CLAUDE_ARCHIVE_DIR") or str(
+        Path.home() / "claudiu-transcripts")
+
+
 class ArchiveHandler(BaseHandler):
-    """Hand the session to the archiver (claude-session-publisher), which
-    writes it into the usual CONVERSATIONS archive. The tool is never copied
-    in here (GITHUBIFY rule 21): the server runs the installed one, named by
-    `--archiver` or `CLAUDIU_ARCHIVER`."""
+    """Save the conversation.
+
+    GET reports what this server can do (which formats, where by default,
+    whether the full publisher is available) so the View can offer exactly
+    those choices. POST writes it.
+
+    The preferred writer is the INSTALLED claude-session-publisher, named by
+    `--archiver` or `CLAUDIU_ARCHIVER`; it is never copied in here (GITHUBIFY
+    rule 21). Without it the server still writes a plain Markdown transcript
+    from the session's own record, and says plainly that it is the simpler
+    one — refusing to save anything at all was the wrong answer to a missing
+    optional tool (Fabio, 2026-09-04)."""
+
+    def get(self, sid):
+        archiver = self.application.settings.get("archiver")
+        entry = self.manager.get(sid)
+        self.write_json({
+            "publisher": bool(archiver),
+            "formats": PUBLISHER_FORMATS if archiver else FALLBACK_FORMATS,
+            "default_formats": ["html", "markdown"] if archiver
+                               else ["markdown"],
+            "default_dest": default_archive_dir(),
+            "agent_session": entry.agent_session if entry else None,
+            "warning": None if archiver else
+                "claude-session-publisher is not configured, so ClaudIU will "
+                "write a simple Markdown transcript from the session record "
+                "itself: prompts, answers, thinking and tool-call titles. "
+                "For the full document (HTML, PDF, LaTeX, fidelity report) "
+                "start the server with --archiver <path to "
+                "transcript_archiver.py> or set CLAUDIU_ARCHIVER.",
+        })
 
     async def post(self, sid):
         body = self.json_body()          # a bad request is a 400, always
@@ -440,27 +480,60 @@ class ArchiveHandler(BaseHandler):
             self.set_status(409)
             return self.write_json({"error": "this session has no agent "
                                     "session yet — nothing to archive"})
+        dest = str(body.get("dest") or "").strip() or default_archive_dir()
+        formats = body.get("formats")
+        if isinstance(formats, str):
+            formats = [f.strip() for f in formats.split(",") if f.strip()]
         archiver = self.application.settings.get("archiver")
-        if not archiver:
-            self.set_status(501)
-            return self.write_json({"error": "no archiver configured: start "
-                                    "the server with --archiver "
-                                    "<path to transcript_archiver.py> (or set "
-                                    "CLAUDIU_ARCHIVER)"})
-        fmt = body.get("format") or "html,markdown"
-        result = await tornado.ioloop.IOLoop.current().run_in_executor(
-            None, _run_archiver, archiver, agent_session, fmt)
-        if not result["ok"]:
+        allowed = PUBLISHER_FORMATS if archiver else FALLBACK_FORMATS
+        if not formats:
+            formats = ["html", "markdown"] if archiver else ["markdown"]
+        unknown = [f for f in formats if f not in allowed]
+        if unknown:
+            self.set_status(400)
+            return self.write_json(
+                {"error": f"this server cannot write {', '.join(unknown)}; "
+                          f"it offers {', '.join(allowed)}"})
+
+        if archiver:
+            result = await tornado.ioloop.IOLoop.current().run_in_executor(
+                None, _run_archiver, archiver, agent_session,
+                ",".join(formats), dest)
+            if not result["ok"]:
+                self.set_status(502)
+            return self.write_json(result)
+
+        # No publisher: write what we can, from our own record.
+        record = self.manager.records_dir / f"{sid}.jsonl"
+        if not record.exists():
+            self.set_status(409)
+            return self.write_json({"error": f"no record for {sid} to write "
+                                             "a transcript from"})
+        try:
+            written = await tornado.ioloop.IOLoop.current().run_in_executor(
+                None, write_markdown, record, dest, agent_session, entry.title)
+        except OSError as exc:
             self.set_status(502)
-        self.write_json(result)
+            return self.write_json({"ok": False, "output": [],
+                                    "error": f"could not write there: {exc}"})
+        self.write_json({
+            "ok": True, "output": [written], "fallback": True,
+            "warning": "claude-session-publisher is not configured, so this "
+                       "is ClaudIU's simple Markdown transcript — prompts, "
+                       "answers, thinking and tool-call titles. The full "
+                       "document needs --archiver.",
+            "command": None, "detail": None})
 
 
-def _run_archiver(archiver: str, session_id: str, fmt: str) -> dict:
+def _run_archiver(archiver: str, session_id: str, fmt: str,
+                  dest: str | None = None) -> dict:
     """Blocking, run in an executor. Reports what the tool actually did:
     its own `wrote <path>` lines, and its output when it fails."""
     import subprocess
     import sys as _sys
     cmd = [_sys.executable, archiver, session_id, "--format", fmt]
+    if dest:
+        cmd += ["--archive-dir", dest]
     try:
         done = subprocess.run(cmd, capture_output=True, text=True,
                               timeout=900)
