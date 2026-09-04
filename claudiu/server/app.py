@@ -242,6 +242,25 @@ class BaseHandler(tornado.web.RequestHandler):
         self.set_header("Content-Security-Policy", CSP)
         self.set_header("X-Content-Type-Options", "nosniff")
 
+    def json_body(self):
+        """The request body as an object. A malformed body is the caller's
+        mistake and answers as JSON: an unguarded json.loads made Tornado
+        return its HTML 500 page, which the View cannot read (2026-09-04)."""
+        try:
+            body = json.loads(self.request.body or b"{}")
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            raise tornado.web.HTTPError(400, reason=f"invalid JSON: {exc}")
+        if not isinstance(body, dict):
+            raise tornado.web.HTTPError(400, reason="body must be a JSON object")
+        return body
+
+    def write_error(self, status_code, **kwargs):
+        """Errors are JSON too: the View shows `error` verbatim."""
+        exc = kwargs.get("exc_info", (None, None, None))[1]
+        reason = getattr(exc, "reason", None) or self._reason
+        self.set_header("Content-Type", "application/json")
+        self.finish(json.dumps({"error": reason, "status": status_code}))
+
     def write_json(self, obj):
         self.set_header("Content-Type", "application/json")
         self.write(json.dumps(obj))
@@ -279,7 +298,7 @@ class SessionsHandler(BaseHandler):
         self.write_json({"sessions": self.manager.list()})
 
     def post(self):
-        body = json.loads(self.request.body or b"{}")
+        body = self.json_body()
         profile_id = body.get("profile")
         cwd = body.get("cwd")
         if profile_id not in self.manager.profiles or not cwd or                 not Path(cwd).is_dir():
@@ -398,6 +417,7 @@ class ArchiveHandler(BaseHandler):
     `--archiver` or `CLAUDIU_ARCHIVER`."""
 
     async def post(self, sid):
+        body = self.json_body()          # a bad request is a 400, always
         entry = self.manager.get(sid)
         if entry is None:
             self.set_status(404)
@@ -414,7 +434,6 @@ class ArchiveHandler(BaseHandler):
                                     "the server with --archiver "
                                     "<path to transcript_archiver.py> (or set "
                                     "CLAUDIU_ARCHIVER)"})
-        body = json.loads(self.request.body or b"{}")
         fmt = body.get("format") or "html,markdown"
         result = await tornado.ioloop.IOLoop.current().run_in_executor(
             None, _run_archiver, archiver, agent_session, fmt)

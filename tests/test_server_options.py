@@ -104,6 +104,16 @@ class OptionsTest(tornado.testing.AsyncHTTPTestCase):
                             "resume": "fake-session-1"})
         assert again["id"] != first
 
+    def test_a_malformed_body_is_a_json_400_not_a_500(self):
+        # A bad body reached json.loads unguarded and Tornado answered with
+        # its HTML 500 page, which the View shows as an unreadable error
+        # (2026-09-04, restoring sessions from the command line).
+        for path in ("/api/sessions", "/api/sessions/deadbeef/archive"):
+            resp = self.fetch(path, method="POST", headers=self._headers(),
+                              body='{"cwd": "C:\\bad')
+            assert resp.code == 400, (path, resp.code, resp.body)
+            assert b"json" in resp.body.lower(), (path, resp.body)
+
     # ---- archiving --------------------------------------------------------
     def test_archive_hands_the_agent_session_id_to_the_archiver(self):
         sid = self._post({"profile": "fake", "cwd": str(self.tmpdir)})["id"]

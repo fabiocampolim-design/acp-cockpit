@@ -4,6 +4,12 @@ All notable changes to CLAUDIU are documented in this file.
 
 ## Unreleased - daily-use round 9 (2026-09-04)
 
+- **Errors from the REST API are JSON, always.** A malformed request body
+  reached `json.loads` unguarded and Tornado answered with its HTML 500
+  page, which the View cannot read (found restoring sessions from the
+  command line). Bad bodies are a 400 with an `error` field, and every
+  error response from these routes is JSON now.
+
 - **Anomalies stopped disappearing when you looked at them.** The chip's
   click handler zeroed the counter and threw the details away - the exact
   opposite of the losslessness contract. Clicking now opens a drawer with
