@@ -267,8 +267,12 @@ class Session {
     this.mode = {current: null, available: []};
     this.model = {current: null, available: []};
     this.config = []; this.plan = []; this.usage = null; this.commands = [];
-    this.chips = {".drift-chip": {n: 0, label: "drift", title: ""},
-                  ".anomaly-chip": {n: 0, label: "anomalies", title: ""}};
+    // Chips count what happened and KEEP it: clicking one opens the
+    // drawer, it never throws the entries away (that is what "surfaced,
+    // never dropped" means — 2026-09-04, Fabio: "it seems to go away").
+    this.chips = {".drift-chip": {n: 0, label: "drift", lines: []},
+                  ".anomaly-chip": {n: 0, label: "anomalies", lines: []}};
+    this.anomalyOpen = false;
     this.turnStarted = null; this.lastActivity = null;
     this.stderr = [];             // adapter stderr lines: drawer, never inline
     this.stderrOpen = false;
@@ -343,8 +347,11 @@ class Session {
       const chip = $("#status " + sel);
       chip.hidden = c.n === 0;
       chip.textContent = `${c.label} (${c.n})`;
-      chip.title = c.title;
-      chip.onclick = () => { c.n = 0; c.title = ""; this.renderStatus(); };
+      chip.title = "click to read them";
+      chip.onclick = () => {
+        this.anomalyOpen = !this.anomalyOpen;
+        this.renderAnomalyDrawer();
+      };
     }
     const sc = $("#status .stderr-chip");
     sc.hidden = this.stderr.length === 0;
@@ -356,6 +363,7 @@ class Session {
 
   renderStderrDrawer() {
     if (!this.isActive) return;
+    this.renderAnomalyDrawer();
     const d = $("#stderr-drawer");
     d.hidden = !this.stderrOpen || this.stderr.length === 0;
     $("pre", d).textContent = this.stderr.join("\n");
@@ -514,6 +522,7 @@ class Session {
         this.renderStatus(); this.renderControls(); break;
       case "config_option": this.config = d.options; this.renderControls(); break;
       case "usage": this.usage = d; this.renderStatus(); break;
+      case "rate_limit": recordRateLimit(d); break;
       case "session_info":
         if (d.title !== undefined) this.title = d.title;
         this.renderTab(); break;
@@ -565,8 +574,26 @@ class Session {
   bumpChip(sel, detail) {
     const c = this.chips[sel];
     c.n += 1;
-    c.title = (c.title ? c.title + "\n" : "") + detail;
+    c.lines.push(`${new Date().toLocaleTimeString()}  ${detail}`);
     this.renderStatus();
+    this.renderAnomalyDrawer();
+  }
+
+  /* Everything both chips have collected, in one drawer. Dismissing is an
+     explicit act with its own button, never a side effect of looking. */
+  renderAnomalyDrawer() {
+    if (!this.isActive) return;
+    const lines = [...this.chips[".anomaly-chip"].lines,
+                   ...this.chips[".drift-chip"].lines];
+    const d = $("#anomaly-drawer");
+    d.hidden = !this.anomalyOpen || lines.length === 0;
+    $("pre", d).textContent = lines.join("\n");
+    $("#anomaly-clear").onclick = () => {
+      for (const c of Object.values(this.chips)) { c.n = 0; c.lines = []; }
+      this.anomalyOpen = false;
+      this.renderStatus();
+      this.renderAnomalyDrawer();
+    };
   }
 
   renderStderr(ev) {
@@ -835,6 +862,72 @@ function showWorking(S, on) {
   workingTimer = setInterval(render, 1000);
   S.pane.append(w);
   scrollIfFollowing();
+}
+
+/* ---------------- the account's limits ----------------
+
+   Rate limits belong to the ACCOUNT, not to a session: whichever session
+   hears about a window, the panel at the top right shows the latest state
+   of each one. Windows nobody reported are simply not shown — this View
+   never invents a number it was not told. */
+
+const WINDOW_LABELS = {
+  five_hour: "5h",
+  seven_day: "7d",
+  seven_day_opus: "7d Opus",
+  seven_day_sonnet: "7d Sonnet",
+  seven_day_overage_included: "7d +credits",
+  overage: "credits",
+};
+const limitWindows = new Map();     // rateLimitType -> latest payload
+
+function recordRateLimit(d) {
+  const type = d.rateLimitType || "unknown";
+  limitWindows.set(type, d);
+  renderAccount();
+}
+
+function fmtReset(epochSeconds) {
+  if (!epochSeconds) return "";
+  const when = new Date(epochSeconds * 1000);
+  const mins = Math.round((when - Date.now()) / 60000);
+  if (mins <= 0) return "resets now";
+  if (mins < 60) return `resets in ${mins} min`;
+  const hours = Math.floor(mins / 60);
+  return hours < 24 ? `resets in ${hours} h ${mins % 60} min`
+                    : `resets ${when.toLocaleString()}`;
+}
+
+function creditsNote(d) {
+  if (d.isUsingOverage || d.overageInUse) return "extra credits in use";
+  if (d.overageDisabledReason === "out_of_credits") return "out of credits";
+  if (d.canUserPurchaseCredits) return "extra credits available";
+  if (d.overageStatus) return `extra credits: ${d.overageStatus}`;
+  return "";
+}
+
+function renderAccount() {
+  const el = $("#account");
+  const entries = [...limitWindows.entries()];
+  el.hidden = entries.length === 0;
+  el.replaceChildren(...entries.map(([type, d]) => {
+    const span = document.createElement("span");
+    span.className = "window";
+    span.dataset.window = type;
+    if (d.status) span.dataset.status = d.status;
+    const label = WINDOW_LABELS[type] || type;
+    const pct = typeof d.utilization === "number"
+      ? Math.round(d.utilization) + "%" : "—";
+    const b = document.createElement("b");
+    b.textContent = pct;
+    span.append(label + " ", b);
+    const credits = creditsNote(d);
+    if (credits) span.append(" · " + credits);
+    span.title = [`${label}: ${pct} used`, `status: ${d.status || "?"}`,
+                  fmtReset(d.resetsAt), credits]
+      .filter(Boolean).join("\n");
+    return span;
+  }));
 }
 
 /* ---------------- following the bottom ----------------
@@ -1269,6 +1362,82 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
+/* ---------------- theme, help and settings ----------------
+
+   The OS decides until the reader says otherwise; the choice is this
+   browser's, and it is applied before anything is drawn. */
+
+const THEME_KEY = "claudiu.theme";
+
+function applyTheme(theme) {
+  if (theme && theme !== "system") {
+    document.documentElement.dataset.theme = theme;
+  } else {
+    delete document.documentElement.dataset.theme;
+  }
+  try { localStorage.setItem(THEME_KEY, theme || "system"); } catch (e) {}
+}
+
+function storedTheme() {
+  try { return localStorage.getItem(THEME_KEY) || "system"; } catch (e) { return "system"; }
+}
+
+const HELP = [
+  ["The five lanes", "Switches in the status strip: thinking, tools, " +
+   "subagents, events, harness. Switching one off removes those rows from " +
+   "the page entirely; your prompts and the agent's answers are never hidden."],
+  ["Thinking", "What the agent is ASKED to think is chosen per session in " +
+   "the launcher (summarized / omitted / off) — ACP fixes it when the " +
+   "session starts. The lane switch only decides whether you see it."],
+  ["Following the conversation", "New rows scroll into view only while you " +
+   "are at the bottom. Scroll up to read and it stays put; “↓ jump to " +
+   "latest” brings you back."],
+  ["Chips", "log = the adapter's own diagnostics (not errors). anomalies " +
+   "and drift = things this client did not expect; clicking opens them and " +
+   "keeps them until you dismiss them."],
+  ["Account limits", "Top right: each rate-limit window the agent has " +
+   "reported (5 h, 7 d, per model, extra credits) with how much is used."],
+  ["Approvals and questions", "The agent's permission requests and its own " +
+   "multiple-choice questions arrive as dialogs; digits 1-9 answer an " +
+   "approval, “Other” answers a question in your own words."],
+  ["Archive", "Hands the conversation to claude-session-publisher, which " +
+   "writes it into your usual archive directory."],
+  ["Keyboard", "Enter sends · Shift+Enter newline · “/” lists the agent's " +
+   "commands · Alt+N new session · Alt+1…9 switch tab · 1-9 answer an " +
+   "approval."],
+  ["Sessions", "They live in the server: reloading the page reattaches to " +
+   "everything still running. Only one attachment per agent session."],
+];
+
+function initChrome() {
+  applyTheme(storedTheme());
+  const help = $("#help");
+  $("#help-body").replaceChildren(...HELP.map(([term, text]) => {
+    const box = document.createElement("div");
+    const h = document.createElement("h3");
+    h.textContent = term;
+    const p = document.createElement("div");
+    p.textContent = text;
+    box.append(h, p);
+    return box;
+  }));
+  $("#help-button").onclick = () => help.showModal();
+  $("#help-close").onclick = () => help.close();
+  const config = $("#config");
+  const theme = $("#theme");
+  theme.value = storedTheme();
+  theme.onchange = () => applyTheme(theme.value);
+  const box = $("#config-expand-tools");
+  box.checked = expandTools();
+  box.onchange = () => {
+    applyExpandTools(box.checked);
+    $("#expand-tools").checked = box.checked;
+  };
+  $("#config-button").onclick = () => { box.checked = expandTools(); config.showModal(); };
+  $("#config-close").onclick = () => config.close();
+}
+
+initChrome();
 initLauncher();
 initLanes();
 initFollow();

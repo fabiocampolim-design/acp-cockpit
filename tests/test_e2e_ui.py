@@ -367,3 +367,77 @@ def test_archive_button_reports_what_the_server_says(server):
         # placeholder (this raced on the first run)
         page.wait_for_selector("#archive-note.error")
         assert "archiver" in page.inner_text("#archive-note")
+
+
+def test_account_usage_panel_shows_the_windows_the_agent_reported(server):
+    # Account-wide limits (5 h, 7 d, overage/credits) belong at the top
+    # right, not inside one session's context gauge.
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = start_fake_session(pw, url, tmp)
+        page.fill("#prompt-input", "report the LIMITS")
+        page.click("#send")
+        page.wait_for_selector("#account:not([hidden])")
+        text = page.inner_text("#account")
+        assert "5h" in text and "42%" in text
+        assert "7d" in text and "88%" in text
+        # the warning window is marked, and credits state is legible
+        assert page.locator('#account [data-status="allowed_warning"]').count() == 1
+        assert "credits" in page.inner_text("#account").lower()
+
+
+def test_anomalies_open_a_drawer_and_are_not_erased_by_clicking(server):
+    # 2026-09-04: clicking the chip zeroed the counter and threw away the
+    # details, which is exactly what the losslessness contract forbids.
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = start_fake_session(pw, url, tmp)
+        page.fill("#prompt-input", "trigger an ANOMALY")
+        page.click("#send")
+        page.wait_for_selector(".anomaly-chip:not([hidden])")
+        page.click(".anomaly-chip")
+        page.wait_for_selector("#anomaly-drawer:not([hidden])")
+        assert "unknown-session" in page.inner_text("#anomaly-drawer")
+        assert "(1)" in page.inner_text(".anomaly-chip")
+        page.click(".anomaly-chip")                      # closes, keeps them
+        assert page.locator("#anomaly-drawer:visible").count() == 0
+        assert "(1)" in page.inner_text(".anomaly-chip")
+        page.click(".anomaly-chip")
+        page.click("#anomaly-clear")                     # deliberate dismissal
+        assert page.locator(".anomaly-chip:visible").count() == 0
+
+
+def test_help_dialog_explains_the_view(server):
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = start_fake_session(pw, url, tmp)
+        page.click("#help-button")
+        page.wait_for_selector("#help[open]")
+        text = page.inner_text("#help").lower()
+        assert "lanes" in text and "alt" in text
+        page.click("#help-close")
+        page.wait_for_selector("#help", state="hidden")
+
+
+def test_theme_choice_applies_and_survives_a_reload(server):
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = start_fake_session(pw, url, tmp)
+        page.click("#config-button")
+        page.wait_for_selector("#config[open]")
+        page.select_option("#theme", "light")
+        assert page.evaluate("document.documentElement.dataset.theme") == "light"
+        light = page.evaluate(
+            "getComputedStyle(document.body).backgroundColor")
+        page.select_option("#theme", "dark")
+        assert page.evaluate(
+            "getComputedStyle(document.body).backgroundColor") != light
+        page.select_option("#theme", "light")
+        page.click("#config-close")
+        page.reload()
+        page.wait_for_selector("#tab-add")
+        assert page.evaluate("document.documentElement.dataset.theme") == "light"

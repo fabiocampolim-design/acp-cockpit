@@ -96,7 +96,7 @@ python -m pyflakes claudiu tools tests
 python tools/check_schema_drift.py
 ```
 
-Verified by 155 checks (plus the opt-in real-adapter contract test). See
+Verified by 161 checks (plus the opt-in real-adapter contract test). See
 `AGENTS.md` for the working rules and `docs/superpowers/specs/` for the
 design history. The v0.1 terminal-mirror app lives in `archive/claudiu-v0.1`
 with its own git history.

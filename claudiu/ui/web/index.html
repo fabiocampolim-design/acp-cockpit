@@ -7,7 +7,15 @@
 <link rel="stylesheet" href="/ui/style.css">
 </head>
 <body>
-<div id="tabs"><button class="tab add" id="tab-add" title="New session (Alt+N)">+</button></div>
+<div id="tabs">
+  <button class="tab add" id="tab-add" title="New session (Alt+N)">+</button>
+  <div id="topright">
+    <div id="account" hidden
+      title="your account's limits, as last reported by the agent"></div>
+    <button id="help-button" type="button" title="what this view shows (?)">?</button>
+    <button id="config-button" type="button" title="settings: theme and more">⚙</button>
+  </div>
+</div>
 <div id="launcher">
   <h1>ClaudIU</h1>
   <label>Agent <select id="profile"></select></label>
@@ -38,6 +46,13 @@
     <span class="model"></span>
     <span id="lanes" title="show or hide whole lanes of the conversation"></span></div>
   <div id="stderr-drawer" data-kind="stderr" hidden><pre></pre></div>
+  <div id="anomaly-drawer" hidden>
+    <div class="drawer-head">
+      <span>anomalies and drift — kept until you dismiss them</span>
+      <button id="anomaly-clear" type="button">dismiss all</button>
+    </div>
+    <pre></pre>
+  </div>
   <div id="archive-note" hidden></div>
   <div id="conversation"></div>
   <div id="plan" hidden></div>
@@ -78,6 +93,26 @@
       title="answer nothing — the agent is told you skipped">Skip</button>
     <button id="elic-submit" type="button">Answer</button>
   </div>
+</dialog>
+<dialog id="help">
+  <h2>ClaudIU — what you are looking at</h2>
+  <div id="help-body"></div>
+  <div class="actions"><button id="help-close" type="button">Close</button></div>
+</dialog>
+<dialog id="config">
+  <h2>Settings</h2>
+  <label for="theme">Theme
+    <select id="theme">
+      <option value="system">follow the system</option>
+      <option value="dark">dark</option>
+      <option value="light">light</option>
+    </select></label>
+  <label class="check"><input type="checkbox" id="config-expand-tools">
+    open tool output by default</label>
+  <p class="note">Session options (the agent, its project directory and what
+    it is asked to think) are chosen per session in the launcher — the
+    <b>+</b> tab.</p>
+  <div class="actions"><button id="config-close" type="button">Close</button></div>
 </dialog>
 <dialog id="dirpick">
   <h2>Choose a project directory</h2>

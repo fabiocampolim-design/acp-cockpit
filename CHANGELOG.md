@@ -2,6 +2,24 @@
 
 All notable changes to CLAUDIU are documented in this file.
 
+## Unreleased - daily-use round 9 (2026-09-04)
+
+- **Anomalies stopped disappearing when you looked at them.** The chip's
+  click handler zeroed the counter and threw the details away - the exact
+  opposite of the losslessness contract. Clicking now opens a drawer with
+  every anomaly and drift flag, and dismissing them is a separate button.
+  UI-PROTOCOL says so for any View.
+- **Account limits at the top right.** `_meta._claude/rateLimit` rides on
+  usage updates and was being dropped; it now becomes its own `rate_limit`
+  event (account-wide, passed through whole) and the View shows one chip per
+  window the agent has reported - 5 h, 7 d, per-model, extra credits - with
+  utilization, status colour and reset time.
+- **Help (?) and Settings (gear) buttons.** Help explains the lanes, chips,
+  keyboard and where session options live; Settings holds the browser-level
+  choices: **theme** (system / dark / light, remembered) and whether tool
+  output starts open. The palette answers to the choice in both directions
+  instead of only following the OS.
+
 ## Unreleased - daily-use round 8 (2026-09-04)
 
 - **The conversation follows you, not the other way round.** New rows scroll

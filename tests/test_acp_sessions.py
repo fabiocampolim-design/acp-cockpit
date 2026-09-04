@@ -136,3 +136,31 @@ def test_session_resume_carries_the_profile_client_options(tmp_path):
     assert resume["method"] == "session/resume"
     assert resume["params"]["_meta"]["claudeCode"]["options"]["thinking"] == \
         {"type": "adaptive", "display": "summarized"}
+
+
+def test_rate_limit_meta_becomes_its_own_event(tmp_path):
+    # claude-agent-acp hangs the account's rate-limit state off a usage
+    # update (`_meta._claude/rateLimit`). It is ACCOUNT-wide, not session
+    # state, so it gets its own event instead of being buried in `usage`.
+    session, proc, sink = make_session(tmp_path)
+    do_handshake(session, proc)
+    feed(session, {"jsonrpc": "2.0", "method": "session/update", "params": {
+        "sessionId": "acp-123", "update": {
+            "sessionUpdate": "usage_update", "used": 1000, "size": 200000,
+            "_meta": {"_claude/rateLimit": {
+                "status": "allowed", "rateLimitType": "five_hour",
+                "utilization": 42, "resetsAt": 1788000000,
+                "isUsingOverage": False}}}}})
+    limit = [e for e in sink.events if e.kind == "rate_limit"][-1]
+    assert limit.data["rateLimitType"] == "five_hour"
+    assert limit.data["utilization"] == 42
+    assert [e for e in sink.events if e.kind == "usage"], "usage still emitted"
+
+
+def test_usage_without_rate_limit_meta_emits_no_rate_limit_event(tmp_path):
+    session, proc, sink = make_session(tmp_path)
+    do_handshake(session, proc)
+    feed(session, {"jsonrpc": "2.0", "method": "session/update", "params": {
+        "sessionId": "acp-123", "update": {
+            "sessionUpdate": "usage_update", "used": 10, "size": 100}}})
+    assert "rate_limit" not in sink.kinds()

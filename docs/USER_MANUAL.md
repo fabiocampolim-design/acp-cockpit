@@ -136,6 +136,26 @@ start it with `--archiver <path to transcript_archiver.py>` or set
 `CLAUDIU_ARCHIVER`. Without it the button says so; nothing is copied into
 this project.
 
+## The top right: account limits, help, settings
+
+The agent reports your **account's** rate-limit windows as it works — the
+five-hour window, the seven-day one, per-model windows, and whether extra
+credits are in use. Each window the agent has mentioned appears as a chip at
+the top right with how much of it is used; hovering gives the status and
+when it resets. Windows nobody reported are not shown: this view never
+invents a number it was not told.
+
+**?** opens a short guide to everything on screen. **⚙** holds the settings
+that belong to the browser rather than to a session: the **theme** (follow
+the system, dark, or light) and whether tool output starts open. Session
+options — which agent, which directory, what thinking to ask for — are
+chosen per session in the launcher (the **+** tab).
+
+The **log** chip is the adapter's own diagnostics. The **anomalies** and
+**drift** chips are things this client did not expect; clicking one opens a
+drawer with every entry, kept until you press **dismiss all**. Looking at
+them never throws them away.
+
 ## Approvals
 
 When the agent wants to do something that needs permission, a dialog shows

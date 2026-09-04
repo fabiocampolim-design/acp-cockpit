@@ -260,6 +260,12 @@ class AcpSession:
             self._emit("usage", {"used": update.get("used"),
                                  "size": update.get("size"),
                                  "cost": update.get("cost")}, ref)
+            # The account's rate-limit state rides on usage updates
+            # (`_meta._claude/rateLimit`). It is account-wide, not session
+            # state, so it travels as its own event, passed through whole.
+            limits = (update.get("_meta") or {}).get("_claude/rateLimit")
+            if isinstance(limits, dict):
+                self._emit("rate_limit", limits, ref)
         elif kind == "session_info_update":
             self._emit("session_info", {"title": update.get("title"),
                                         "updatedAt": update.get("updatedAt")},

@@ -4,12 +4,24 @@
   --border: #2a2e36; --fg: #c9c4b8; --fg-dim: #8a877e;
   --accent: #7a93b8; --ok: #8da287; --warn: #b5a47e; --danger: #c8746e;
 }
+/* The OS decides until the reader does (Settings -> Theme), and an
+   explicit choice wins in both directions. */
 @media (prefers-color-scheme: light) {
-  :root {
+  :root:not([data-theme="dark"]) {
     --bg: #f4f2ec; --bg-raised: #eae7df; --bg-hover: #dedacf;
     --border: #d3cec1; --fg: #2c2a25; --fg-dim: #6b675e;
     --accent: #4a6a99; --ok: #5f7e56; --warn: #927a3c; --danger: #b0524b;
   }
+}
+:root[data-theme="light"] {
+  --bg: #f4f2ec; --bg-raised: #eae7df; --bg-hover: #dedacf;
+  --border: #d3cec1; --fg: #2c2a25; --fg-dim: #6b675e;
+  --accent: #4a6a99; --ok: #5f7e56; --warn: #927a3c; --danger: #b0524b;
+}
+:root[data-theme="dark"] {
+  --bg: #14161a; --bg-raised: #1b1e24; --bg-hover: #22262e;
+  --border: #2a2e36; --fg: #c9c4b8; --fg-dim: #8a877e;
+  --accent: #7a93b8; --ok: #8da287; --warn: #b5a47e; --danger: #c8746e;
 }
 
 * { box-sizing: border-box; }
@@ -368,4 +380,73 @@ pre.raw {
 #archive-note.error { color: var(--danger); }
 #composer button.secondary {
   background: var(--bg); color: var(--fg); font-weight: normal;
+}
+
+/* ---- top right of the tab bar: account limits, help, settings ---- */
+#topright {
+  margin-left: auto; display: flex; align-items: center; gap: .4rem;
+  padding-bottom: .3rem;
+}
+#topright button {
+  font: inherit; cursor: pointer; border: 1px solid var(--border);
+  border-radius: 6px; background: var(--bg-raised); color: var(--fg-dim);
+  padding: .1rem .5rem;
+}
+#topright button:hover { background: var(--bg-hover); color: var(--fg); }
+#account { display: flex; gap: .35rem; align-items: center; font-size: .8em; }
+#account .window {
+  border: 1px solid var(--border); border-radius: 999px; padding: 0 .55em;
+  color: var(--fg-dim); white-space: nowrap;
+}
+#account .window b { color: var(--fg); font-weight: 600; }
+#account .window[data-status="allowed_warning"] {
+  border-color: var(--warn); color: var(--warn);
+}
+#account .window[data-status="allowed_warning"] b { color: var(--warn); }
+#account .window[data-status="rejected"] {
+  border-color: var(--danger); color: var(--danger);
+}
+#account .window[data-status="rejected"] b { color: var(--danger); }
+
+/* ---- anomaly drawer: nothing is thrown away by looking at it ---- */
+#anomaly-drawer {
+  background: var(--bg-raised); border-bottom: 1px solid var(--danger);
+  padding: .4rem .8rem; max-height: 30vh; overflow-y: auto;
+}
+#anomaly-drawer .drawer-head {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: .8em; color: var(--fg-dim); margin-bottom: .3rem;
+}
+#anomaly-drawer button {
+  font: inherit; font-size: .9em; cursor: pointer; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--bg); color: var(--fg);
+  padding: .1rem .6rem;
+}
+#anomaly-drawer pre {
+  margin: 0; white-space: pre-wrap; word-break: break-word; font-size: .85em;
+}
+
+/* ---- help and settings dialogs ---- */
+#help, #config {
+  background: var(--bg-raised); color: var(--fg); border-radius: 10px;
+  border: 1px solid var(--accent); width: min(40rem, 92vw);
+}
+#help::backdrop, #config::backdrop { background: rgba(0, 0, 0, .55); }
+#help h2, #config h2 { margin-top: 0; color: var(--accent); font-size: 1.05em; }
+#help-body h3 { font-size: .95em; margin: .8rem 0 .2rem; color: var(--fg); }
+#help-body { max-height: 65vh; overflow-y: auto; font-size: .9em; }
+#help-body dl { display: grid; grid-template-columns: auto 1fr; gap: .2rem .6rem; margin: 0; }
+#help-body dt { color: var(--accent); }
+#help-body dd { margin: 0; color: var(--fg-dim); }
+#config label { display: block; margin: .5rem 0; }
+#config label.check { display: flex; gap: .4rem; align-items: center; }
+#config select {
+  background: var(--bg); color: var(--fg); border: 1px solid var(--border);
+  border-radius: 6px; padding: .3rem .4rem; font: inherit;
+}
+#config .note { color: var(--fg-dim); font-size: .85em; }
+#help .actions, #config .actions { display: flex; justify-content: flex-end; }
+#help .actions button, #config .actions button {
+  font: inherit; cursor: pointer; border-radius: 6px; padding: .3rem .9rem;
+  border: 1px solid var(--border); background: var(--bg); color: var(--fg);
 }

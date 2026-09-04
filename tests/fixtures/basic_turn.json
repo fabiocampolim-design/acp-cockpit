@@ -211,6 +211,80 @@
   },
   {
     "on_method": "session/prompt",
+    "if_prompt_contains": "LIMITS",
+    "notify": [
+      {
+        "jsonrpc": "2.0",
+        "method": "session/update",
+        "params": {
+          "sessionId": "$SESSION",
+          "update": {
+            "sessionUpdate": "usage_update",
+            "used": 42000,
+            "size": 200000,
+            "_meta": {
+              "_claude/rateLimit": {
+                "status": "allowed",
+                "rateLimitType": "five_hour",
+                "utilization": 42,
+                "resetsAt": 1788000000
+              }
+            }
+          }
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "session/update",
+        "params": {
+          "sessionId": "$SESSION",
+          "update": {
+            "sessionUpdate": "usage_update",
+            "used": 42000,
+            "size": 200000,
+            "_meta": {
+              "_claude/rateLimit": {
+                "status": "allowed_warning",
+                "rateLimitType": "seven_day",
+                "utilization": 88,
+                "resetsAt": 1788600000,
+                "isUsingOverage": true,
+                "canUserPurchaseCredits": true
+              }
+            }
+          }
+        }
+      }
+    ],
+    "respond": {
+      "stopReason": "end_turn"
+    }
+  },
+  {
+    "on_method": "session/prompt",
+    "if_prompt_contains": "ANOMALY",
+    "notify": [
+      {
+        "jsonrpc": "2.0",
+        "method": "session/update",
+        "params": {
+          "sessionId": "somebody-elses-session",
+          "update": {
+            "sessionUpdate": "agent_message_chunk",
+            "content": {
+              "type": "text",
+              "text": "not for you"
+            }
+          }
+        }
+      }
+    ],
+    "respond": {
+      "stopReason": "end_turn"
+    }
+  },
+  {
+    "on_method": "session/prompt",
     "notify": [
       {
         "jsonrpc": "2.0",

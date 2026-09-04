@@ -155,6 +155,7 @@ Every server → client message is one event:
 | `model` | `current`, `available` (list of `{modelId, name, description}`) | Model selector (from `session/new`'s `models`; empty `available` = current changed only). |
 | `stderr` | `line` | Adapter stderr: count it in a chip, show it in a drawer on demand — out of the conversation flow, never dropped (the engine records it). |
 | `usage` | `used`, `size` (tokens), `cost` (`{amount, currency}` or null) | Context gauge in the status strip. |
+| `rate_limit` | the agent's ACCOUNT rate-limit state, passed through whole (Claude: `status`, `rateLimitType` — `five_hour`/`seven_day`/`seven_day_opus`/`seven_day_sonnet`/`overage` — `utilization`, `resetsAt`, and the overage/credits fields) | Account-wide, not session state: show the latest state of each window somewhere permanent (ClaudIU: top right). Never invent a window that was not reported. |
 | `session_info` | `title`, `updatedAt` (either may be null) | Session/tab title set by the agent. |
 | `config_option` | `options` — the FULL current set of `SessionConfigOption` (`id`, `name`, `type` `select`/`boolean`, `currentValue`, `options` for selects) | Generic selectors; changing one sends `set_config_option`. |
 | `permission_request` | `request` (id), `tool_call`, `options` (list of `{optionId, name, kind}`), `outside_boundary` (absolute paths mentioned by the tool call that fall outside the session boundary) | Modal approval dialog; explicit choice required. Non-empty `outside_boundary` MUST be shown prominently: shell execution is agent-side and the user's answer is the only control. Present one-shot options before standing grants. |
@@ -163,7 +164,7 @@ Every server → client message is one event:
 | `elicitation_resolved` | `request`, `action` (`accept`/`decline`), `content` (what was answered, or null), `source` (`user`/`failsafe`) | Close the dialog and record the answer in the conversation; a `failsafe` decline means nobody answered in time. |
 | `fs_request` | `op` (`read`/`write`), `path`, `allowed` | Inline notice of agent file access and the policy verdict. |
 | `turn_ended` | `stop_reason`; when `"error"` also `error` `{code, message}` | Turn separator; re-enable composer. A failed `session/prompt` still ends the turn (the same message arrives first as a `turn-error` anomaly). |
-| `anomaly` | `category`, `detail` | MUST be surfaced (chip + inline row); never dropped. |
+| `anomaly` | `category`, `detail` | MUST be surfaced (chip + inline row); never dropped. Reading them MUST NOT destroy them: ClaudIU's chip opened and *cleared* the list in one click until 2026-09-04 — dismissal is a separate, explicit act. |
 | `drift` | `flags` (list of strings) | MUST be surfaced (chip with details); protocol has outgrown the client. |
 | `unrecognized` | `why`, `frame` | MUST be surfaced; render as an explicit unknown with raw access. |
 
