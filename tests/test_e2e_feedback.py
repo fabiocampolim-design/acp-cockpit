@@ -53,9 +53,13 @@ def display_of(page, selector):
 
 
 def start(pw, url, tmp):
+    """The server keeps sessions alive across page loads, so a page may open
+    straight into one; "+" is how a user asks for a new session."""
     page = pw.chromium.launch().new_page()
     page.goto(url)
-    assert display_of(page, "#workspace") == "none"   # hidden at load
+    page.wait_for_selector("#tab-add")
+    page.click("#tab-add")
+    page.wait_for_selector("#launcher:not([hidden])")
     page.select_option("#profile", "cmds")
     page.fill("#cwd", str(tmp))
     page.click("#start")
@@ -75,7 +79,7 @@ def test_palette_folds_back_after_selection_and_send(server):
         assert display_of(page, "#palette") == "none"
         assert page.input_value("#prompt-input").startswith("/context")
         page.press("#prompt-input", "Enter")
-        page.wait_for_selector('[data-kind="turn_ended"]')
+        page.wait_for_selector('.pane:not([hidden]) [data-kind="turn_ended"]')
         assert display_of(page, "#palette") == "none"
 
 
@@ -97,7 +101,7 @@ def test_model_selector_and_thinking_marker_and_stderr(server):
         page.click("#send")
         page.wait_for_selector("#working")          # visible while the turn runs
         assert "working" in page.inner_text("#working")
-        page.wait_for_selector('[data-kind="turn_ended"]')
+        page.wait_for_selector('.pane:not([hidden]) [data-kind="turn_ended"]')
         assert page.query_selector("#working") is None   # gone when it ends
         thought = page.inner_text(
             '[data-kind="message_chunk"][data-role="thought"]')

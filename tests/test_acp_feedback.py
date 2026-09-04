@@ -147,3 +147,37 @@ def test_frames_after_close_are_recorded_until_the_adapter_exits(tmp_path):
     session.on_exit(0)
     assert session.recorder.append({"dir": "client", "action": "x"}) is None
 
+
+def test_client_asks_for_subagent_transcripts(tmp_path):
+    # Without this capability the adapter strips subagent text and thinking
+    # from what it forwards, so a "subagents" lane would have nothing to show.
+    session, proc, sink = make_session(tmp_path)
+    session.start(cwd="C:\\work\\proj")
+    caps = sent_frames(proc)[0]["params"]["clientCapabilities"]
+    assert caps["_meta"]["subagent-transcript"] is True
+
+
+def test_subagent_text_carries_the_tool_call_it_belongs_to(tmp_path):
+    # Subagent messages are stamped with the Task tool call that owns them;
+    # the View needs that to file them under the subagent, not the main agent.
+    session, proc, sink = make_session(tmp_path)
+    do_handshake(session, proc)
+    feed(session, {"jsonrpc": "2.0", "method": "session/update", "params": {
+        "sessionId": "acp-123",
+        "update": {"sessionUpdate": "agent_message_chunk",
+                   "content": {"type": "text", "text": "subagent says hi"},
+                   "_meta": {"claudeCode": {"parentToolUseId": "t-task"}}}}})
+    ev = [e for e in sink.events if e.kind == "message_chunk"][-1]
+    assert ev.data["text"] == "subagent says hi"
+    assert ev.data["parent_tool_call_id"] == "t-task"
+
+
+def test_main_agent_text_has_no_parent_tool_call(tmp_path):
+    session, proc, sink = make_session(tmp_path)
+    do_handshake(session, proc)
+    feed(session, {"jsonrpc": "2.0", "method": "session/update", "params": {
+        "sessionId": "acp-123",
+        "update": {"sessionUpdate": "agent_message_chunk",
+                   "content": {"type": "text", "text": "the answer"}}}})
+    ev = [e for e in sink.events if e.kind == "message_chunk"][-1]
+    assert ev.data["parent_tool_call_id"] is None

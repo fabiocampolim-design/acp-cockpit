@@ -1,6 +1,6 @@
-# CLAUDIU user manual
+# ClaudIU user manual
 
-CLAUDIU (working codename) is a local, browser-based client for AI coding
+ClaudIU (working codename) is a local, browser-based client for AI coding
 agents that speak the Agent Client Protocol (ACP). It runs a small Python
 server on your machine, spawns the agent's ACP adapter as a plain
 subprocess, and renders the structured conversation — messages, thinking,
@@ -97,6 +97,44 @@ Claude Code's *prompt suggestions* (the predicted next prompt the terminal
 offers after a turn) are not available here yet: the Agent SDK provides
 them, but the ACP adapter neither enables the option nor forwards the
 message. The launcher lists this under the agent's caveats.
+
+## What the conversation shows — the five lanes
+
+The status strip carries five switches: **thinking**, **tools**,
+**subagents**, **events**, **harness**. Switching one off removes those rows
+from the page entirely (they are still recorded, and switching it back on
+brings them back); the agent's answers and your own prompts are never
+hidden. The choice is remembered per browser.
+
+Thinking is the one lane that is more than a view filter: what the agent is
+*asked* to produce is chosen in the launcher (**Thinking**: summarized,
+omitted, or off) because ACP fixes it when the session is created. Choosing
+*off* means no thinking tokens are requested at all for that session.
+
+The conversation follows new rows only while you are at the bottom. Scroll
+up to read and it stays where you put it; a **↓ jump to latest** button
+appears and puts you back in the stream.
+
+## Keeping your sessions
+
+Sessions live in the server, not the page: reloading the browser (or opening
+a second window) reattaches to everything still running, with the
+conversation replayed, and lands you back in the tab you were in.
+
+Only one attachment per agent session is allowed. Resuming an agent session
+that is already open somewhere is refused, naming the session that holds it
+— two adapters attached to one agent session would write the same transcript
+file and corrupt it.
+
+## Archiving a conversation
+
+**Archive** in the toolbar hands the session to
+[claude-session-publisher](https://github.com/fabiocampolim-design/claude-session-publisher),
+which writes it into your usual archive directory (`CLAUDE_ARCHIVE_DIR`) in
+the formats it always produces. The server must know where that tool is:
+start it with `--archiver <path to transcript_archiver.py>` or set
+`CLAUDIU_ARCHIVER`. Without it the button says so; nothing is copied into
+this project.
 
 ## Approvals
 

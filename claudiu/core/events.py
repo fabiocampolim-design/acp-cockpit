@@ -8,7 +8,9 @@ from datetime import datetime, timezone
 
 KINDS = frozenset({
     "session_state",       # {"state": "starting"|"ready"|"turn"|"failed"|"closed", "detail": str}
-    "message_chunk",       # {"role": "agent"|"user"|"thought", "text": str}
+    "message_chunk",       # {"role": "agent"|"user"|"thought", "text": str,
+                           #  "parent_tool_call_id": str|None — set when the
+                           #  text came from a subagent}
     "tool_call",           # raw ACP toolCall passthrough
     "tool_call_update",
     "plan",

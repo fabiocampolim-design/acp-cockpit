@@ -1,4 +1,4 @@
-# Design notes — CLAUDIU
+# Design notes — ClaudIU
 
 What this program is trying to be, the decisions that shaped it, what each
 one cost, and what was rejected. `README.md` is the product page and
@@ -24,7 +24,7 @@ can never be a safety boundary.
 The Agent Client Protocol (ACP) removes the guesswork: the same
 conversation arrives as structured JSON-RPC over stdio — messages, thoughts,
 tool calls with diffs, permission requests with typed options, config
-options, usage. CLAUDIU 0.2 is a browser client for that protocol, with
+options, usage. ClaudIU 0.2 is a browser client for that protocol, with
 one guarantee: **nothing that crosses the wire is lost or silently
 misread.**
 
@@ -66,7 +66,7 @@ misread.**
   the SDK's `prompt_suggestion` (the terminal's predicted next prompt) and
   `tool_use_summary`, and ignores `system` notifications other than
   init/compacting/compact boundary (hooks, tasks, persisted files — its
-  issue #1030). CLAUDIU cannot show what never reaches it; the options are
+  issue #1030). ClaudIU cannot show what never reaches it; the options are
   upstream requests or a patched fork of the adapter (Apache-2.0).
 - **Thinking text — answered (2026-09-04).** The empty chunks were not
   redaction by the adapter: recent models return *summarized* thinking or
@@ -83,7 +83,7 @@ misread.**
 
 Recorded decisions, not open questions — each waits for the stated trigger.
 
-- **A CLAUDIU-owned fork of the adapter is parked** (the author: "pin").
+- **A ClaudIU-owned fork of the adapter is parked** (the author: "pin").
   The facts stay on record (§4); the trigger is a dropped message that
   blocks daily work, or upstream declining the patches.
 - **Prompt suggestions** wait for upstream (`prompt_suggestion` is dropped

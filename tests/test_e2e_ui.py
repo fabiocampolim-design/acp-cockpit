@@ -42,9 +42,20 @@ def server():
     proc.terminate()
 
 
+def open_launcher(page, url):
+    """Go to the app and show the launcher. The server keeps sessions alive
+    across page loads, so a fresh page may open straight into one; "+" is
+    how a user asks for a new session."""
+    page.goto(url)
+    page.wait_for_selector("#tab-add")
+    page.click("#tab-add")
+    page.wait_for_selector("#launcher:not([hidden])")
+    return page
+
+
 def start_fake_session(pw, url, tmp):
     page = pw.chromium.launch().new_page()
-    page.goto(url)
+    open_launcher(page, url)
     page.select_option("#profile", "fake")
     page.fill("#cwd", str(tmp))
     page.click("#start")
@@ -61,8 +72,8 @@ def test_full_turn_and_permission(server):
         page = start_fake_session(pw, url, tmp)
         page.fill("#prompt-input", "say hello")
         page.click("#send")
-        page.wait_for_selector('[data-kind="turn_ended"]')
-        convo = page.inner_text("#conversation")
+        page.wait_for_selector('.pane:not([hidden]) [data-kind="turn_ended"]')
+        convo = page.inner_text(".pane:not([hidden])")
         assert "hello world" in convo
         # permission round trip
         page.fill("#prompt-input", "do the PERMISSION thing")
@@ -82,7 +93,7 @@ def test_permission_reject_path(server):
         page.wait_for_selector("#permission[open]")
         page.click('#perm-options button[data-option="n"]')
         page.wait_for_selector("#permission", state="hidden")
-        page.wait_for_selector('[data-kind="turn_ended"]')
+        page.wait_for_selector('.pane:not([hidden]) [data-kind="turn_ended"]')
 
 
 def test_launcher_shows_the_resolved_runtime(server):
@@ -94,7 +105,7 @@ def test_launcher_shows_the_resolved_runtime(server):
     from playwright.sync_api import sync_playwright
     with sync_playwright() as pw:
         page = pw.chromium.launch().new_page()
-        page.goto(url)
+        open_launcher(page, url)
         page.select_option("#profile", "resolving")
         page.wait_for_selector("#caveats .runtime")
         assert page.inner_text("#caveats .runtime") == \
@@ -113,7 +124,7 @@ def test_tab_bar_stays_visible_when_the_launcher_is_taller_than_the_window(serve
         # for the long caveat list of a real profile
         page = pw.chromium.launch().new_page(viewport={"width": 900,
                                                        "height": 240})
-        page.goto(url)
+        open_launcher(page, url)
         page.wait_for_selector("#start")
         box = page.locator("#tab-add").bounding_box()
         assert box["y"] >= 0 and box["height"] >= 20, box
@@ -129,7 +140,7 @@ def test_folder_picker_navigates_and_fills_the_directory(server):
     from playwright.sync_api import sync_playwright
     with sync_playwright() as pw:
         page = pw.chromium.launch().new_page()
-        page.goto(url)
+        open_launcher(page, url)
         page.fill("#cwd", str(tmp))
         page.click("#browse")
         page.wait_for_selector("#dirpick[open]")
@@ -162,8 +173,8 @@ def test_elicitation_form_asks_and_shows_the_answer(server):
         page.check('#elic-form input[type="checkbox"][value="Ice"]')
         page.click("#elic-submit")
         page.wait_for_selector("#elicitation", state="hidden")
-        page.wait_for_selector('[data-kind="elicitation_resolved"]')
-        row = page.inner_text('[data-kind="elicitation_resolved"]')
+        page.wait_for_selector('.pane:not([hidden]) [data-kind="elicitation_resolved"]')
+        row = page.inner_text('.pane:not([hidden]) [data-kind="elicitation_resolved"]')
         assert "Blue" in row and "Ice" in row
         # the row names the QUESTION, not the wire field key
         assert "Colour" in row and "Extras" in row
@@ -182,8 +193,8 @@ def test_elicitation_can_be_skipped(server):
         page.wait_for_selector("#elicitation[open]")
         page.click("#elic-skip")
         page.wait_for_selector("#elicitation", state="hidden")
-        page.wait_for_selector('[data-kind="elicitation_resolved"]')
-        assert "skipped" in page.inner_text('[data-kind="elicitation_resolved"]')
+        page.wait_for_selector('.pane:not([hidden]) [data-kind="elicitation_resolved"]')
+        assert "skipped" in page.inner_text('.pane:not([hidden]) [data-kind="elicitation_resolved"]')
 
 
 def test_elicitation_free_text_answer_wins_over_the_options(server):
@@ -199,6 +210,160 @@ def test_elicitation_free_text_answer_wins_over_the_options(server):
         page.fill('#elic-form input[data-field="question_0_custom"]',
                   "Aubergine")
         page.click("#elic-submit")
-        page.wait_for_selector('[data-kind="elicitation_resolved"]')
-        row = page.inner_text('[data-kind="elicitation_resolved"]')
+        page.wait_for_selector('.pane:not([hidden]) [data-kind="elicitation_resolved"]')
+        row = page.inner_text('.pane:not([hidden]) [data-kind="elicitation_resolved"]')
         assert "Aubergine" in row and "question_0_custom" not in row
+
+
+def lanes_turn(page):
+    page.fill("#prompt-input", "show me the LANES")
+    page.click("#send")
+    page.wait_for_selector('.pane:not([hidden]) [data-kind="turn_ended"]')
+
+
+def test_lane_toggles_remove_rows_from_the_conversation(server):
+    # Off means GONE from the conversation, not dimmed: Fabio asked for the
+    # rows to disappear entirely.
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = start_fake_session(pw, url, tmp)
+        lanes_turn(page)
+        assert page.locator('.pane:not([hidden]) [data-lane="thinking"]').count() >= 1
+        assert page.locator('.pane:not([hidden]) [data-lane="subagents"]').count() >= 1
+        page.click('#lanes button[data-lane-toggle="thinking"]')
+        assert page.locator('.pane:not([hidden]) [data-lane="thinking"]:visible').count() == 0
+        assert "weighing" not in page.inner_text(".pane:not([hidden])")
+        page.click('#lanes button[data-lane-toggle="tools"]')
+        assert page.locator('.pane:not([hidden]) [data-lane="tools"]:visible').count() == 0
+        page.click('#lanes button[data-lane-toggle="subagents"]')
+        assert page.locator('.pane:not([hidden]) [data-lane="subagents"]:visible').count() == 0
+        page.click('#lanes button[data-lane-toggle="events"]')
+        assert page.locator('.pane:not([hidden]) [data-lane="events"]:visible').count() == 0
+        # the agent's own answer is never hidden by a lane
+        assert "the plain answer" in page.inner_text(".pane:not([hidden])")
+        # and the choice survives a reload (the session comes back with it)
+        page.reload()
+        page.wait_for_selector("#workspace:not([hidden])")
+        # events are switched off at this point, so wait for the agent's own
+        # text rather than the turn separator
+        page.wait_for_selector('.pane:not([hidden]) [data-role="agent"]')
+        assert page.locator('.pane:not([hidden]) [data-lane="thinking"]:visible').count() == 0
+        page.click('#lanes button[data-lane-toggle="thinking"]')
+        assert page.locator('.pane:not([hidden]) [data-lane="thinking"]:visible').count() >= 1
+
+
+def test_subagent_rows_are_their_own_lane(server):
+    # A tool call stamped with parentToolUseId belongs to a subagent, and
+    # hiding subagents must not take the main agent's tool rows with it.
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = start_fake_session(pw, url, tmp)
+        lanes_turn(page)
+        page.click('#lanes button[data-lane-toggle="subagents"]')
+        assert page.locator('.pane:not([hidden]) [data-lane="subagents"]:visible').count() == 0
+        assert "Read config.toml" in page.inner_text(".pane:not([hidden])")
+
+
+def test_jump_to_bottom_appears_when_scrolled_away_and_follows_again(server):
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = pw.chromium.launch().new_page(viewport={"width": 900,
+                                                       "height": 400})
+        open_launcher(page, url)
+        page.select_option("#profile", "fake")
+        page.fill("#cwd", str(tmp))
+        page.click("#start")
+        page.wait_for_selector("#send:not([disabled])")
+        for _ in range(4):
+            lanes_turn(page)
+        pane = page.locator("#conversation")
+        assert page.locator("#jump-bottom:visible").count() == 0
+        page.evaluate("document.querySelector('#conversation').scrollTop = 0")
+        page.wait_for_selector("#jump-bottom:visible")
+        # it floats ABOVE the composer, never on top of it
+        btn = page.locator("#jump-bottom").bounding_box()
+        composer = page.locator("#composer").bounding_box()
+        assert btn["y"] + btn["height"] <= composer["y"] + 1, (btn, composer)
+        before = pane.evaluate("el => el.scrollTop")
+        lanes_turn(page)
+        # scrolled away: the view must NOT yank the user back down
+        assert pane.evaluate("el => el.scrollTop") == before
+        page.click("#jump-bottom")
+        page.wait_for_selector("#jump-bottom", state="hidden")
+        assert pane.evaluate(
+            "el => el.scrollHeight - el.scrollTop - el.clientHeight < 4")
+
+
+def test_composer_does_not_eat_a_short_window(server):
+    # 2026-09-04: at 420 px tall the composer took 36 % of the height and the
+    # toolbar left a dead band across the middle.
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = pw.chromium.launch().new_page(viewport={"width": 1200,
+                                                       "height": 420})
+        open_launcher(page, url)
+        page.select_option("#profile", "fake")
+        page.fill("#cwd", str(tmp))
+        page.click("#start")
+        page.wait_for_selector("#send:not([disabled])")
+        composer = page.locator("#composer").bounding_box()["height"]
+        assert composer <= 420 * 0.25, f"composer takes {composer}px of 420"
+        # the conversation gets what the composer gives up
+        convo = page.locator("#conversation").bounding_box()["height"]
+        assert convo >= 420 * 0.6, f"conversation only {convo}px of 420"
+
+
+def test_a_reload_gets_the_running_sessions_back(server):
+    # The sessions live in the server, but the View always started at the
+    # launcher: after a browser reload a running session was unreachable
+    # (found 2026-09-04 while testing the lane switches).
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = start_fake_session(pw, url, tmp)
+        page.fill("#prompt-input", "say hello")
+        page.click("#send")
+        page.wait_for_selector('.pane:not([hidden]) [data-kind="turn_ended"]')
+        page.reload()
+        page.wait_for_selector("#workspace:not([hidden])")
+        page.wait_for_selector('.pane:not([hidden]) [data-kind="turn_ended"]')
+        assert "hello world" in page.inner_text(".pane:not([hidden])")
+        assert page.locator("#tabs .tab").count() >= 1
+
+
+def test_launcher_sends_the_thinking_choice_with_the_session(server):
+    # Thinking is a session-CREATION option (it cannot be changed later over
+    # ACP), so the launcher is where it is chosen.
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = pw.chromium.launch().new_page()
+        open_launcher(page, url)
+        page.select_option("#profile", "fake")
+        page.fill("#cwd", str(tmp))
+        page.select_option("#thinking", "off")
+        posted = {}
+        page.route("**/api/sessions", lambda route: (
+            posted.update(json.loads(route.request.post_data or "{}")),
+            route.continue_()))
+        page.click("#start")
+        page.wait_for_selector("#send:not([disabled])")
+        assert posted["client_options"]["thinking"] == {"type": "disabled"}
+
+
+def test_archive_button_reports_what_the_server_says(server):
+    # The e2e server has no archiver configured: the button must say so
+    # plainly instead of failing silently.
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = start_fake_session(pw, url, tmp)
+        page.click("#archive")
+        # the note says "archiving…" first; wait for the verdict, not the
+        # placeholder (this raced on the first run)
+        page.wait_for_selector("#archive-note.error")
+        assert "archiver" in page.inner_text("#archive-note")

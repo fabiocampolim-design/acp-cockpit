@@ -30,7 +30,7 @@ vertical-align: middle;
 <body>
 <nav id="TOC" role="doc-toc">
 <ul>
-<li><a href="#claudiu-user-manual" id="toc-claudiu-user-manual">CLAUDIU
+<li><a href="#claudiu-user-manual" id="toc-claudiu-user-manual">ClaudIU
 user manual</a>
 <ul>
 <li><a href="#starting" id="toc-starting">Starting</a></li>
@@ -39,6 +39,10 @@ user manual</a>
 <li><a href="#the-conversation" id="toc-the-conversation">The
 conversation</a></li>
 <li><a href="#prompting" id="toc-prompting">Prompting</a></li>
+<li><a href="#what-the-conversation-shows-the-five-lanes" id="toc-what-the-conversation-shows-the-five-lanes">What the
+conversation shows — the five lanes</a></li>
+<li><a href="#keeping-your-sessions" id="toc-keeping-your-sessions">Keeping your sessions</a></li>
+<li><a href="#archiving-a-conversation" id="toc-archiving-a-conversation">Archiving a conversation</a></li>
 <li><a href="#approvals" id="toc-approvals">Approvals</a></li>
 <li><a href="#questions-from-the-agent" id="toc-questions-from-the-agent">Questions from the agent</a></li>
 <li><a href="#status-strip-and-warnings" id="toc-status-strip-and-warnings">Status strip and warnings</a></li>
@@ -48,8 +52,8 @@ notes</a></li>
 </ul></li>
 </ul>
 </nav>
-<h1 id="claudiu-user-manual">CLAUDIU user manual</h1>
-<p>CLAUDIU (working codename) is a local, browser-based client for AI
+<h1 id="claudiu-user-manual">ClaudIU user manual</h1>
+<p>ClaudIU (working codename) is a local, browser-based client for AI
 coding agents that speak the Agent Client Protocol (ACP). It runs a
 small Python server on your machine, spawns the agent’s ACP adapter as a
 plain subprocess, and renders the structured conversation — messages,
@@ -146,6 +150,39 @@ the terminal offers after a turn) are not available here yet: the Agent
 SDK provides them, but the ACP adapter neither enables the option nor
 forwards the message. The launcher lists this under the agent’s
 caveats.</p>
+<h2 id="what-the-conversation-shows-the-five-lanes">What the
+conversation shows — the five lanes</h2>
+<p>The status strip carries five switches: <strong>thinking</strong>,
+<strong>tools</strong>, <strong>subagents</strong>,
+<strong>events</strong>, <strong>harness</strong>. Switching one off
+removes those rows from the page entirely (they are still recorded, and
+switching it back on brings them back); the agent’s answers and your own
+prompts are never hidden. The choice is remembered per browser.</p>
+<p>Thinking is the one lane that is more than a view filter: what the
+agent is <em>asked</em> to produce is chosen in the launcher
+(<strong>Thinking</strong>: summarized, omitted, or off) because ACP
+fixes it when the session is created. Choosing <em>off</em> means no
+thinking tokens are requested at all for that session.</p>
+<p>The conversation follows new rows only while you are at the bottom.
+Scroll up to read and it stays where you put it; a <strong>↓ jump to
+latest</strong> button appears and puts you back in the stream.</p>
+<h2 id="keeping-your-sessions">Keeping your sessions</h2>
+<p>Sessions live in the server, not the page: reloading the browser (or
+opening a second window) reattaches to everything still running, with
+the conversation replayed, and lands you back in the tab you were
+in.</p>
+<p>Only one attachment per agent session is allowed. Resuming an agent
+session that is already open somewhere is refused, naming the session
+that holds it — two adapters attached to one agent session would write
+the same transcript file and corrupt it.</p>
+<h2 id="archiving-a-conversation">Archiving a conversation</h2>
+<p><strong>Archive</strong> in the toolbar hands the session to <a href="https://github.com/fabiocampolim-design/claude-session-publisher">claude-session-publisher</a>,
+which writes it into your usual archive directory
+(<code>CLAUDE_ARCHIVE_DIR</code>) in the formats it always produces. The
+server must know where that tool is: start it with
+<code>--archiver &lt;path to transcript_archiver.py&gt;</code> or set
+<code>CLAUDIU_ARCHIVER</code>. Without it the button says so; nothing is
+copied into this project.</p>
 <h2 id="approvals">Approvals</h2>
 <p>When the agent wants to do something that needs permission, a dialog
 shows the tool call (with diff when provided) and the agent’s own

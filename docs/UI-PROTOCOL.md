@@ -1,6 +1,6 @@
 # UI Protocol — the View seam
 
-Any UI (web, desktop, mobile) implementing this document is a full CLAUDIU
+Any UI (web, desktop, mobile) implementing this document is a full ClaudIU
 front-end. The bundled `claudiu/ui/web/` consumes exactly this protocol and
 nothing else. `tests/test_docs_sync.py` enforces that this document stays in
 lockstep with the code.
@@ -28,6 +28,17 @@ machine (empty when nothing resolved); show it so the user knows which
 runtime the adapter is pointed at.
 
 ### `POST /api/sessions` — body `{"profile": "claude", "cwd": "C:\\work\\proj"}`
+
+Optional `resume` (an agent session id) attaches to an existing agent
+session; optional `client_options` (an object) is merged over the profile's
+`client_options` and sent to the agent as `_meta.claudeCode.options` — this
+is where session-CREATION choices live, `thinking` above all, because ACP
+offers no way to change them later. A non-object `client_options` is a 400.
+
+**One attachment per agent session.** Resuming an agent session that another
+live session already holds is a **409** with `{"error": ..., "session":
+"<sid>"}` naming the session that holds it: two adapters attached to one
+agent session write the same transcript file.
 Returns `{"id": "<sid>"}`. Errors: `400` bad profile/cwd (JSON body
 `{"error": "..."}` — show it verbatim); `424` adapter not installed (body
 carries `install_hint`). Add `"resume": "<agent session
@@ -69,6 +80,15 @@ names first and dot-directories last, sorted case-insensitively. `400`
 with `"dirs": []` and `error` set when `path` is not a directory or cannot
 be listed. Exposure equals what the token already grants (a session may be
 started in any directory); the route is gated like every other.
+
+### `POST /api/sessions/<sid>/archive` — body `{"format": "html,markdown"}`
+
+Hands the session's agent-session id to the archiver
+(claude-session-publisher's `transcript_archiver.py`, named by the server's
+`--archiver` / `CLAUDIU_ARCHIVER`; the tool is never vendored in). Answers
+`{"ok": true, "output": ["<file>", ...], "detail": "<tail of its output>"}`,
+**501** when no archiver is configured, **409** before the session has an
+agent session, **502** with `detail` when the archiver itself fails.
 
 ### `GET /api/drift`
 ```json
@@ -126,7 +146,7 @@ Every server → client message is one event:
 | Kind | `data` payload | Rendering intent |
 |---|---|---|
 | `session_state` | `state` (`starting`/`ready`/`turn`/`failed`/`closed`), `detail` | Status strip; disable composer unless `ready`. |
-| `message_chunk` | `role` (`agent`/`user`/`thought`), `text` | Append to the conversation; aggregate consecutive chunks of one role; `thought` dimmed/collapsible. |
+| `message_chunk` | `role` (`agent`/`user`/`thought`), `text`, `parent_tool_call_id` (the tool call that owns it, or null) | Append to the conversation; aggregate consecutive chunks of one role; `thought` dimmed/collapsible. A non-null `parent_tool_call_id` means a **subagent** said it — file it under that tool call, not the main agent. |
 | `tool_call` | ACP toolCall passthrough (`toolCallId`, `title`, `kind`, `status`, `content`, `locations`, …) | Collapsible tool row; render diff content when present. |
 | `tool_call_update` | same shape, partial | Update the matching row by `toolCallId`. |
 | `plan` | `entries` (list of `{content, status, priority}`) | Plan panel. |
@@ -146,6 +166,25 @@ Every server → client message is one event:
 | `anomaly` | `category`, `detail` | MUST be surfaced (chip + inline row); never dropped. |
 | `drift` | `flags` (list of strings) | MUST be surfaced (chip with details); protocol has outgrown the client. |
 | `unrecognized` | `why`, `frame` | MUST be surfaced; render as an explicit unknown with raw access. |
+
+## 4a. Lanes — what a View may hide
+
+Every conversation row belongs to a lane, and a View SHOULD let the reader
+switch each one off. Off means **gone from the page**, not dimmed:
+
+| Lane | Rows |
+|---|---|
+| `thinking` | `message_chunk` with `role: "thought"` |
+| `tools` | `tool_call` / `tool_call_update` rows of the main agent |
+| `subagents` | rows carrying `parent_tool_call_id` (or the tool call that owns them) |
+| `events` | `turn_ended`, `fs_request`, `elicitation_resolved` |
+| `harness` | `stderr`, `anomaly`, `drift`, `unrecognized` |
+
+The agent's own answer and the user's prompts have no lane and are never
+hidden. Hiding a lane is a VIEW choice and never changes what the client
+asks the agent for — the one exception is thinking, which is a session
+creation option (`client_options.thinking`) because ACP cannot change it
+mid-session.
 
 ## 5. Ordering guarantees
 

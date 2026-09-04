@@ -51,6 +51,9 @@ def test_tabs_two_sessions_switch_and_titles(server):
     with sync_playwright() as pw:
         page = pw.chromium.launch().new_page()
         page.goto(url)
+        page.wait_for_selector("#tab-add")
+        page.click("#tab-add")
+        page.wait_for_selector("#launcher:not([hidden])")
         new_session(page, tmp)
         page.wait_for_selector(".tab.active:has-text('Fixture session')")
         page.click("#tab-add")
@@ -61,13 +64,13 @@ def test_tabs_two_sessions_switch_and_titles(server):
         # prompt in tab 2, then switch to tab 1: its pane must be empty
         page.fill("#prompt-input", "hello two")
         page.click("#send")
-        page.wait_for_selector('[data-kind="turn_ended"]')
+        page.wait_for_selector('.pane:not([hidden]) [data-kind="turn_ended"]')
         tabs[0].click()
         page.wait_for_selector(".pane:not([hidden])", state="attached")
-        visible_text = page.inner_text("#conversation")
+        visible_text = page.inner_text(".pane:not([hidden])")
         assert "hello two" not in visible_text
         tabs[1].click()
-        assert "hello two" in page.inner_text("#conversation")
+        assert "hello two" in page.inner_text(".pane:not([hidden])")
         # close tab 2 -> tab 1 becomes active
         page.click(".tab.active .close")
         assert len(page.query_selector_all(".tab:not(.add)")) == 1
@@ -79,6 +82,9 @@ def test_usage_gauge_config_options_and_diff(server):
     with sync_playwright() as pw:
         page = pw.chromium.launch().new_page()
         page.goto(url)
+        page.wait_for_selector("#tab-add")
+        page.click("#tab-add")
+        page.wait_for_selector("#launcher:not([hidden])")
         new_session(page, tmp)
         page.wait_for_selector("#status .usage:has-text('59.3k')")
         assert "6%" in page.inner_text("#status .usage")
@@ -93,8 +99,8 @@ def test_usage_gauge_config_options_and_diff(server):
         assert page.input_value("#config-options select[data-config=effort]") == "low"
         page.fill("#prompt-input", "make a DIFF")
         page.click("#send")
-        page.wait_for_selector('[data-kind="turn_ended"]')
-        rows = page.query_selector_all('[data-kind="tool_call"]')
+        page.wait_for_selector('.pane:not([hidden]) [data-kind="turn_ended"]')
+        rows = page.query_selector_all('.pane:not([hidden]) [data-kind="tool_call"]')
         assert len(rows) == 1, "tool_call + update must merge into one row"
         assert rows[0].get_attribute("data-status") == "completed"
         # results are collapsed by default (like the terminal); the toolbar
@@ -112,6 +118,9 @@ def test_resume_from_launcher(server):
     with sync_playwright() as pw:
         page = pw.chromium.launch().new_page()
         page.goto(url)
+        page.wait_for_selector("#tab-add")
+        page.click("#tab-add")
+        page.wait_for_selector("#launcher:not([hidden])")
         page.select_option("#profile", "cmds")
         page.fill("#cwd", str(tmp))
         page.click("#refresh-recent")
@@ -129,11 +138,14 @@ def test_working_row_shows_last_activity(server):
     with sync_playwright() as pw:
         page = pw.chromium.launch().new_page()
         page.goto(url)
+        page.wait_for_selector("#tab-add")
+        page.click("#tab-add")
+        page.wait_for_selector("#launcher:not([hidden])")
         new_session(page, tmp)
         page.fill("#prompt-input", "go slow")
         page.click("#send")
         page.wait_for_selector("#working")
         text = page.inner_text("#working")
         assert "agent working" in text and "Stop cancels" in text
-        page.wait_for_selector('[data-kind="turn_ended"]')
+        page.wait_for_selector('.pane:not([hidden]) [data-kind="turn_ended"]')
         assert page.query_selector("#working") is None

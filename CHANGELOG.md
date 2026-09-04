@@ -2,6 +2,37 @@
 
 All notable changes to CLAUDIU are documented in this file.
 
+## Unreleased - daily-use round 8 (2026-09-04)
+
+- **The conversation follows you, not the other way round.** New rows scroll
+  into view only while you are at the bottom; scrolled up, the view stays
+  put and a **jump to latest** button brings you back.
+- **Five lane switches** in the status strip - thinking, tools, subagents,
+  events, harness - each removing those rows from the page entirely
+  (remembered per browser). Documented as a View contract in
+  `docs/UI-PROTOCOL.md` so any front-end offers the same thing.
+- **Thinking is chosen where the session is created**: a launcher control
+  (summarized / omitted / off) sent as `client_options` and merged over the
+  profile's, because ACP cannot change it mid-session. `off` requests no
+  thinking at all.
+- **Subagent transcripts arrive**: the client advertises the adapter's
+  `subagent-transcript` capability, and `message_chunk` carries
+  `parent_tool_call_id` so subagent text can be filed (and hidden) as its own
+  lane instead of masquerading as the main agent's.
+- **A reload no longer strands a running session.** Sessions live in the
+  server; the View now reattaches to every live one on load and returns you
+  to the tab you were in.
+- **One attachment per agent session.** Resuming an agent session that
+  another live session already holds is refused with a 409 naming the
+  holder - two adapters would write the same transcript file.
+- **Archive button**: hands the session to claude-session-publisher
+  (`--archiver` / `CLAUDIU_ARCHIVER`), which writes it into the usual
+  archive directory; the tool is never vendored in (rule 21).
+- **The composer stopped eating short windows**: the prompt box starts at two
+  rows and grows with the text to a 30vh cap, and the toolbar is one compact
+  row. At 420 px tall the composer used to take 36 % of the window.
+- The product is spelled **ClaudIU**.
+
 ## 0.3.0 - 2026-09-04 - thinking, questions, and a client that fits daily use
 
 Everything below shipped between 0.2.0 (2026-08-31) and this release,

@@ -47,6 +47,14 @@ class LocalFiles:
         p.write_text(content, encoding="utf-8")
 
 
+class AgentSessionBusy(Exception):
+    """Another live session is already attached to that agent session."""
+
+    def __init__(self, sid: str):
+        super().__init__(f"already open in session {sid}")
+        self.sid = sid
+
+
 @dataclass
 class Entry:
     session: AcpSession
@@ -54,6 +62,17 @@ class Entry:
     profile_id: str
     cwd: str
     title: str | None = None
+    resume_of: str | None = None      # agent session this one attached to
+
+    @property
+    def agent_session(self) -> str | None:
+        """The agent-side session this entry owns, known from the resume
+        request before the agent confirms it."""
+        return self.session.acp_session_id or self.resume_of
+
+    @property
+    def live(self) -> bool:
+        return self.session.state not in ("failed", "closed")
 
 
 class SessionManager:
@@ -77,7 +96,7 @@ class SessionManager:
         self.permission_timeout = permission_timeout
         self._entries: dict[str, Entry] = {}
 
-    def _spawn(self, profile, cwd, sid, sink):
+    def _spawn(self, profile, cwd, sid, sink, client_options=None):
         loop = tornado.ioloop.IOLoop.current()
         holder = {}
 
@@ -101,16 +120,32 @@ class SessionManager:
             sid=sid, profile=profile, proc=proc, sink=sink,
             recorder=recorder,
             sentinel=Sentinel.load_default(),
-            policy=PathPolicy(cwd), files=LocalFiles())
+            policy=PathPolicy(cwd), files=LocalFiles(),
+            client_options=client_options)
         holder["s"] = session
         return session, loop
 
-    def create(self, profile_id: str, cwd: str, resume: str | None = None) -> str:
+    def holder_of(self, agent_session: str) -> str | None:
+        """Which live session already owns that agent session, if any."""
+        for sid, entry in self._entries.items():
+            if entry.live and entry.agent_session == agent_session:
+                return sid
+        return None
+
+    def create(self, profile_id: str, cwd: str, resume: str | None = None,
+               client_options: dict | None = None) -> str:
         profile = self.profiles[profile_id]
+        # Two adapters attached to one agent session write the same
+        # transcript file. One attachment at a time, whichever UI asks.
+        if resume:
+            holder = self.holder_of(resume)
+            if holder:
+                raise AgentSessionBusy(holder)
         sid = uuid.uuid4().hex[:12]
         sink = BufferedSink()
-        session, loop = self._spawn(profile, cwd, sid, sink)
-        entry = Entry(session, sink, profile_id, cwd)
+        session, loop = self._spawn(profile, cwd, sid, sink,
+                                    client_options=client_options)
+        entry = Entry(session, sink, profile_id, cwd, resume_of=resume)
         self._watch_events(entry, loop)
         self._entries[sid] = entry
         if resume:
@@ -171,7 +206,7 @@ class SessionManager:
     def list(self):
         return [{"id": sid, "profile": e.profile_id, "cwd": e.cwd,
                  "state": e.session.state, "title": e.title,
-                 "agent_session": e.session.acp_session_id}
+                 "agent_session": e.agent_session}
                 for sid, e in self._entries.items()]
 
     def close(self, sid):
@@ -253,14 +288,31 @@ class SessionsHandler(BaseHandler):
             return self.write_json({"error": "bad profile or cwd: profile="
                                     f"{profile_id!r}, cwd={cwd!r} (must be "
                                     "an existing directory)"})
+        client_options = body.get("client_options") or {}
+        if not isinstance(client_options, dict):
+            self.set_status(400)
+            return self.write_json(
+                {"error": "client_options must be an object of agent session "
+                          "options, e.g. {\"thinking\": {\"type\": "
+                          "\"disabled\"}}"})
         cwd = native_dir(cwd)
         profile = self.manager.profiles[profile_id]
         if shutil.which(profile.command[0]) is None:
             self.set_status(424)
             return self.write_json({"error": "adapter not installed",
                                     "install_hint": profile.install_hint})
-        self.write_json({"id": self.manager.create(
-            profile_id, cwd, resume=body.get("resume") or None)})
+        try:
+            sid = self.manager.create(profile_id, cwd,
+                                      resume=body.get("resume") or None,
+                                      client_options=client_options)
+        except AgentSessionBusy as busy:
+            self.set_status(409)
+            return self.write_json(
+                {"error": f"that agent session is already open in another "
+                          f"tab of this server ({busy.sid}); close it there "
+                          f"first — two adapters would write the same "
+                          f"transcript", "session": busy.sid})
+        self.write_json({"id": sid})
 
 
 class SessionHandler(BaseHandler):
@@ -339,6 +391,61 @@ class DirsHandler(BaseHandler):
         self.write_json(reply)
 
 
+class ArchiveHandler(BaseHandler):
+    """Hand the session to the archiver (claude-session-publisher), which
+    writes it into the usual CONVERSATIONS archive. The tool is never copied
+    in here (GITHUBIFY rule 21): the server runs the installed one, named by
+    `--archiver` or `CLAUDIU_ARCHIVER`."""
+
+    async def post(self, sid):
+        entry = self.manager.get(sid)
+        if entry is None:
+            self.set_status(404)
+            return self.write_json({"error": "no such session"})
+        agent_session = entry.agent_session
+        if not agent_session:
+            self.set_status(409)
+            return self.write_json({"error": "this session has no agent "
+                                    "session yet — nothing to archive"})
+        archiver = self.application.settings.get("archiver")
+        if not archiver:
+            self.set_status(501)
+            return self.write_json({"error": "no archiver configured: start "
+                                    "the server with --archiver "
+                                    "<path to transcript_archiver.py> (or set "
+                                    "CLAUDIU_ARCHIVER)"})
+        body = json.loads(self.request.body or b"{}")
+        fmt = body.get("format") or "html,markdown"
+        result = await tornado.ioloop.IOLoop.current().run_in_executor(
+            None, _run_archiver, archiver, agent_session, fmt)
+        if not result["ok"]:
+            self.set_status(502)
+        self.write_json(result)
+
+
+def _run_archiver(archiver: str, session_id: str, fmt: str) -> dict:
+    """Blocking, run in an executor. Reports what the tool actually did:
+    its own `wrote <path>` lines, and its output when it fails."""
+    import subprocess
+    import sys as _sys
+    cmd = [_sys.executable, archiver, session_id, "--format", fmt]
+    try:
+        done = subprocess.run(cmd, capture_output=True, text=True,
+                              timeout=900)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return {"ok": False, "output": [], "error": f"archiver failed: {exc}",
+                "command": cmd}
+    out = (done.stdout or "") + (done.stderr or "")
+    written = [line.split("wrote ", 1)[1].split(" (")[0].strip()
+               for line in out.splitlines() if line.startswith("wrote ")]
+    if done.returncode != 0:
+        return {"ok": False, "output": written, "command": cmd,
+                "error": f"archiver exited {done.returncode}",
+                "detail": out[-2000:]}
+    return {"ok": True, "output": written, "command": cmd,
+            "detail": out[-2000:]}
+
+
 class DriftHandler(BaseHandler):
     """Spec §6: report the pinned schema and, when online checks are
     enabled, whether the pin or the installed adapter is behind."""
@@ -399,7 +506,8 @@ def _latest_versions(npm_package: str | None = None) -> dict:
 
 
 def make_app(profiles_dir, records_dir, auth,
-             permission_timeout: float = 3600.0, drift_online: bool = False):
+             permission_timeout: float = 3600.0, drift_online: bool = False,
+             archiver: str | None = None):
     manager = SessionManager(profiles_dir, records_dir, permission_timeout)
     common = {"manager": manager, "auth": auth}
     app = tornado.web.Application([
@@ -407,12 +515,13 @@ def make_app(profiles_dir, records_dir, auth,
         (r"/api/profiles", ProfilesHandler, common),
         (r"/api/sessions", SessionsHandler, common),
         (r"/api/sessions/([0-9a-f]+)", SessionHandler, common),
+        (r"/api/sessions/([0-9a-f]+)/archive", ArchiveHandler, common),
         (r"/api/profiles/([A-Za-z0-9_-]+)/sessions", ProfileSessionsHandler,
          common),
         (r"/api/dirs", DirsHandler, common),
         (r"/api/drift", DriftHandler, common),
         (r"/ws/sessions/([0-9a-f]+)", SessionWS, common),
         (r"/ui/(.*)", tornado.web.StaticFileHandler, {"path": str(UI_DIR)}),
-    ], drift_online=drift_online)
+    ], drift_online=drift_online, archiver=archiver)
     app.manager = manager
     return app

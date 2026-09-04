@@ -74,8 +74,10 @@ def test_prompt_turn_streams_and_ends(tmp_path):
     feed(session, {"jsonrpc": "2.0", "id": p["id"],
                    "result": {"stopReason": "end_turn"}})
     chunks = [e for e in sink.events if e.kind == "message_chunk"]
-    assert chunks[0].data == {"role": "agent", "text": "hi "}
-    assert chunks[1].data == {"role": "thought", "text": "thinking"}
+    assert chunks[0].data == {"role": "agent", "text": "hi ",
+                             "parent_tool_call_id": None}
+    assert chunks[1].data == {"role": "thought", "text": "thinking",
+                             "parent_tool_call_id": None}
     assert sink.kinds()[-1] == "turn_ended" or \
         sink.kinds()[-2] == "turn_ended"   # session_state(ready) follows
     assert session.state == "ready"

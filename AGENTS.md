@@ -2,7 +2,7 @@
 
 ## What this is
 
-CLAUDIU 0.2: a browser ACP client (see `README.md` and
+ClaudIU 0.2: a browser ACP client (see `README.md` and
 `docs/superpowers/specs/2026-08-31-claudiu-acp-design.md`). The v0.1
 terminal-mirror app is archived in `archive/claudiu-v0.1/` (own `.git`,
 gitignored) — read-only history, never modified.

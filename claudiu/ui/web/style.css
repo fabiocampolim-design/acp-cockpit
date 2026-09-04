@@ -1,4 +1,4 @@
-/* CLAUDIU web View — palette carried from the approved v0.1 design. */
+/* ClaudIU web View — palette carried from the approved v0.1 design. */
 :root {
   --bg: #14161a; --bg-raised: #1b1e24; --bg-hover: #22262e;
   --border: #2a2e36; --fg: #c9c4b8; --fg-dim: #8a877e;
@@ -201,25 +201,53 @@ pre.raw {
 }
 
 /* ---- composer: the prompt on top, one toolbar row beneath it ---- */
+/* The composer takes the room it needs and no more: the box grows with the
+   text up to a cap, and the toolbar is one compact row. At 420 px tall it
+   used to eat 36 % of the window (Fabio, 2026-09-04). */
 #composer {
-  display: flex; flex-direction: column; gap: .45rem; padding: .6rem .8rem;
+  display: flex; flex-direction: column; gap: .35rem; padding: .4rem .8rem;
   position: relative; border-top: 1px solid var(--border);
-  background: var(--bg-raised);
+  background: var(--bg-raised); flex: none;
 }
 #prompt-input {
-  width: 100%; resize: vertical; padding: .5rem; border-radius: 6px;
+  width: 100%; resize: none; padding: .4rem .5rem; border-radius: 6px;
   border: 1px solid var(--border); background: var(--bg); color: var(--fg);
-  font: inherit;
+  font: inherit; min-height: 2.6rem; max-height: 30vh; overflow-y: auto;
 }
 #toolbar {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 1rem; flex-wrap: wrap;
+  display: flex; align-items: center; gap: .5rem 1rem; flex-wrap: wrap;
 }
 #toolbar .controls {
-  display: flex; align-items: center; gap: 1.2rem; flex-wrap: wrap;
+  display: flex; align-items: center; gap: .5rem .9rem; flex-wrap: wrap;
   min-width: 0; font-size: .85em; color: var(--fg-dim);
 }
-#toolbar .actions { display: flex; gap: .75rem; margin-left: auto; }
+#toolbar .actions { display: flex; gap: .5rem; margin-left: auto; }
+#composer .actions button { padding: .3rem .9rem; }
+
+/* ---- lane switches (status strip) ---- */
+#lanes { display: flex; gap: .3rem; flex-wrap: wrap; }
+#lanes button {
+  font: inherit; font-size: .9em; line-height: 1.5; cursor: pointer;
+  border: 1px solid var(--border); border-radius: 999px; padding: 0 .6em;
+  background: var(--bg); color: var(--accent);
+}
+#lanes button[aria-pressed="false"] {
+  color: var(--fg-dim); opacity: .55; text-decoration: line-through;
+}
+#conversation.hide-thinking [data-lane="thinking"],
+#conversation.hide-tools [data-lane="tools"],
+#conversation.hide-subagents [data-lane="subagents"],
+#conversation.hide-events [data-lane="events"],
+#conversation.hide-harness [data-lane="harness"] { display: none !important; }
+
+/* ---- jump to latest ---- */
+#jump-bottom {
+  position: absolute; right: 1.2rem; bottom: 100%; margin-bottom: .4rem;
+  z-index: 5;
+  font: inherit; font-size: .85em; cursor: pointer; padding: .35rem .8rem;
+  border-radius: 999px; border: 1px solid var(--accent);
+  background: var(--bg-raised); color: var(--accent);
+}
 #composer select {
   background: var(--bg); color: var(--fg); border: 1px solid var(--border);
   border-radius: 6px; padding: .3rem .4rem; font: inherit; max-width: 13rem;
@@ -330,3 +358,14 @@ pre.raw {
 }
 #elic-skip { margin-right: auto; }
 #elic-submit { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600; }
+
+/* ---- archive result note ---- */
+#archive-note {
+  padding: .4rem .8rem; font-size: .85em; border-bottom: 1px solid var(--border);
+  background: var(--bg-raised); color: var(--fg-dim);
+  white-space: pre-wrap; word-break: break-word;
+}
+#archive-note.error { color: var(--danger); }
+#composer button.secondary {
+  background: var(--bg); color: var(--fg); font-weight: normal;
+}

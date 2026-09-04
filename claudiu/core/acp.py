@@ -26,11 +26,14 @@ class AcpSession:
     PROTOCOL_VERSION = 1
     # `elicitation.form` is what makes the Claude adapter load its
     # AskUserQuestion tool at all; `url` is deliberately not claimed.
+    # `subagent-transcript` asks for what a subagent said and thought:
+    # without it the adapter strips subagent text out of what it forwards.
     DEFAULT_CAPS = {"fs": {"readTextFile": True, "writeTextFile": True},
-                    "elicitation": {"form": {}}}
+                    "elicitation": {"form": {}},
+                    "_meta": {"subagent-transcript": True}}
 
     def __init__(self, sid, profile, proc, sink, recorder, sentinel, policy,
-                 files, client_capabilities=None):
+                 files, client_capabilities=None, client_options=None):
         self.sid = sid
         self.profile = profile
         self.proc = proc
@@ -40,6 +43,12 @@ class AcpSession:
         self.policy = policy
         self.files = files
         self.caps = client_capabilities or dict(self.DEFAULT_CAPS)
+        # Session-creation options: the profile's, with whatever the user
+        # chose in the launcher layered on top (thinking, above all — it can
+        # only be chosen when the session is created).
+        self.client_options = dict(getattr(profile, "client_options", None)
+                                   or {})
+        self.client_options.update(client_options or {})
         self.state = "starting"
         self.acp_session_id = None
         self._seq = 0
@@ -91,7 +100,7 @@ class AcpSession:
         """`_meta` for a session-creating request: the profile's
         `client_options` under the key the agent reads them from. Empty when
         the profile asks for nothing, so the frame stays minimal."""
-        options = getattr(self.profile, "client_options", None) or {}
+        options = self.client_options
         if not options:
             return {}
         return {"_meta": {"claudeCode": {"options": dict(options)}}}
@@ -231,7 +240,12 @@ class AcpSession:
         if kind in _UPDATE_TO_EVENT:
             event_kind, role = _UPDATE_TO_EVENT[kind]
             text = (update.get("content") or {}).get("text", "")
-            self._emit(event_kind, {"role": role, "text": text}, ref)
+            # Subagent text and thinking are stamped with the tool call that
+            # owns them; the View files those under the subagent.
+            parent = ((update.get("_meta") or {}).get("claudeCode") or {}
+                      ).get("parentToolUseId")
+            self._emit(event_kind, {"role": role, "text": text,
+                                    "parent_tool_call_id": parent}, ref)
         elif kind in ("tool_call", "tool_call_update"):
             self._emit(kind, update, ref)
         elif kind == "plan":

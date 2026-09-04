@@ -1,4 +1,4 @@
-# Contributing to CLAUDIU
+# Contributing to ClaudIU
 
 Thank you for considering a contribution. This file says how to report a
 problem, how to propose a change, and the rules a change has to meet to be
@@ -12,10 +12,10 @@ trade-offs are in `docs/DESIGN.md`; the View/engine contract is
 Open an issue in this repository. The most useful reports carry: what you
 did (the prompt, the button, the command), what you expected, what
 happened, your platform, the agent adapter and its version (`npm ls -g`),
-and — this is the one that makes a CLAUDIU bug reproducible — the relevant
+and — this is the one that makes a ClaudIU bug reproducible — the relevant
 part of the **session record** (`~/.claudiu/records/<session>.jsonl`; the
 `{}` button on a row shows the frame number). Records contain your
-conversation: trim them before pasting. A protocol frame that CLAUDIU
+conversation: trim them before pasting. A protocol frame that ClaudIU
 rendered wrongly, dropped, or failed to flag as unrecognized is a bug here;
 an agent that behaves oddly while every frame was shown is a report for the
 agent's adapter.

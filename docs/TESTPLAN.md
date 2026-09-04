@@ -1,4 +1,4 @@
-# CLAUDIU — manual & fidelity test plan
+# ClaudIU — manual & fidelity test plan
 
 The conversation view **displays** a session and, unlike a passive
 transcript viewer, **sends input** to a live agent. A dropped or

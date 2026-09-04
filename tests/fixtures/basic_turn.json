@@ -124,6 +124,93 @@
   },
   {
     "on_method": "session/prompt",
+    "if_prompt_contains": "LANES",
+    "notify": [
+      {
+        "jsonrpc": "2.0",
+        "method": "session/update",
+        "params": {
+          "sessionId": "$SESSION",
+          "update": {
+            "sessionUpdate": "agent_thought_chunk",
+            "content": {
+              "type": "text",
+              "text": "weighing the options"
+            }
+          }
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "session/update",
+        "params": {
+          "sessionId": "$SESSION",
+          "update": {
+            "sessionUpdate": "tool_call",
+            "toolCallId": "t-main",
+            "title": "Read config.toml",
+            "kind": "read",
+            "status": "completed"
+          }
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "session/update",
+        "params": {
+          "sessionId": "$SESSION",
+          "update": {
+            "sessionUpdate": "tool_call",
+            "toolCallId": "t-task",
+            "title": "Task: research the API",
+            "kind": "other",
+            "status": "in_progress"
+          }
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "session/update",
+        "params": {
+          "sessionId": "$SESSION",
+          "update": {
+            "sessionUpdate": "tool_call",
+            "toolCallId": "t-child",
+            "title": "Grep in the subagent",
+            "kind": "search",
+            "status": "completed",
+            "_meta": {
+              "claudeCode": {
+                "parentToolUseId": "t-task"
+              }
+            }
+          }
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "session/update",
+        "params": {
+          "sessionId": "$SESSION",
+          "update": {
+            "sessionUpdate": "agent_message_chunk",
+            "content": {
+              "type": "text",
+              "text": "the plain answer"
+            }
+          }
+        }
+      }
+    ],
+    "stderr": [
+      "[session/query] diagnostic line"
+    ],
+    "respond": {
+      "stopReason": "end_turn"
+    }
+  },
+  {
+    "on_method": "session/prompt",
     "notify": [
       {
         "jsonrpc": "2.0",

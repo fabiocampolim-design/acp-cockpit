@@ -1,4 +1,4 @@
-# CLAUDIU
+# ClaudIU
 
 A **browser client for AI coding agents speaking the Agent Client Protocol
 (ACP)** — Windows-native (no WSL, no pty), agent-agnostic, and built around
@@ -14,7 +14,7 @@ adapter.
 
 Terminal UIs redraw screens; scraping them is guesswork. ACP delivers the
 same conversation as structured JSON-RPC over stdio: messages, thoughts,
-tool calls with diffs, permission requests with typed options. CLAUDIU
+tool calls with diffs, permission requests with typed options. ClaudIU
 renders that stream in a browser, records every frame verbatim, and flags
 anything it does not recognize — so a protocol change is a visible event,
 never a silent misrender. As of 2026-08 the ACP ecosystem is editors (Zed,
@@ -96,7 +96,7 @@ python -m pyflakes claudiu tools tests
 python tools/check_schema_drift.py
 ```
 
-Verified by 139 checks (plus the opt-in real-adapter contract test). See
+Verified by 155 checks (plus the opt-in real-adapter contract test). See
 `AGENTS.md` for the working rules and `docs/superpowers/specs/` for the
 design history. The v0.1 terminal-mirror app lives in `archive/claudiu-v0.1`
 with its own git history.

@@ -3,18 +3,24 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CLAUDIU</title>
+<title>ClaudIU</title>
 <link rel="stylesheet" href="/ui/style.css">
 </head>
 <body>
 <div id="tabs"><button class="tab add" id="tab-add" title="New session (Alt+N)">+</button></div>
 <div id="launcher">
-  <h1>CLAUDIU</h1>
+  <h1>ClaudIU</h1>
   <label>Agent <select id="profile"></select></label>
   <label for="cwd">Project directory</label>
   <div class="row"><input id="cwd" spellcheck="false">
     <button id="browse" class="secondary" type="button"
       title="pick a folder instead of typing the path">Browse…</button></div>
+  <label for="thinking">Thinking
+    <select id="thinking" title="what the agent is asked to do about thinking; it can only be chosen when the session starts">
+      <option value="summarized">summarized — show the model's own summary</option>
+      <option value="omitted">omitted — think, but send nothing to show</option>
+      <option value="off">off — don't request thinking at all</option>
+    </select></label>
   <button id="start">Start session</button>
   <button id="refresh-recent" class="secondary">Find resumable sessions</button>
   <ul id="caveats"></ul>
@@ -29,12 +35,16 @@
     <span class="anomaly-chip" hidden>anomalies</span>
     <span class="stderr-chip" hidden title="adapter log (stderr): diagnostics, not errors — click to show">log</span>
     <span class="usage" title="context window"></span>
-    <span class="model"></span></div>
+    <span class="model"></span>
+    <span id="lanes" title="show or hide whole lanes of the conversation"></span></div>
   <div id="stderr-drawer" data-kind="stderr" hidden><pre></pre></div>
+  <div id="archive-note" hidden></div>
   <div id="conversation"></div>
   <div id="plan" hidden></div>
   <div id="composer">
-    <textarea id="prompt-input" rows="3"
+    <button id="jump-bottom" type="button" hidden
+      title="follow the conversation again">↓ jump to latest</button>
+    <textarea id="prompt-input" rows="2"
       placeholder="Prompt — Enter sends, Shift+Enter for newline, / for commands"></textarea>
     <div id="toolbar">
       <div class="controls">
@@ -45,6 +55,8 @@
           <input type="checkbox" id="expand-tools"> expand tool output</label>
       </div>
       <div class="actions">
+        <button id="archive" class="secondary" type="button"
+          title="archive this conversation with claude-session-publisher">Archive</button>
         <button id="cancel" hidden>Stop</button>
         <button id="send" disabled>Send</button>
       </div>

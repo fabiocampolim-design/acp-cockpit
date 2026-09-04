@@ -1,5 +1,5 @@
 "use strict";
-/* CLAUDIU web View. Talks ONLY the UI protocol (docs/UI-PROTOCOL.md).
+/* ClaudIU web View. Talks ONLY the UI protocol (docs/UI-PROTOCOL.md).
    Multi-session: one Session object per tab; the status strip, controls
    and composer always reflect the ACTIVE session. */
 
@@ -54,14 +54,42 @@ async function initLauncher() {
   try {
     const last = localStorage.getItem(CWD_KEY);
     if (last && !$("#cwd").value) $("#cwd").value = last;
+    const think = localStorage.getItem(THINK_KEY);
+    if (think) $("#thinking").value = think;
   } catch (e) {}
   initPicker();
+  await restoreSessions();
+}
+
+/* The sessions live in the SERVER, not the page: a reload (or a second
+   browser) must find the ones already running instead of stranding them.
+   Attaching replays every event the session has emitted. */
+async function restoreSessions() {
+  let live = [];
+  try {
+    ({sessions: live} = await api("/api/sessions"));
+  } catch (e) { return; }
+  let last = null;
+  let wanted = null;
+  try { wanted = sessionStorage.getItem(ACTIVE_KEY); } catch (e) {}
+  for (const info of live) {
+    if (sessions.has(info.id)) continue;
+    const S = new Session(info.id, info.profile, info.cwd);
+    if (info.title) S.title = info.title;
+    sessions.set(info.id, S);
+    S.connect();
+    last = S;
+    if (info.id === wanted) last = S;
+  }
+  const target = (wanted && sessions.get(wanted)) || last;
+  if (target && !active) activate(target);
 }
 
 /* ---------------- folder picker ----------------
    A page cannot learn an absolute path from the OS folder dialog, so the
    server lists directories (GET /api/dirs) and the dialog walks them. */
 
+const THINK_KEY = "claudiu.thinking";
 const CWD_KEY = "claudiu.cwd";
 
 async function browseTo(path) {
@@ -152,7 +180,15 @@ async function startSession(resume, resumeCwd) {
   const cwd = (resume && resumeCwd) ? resumeCwd : $("#cwd").value.trim();
   if (resume && resumeCwd) $("#cwd").value = resumeCwd;
   if (!cwd) { alertBanner("pick a project directory first"); return; }
-  const body = JSON.stringify({profile, cwd, resume});
+  const thinking = $("#thinking").value;
+  try { localStorage.setItem(THINK_KEY, thinking); } catch (e) {}
+  // Session-CREATION options: thinking cannot be changed later over ACP.
+  const client_options = {
+    summarized: {thinking: {type: "adaptive", display: "summarized"}},
+    omitted: {thinking: {type: "adaptive", display: "omitted"}},
+    off: {thinking: {type: "disabled"}},
+  }[thinking] || {};
+  const body = JSON.stringify({profile, cwd, resume, client_options});
   let id;
   try {
     ({id} = await api("/api/sessions", {method: "POST", body}));
@@ -184,8 +220,11 @@ function showLauncher() {
   $("#tab-add").classList.add("active");
 }
 
+const ACTIVE_KEY = "claudiu.active";
+
 function activate(S) {
   active = S;
+  try { sessionStorage.setItem(ACTIVE_KEY, S.sid); } catch (e) {}
   $("#launcher").hidden = true;
   $("#workspace").hidden = false;
   $("#tab-add").classList.remove("active");
@@ -396,7 +435,9 @@ class Session {
   }
 
   /* ----- conversation blocks ----- */
-  addBlock(kind, role, text) {
+  /* Which lane a row belongs to; rows with no lane (the agent's answer and
+     your own prompts) can never be switched off. */
+  addBlock(kind, role, text, lane) {
     const key = kind + ":" + (role || "");
     const rich = kind === "message_chunk" && role === "agent";   // markdown-lite
     if (this.agg.currentKey === key && this.agg.node) {
@@ -410,6 +451,7 @@ class Session {
     const div = document.createElement("div");
     div.dataset.kind = kind;
     if (role) div.dataset.role = role;
+    if (lane) div.dataset.lane = lane;
     const span = document.createElement("span");
     span.className = "text";
     div.rawText = text;
@@ -430,7 +472,9 @@ class Session {
   appendRow(node) {
     const working = $(".working", this.pane);
     if (working) working.before(node); else this.pane.append(node);
-    if (this.isActive) node.scrollIntoView({block: "end"});
+    // Only follow when the reader is already at the bottom: yanking the view
+    // down while they read further up is what made scrolling unusable.
+    if (this.isActive) scrollIfFollowing();
   }
 
   breakAgg() { this.agg.currentKey = null; }
@@ -444,7 +488,9 @@ class Session {
         if (d.state === "turn") this.turnAgentNodes = [];
         this.setState(d.state); break;
       case "message_chunk": {
-        const node = this.addBlock("message_chunk", d.role, d.text);
+        const node = this.addBlock("message_chunk", d.role, d.text,
+          d.role === "thought" ? "thinking"
+            : d.parent_tool_call_id ? "subagents" : null);
         if (d.role === "thought" && !$(".text", node).textContent &&
             !$(".marker", node)) {
           const m = document.createElement("span");
@@ -483,34 +529,36 @@ class Session {
           d.action === "accept"
             ? `\u2014 you answered: ${describeAnswer(d.content, titles)} \u2014`
             : `\u2014 question skipped${d.source === "failsafe"
-                ? " (no answer in time)" : ""} \u2014`);
+                ? " (no answer in time)" : ""} \u2014`, "events");
         break;
       }
       case "turn_ended":
         this.breakAgg();
-        this.addBlock("turn_ended", null, `— turn ended (${d.stop_reason}) —`);
+        this.addBlock("turn_ended", null, `— turn ended (${d.stop_reason}) —`,
+          "events");
         break;
       case "fs_request":
         this.breakAgg();
         this.addBlock("fs_request", null,
-          `agent ${d.op} ${d.path} ${d.allowed ? "✓" : "✗ blocked"}`);
+          `agent ${d.op} ${d.path} ${d.allowed ? "✓" : "✗ blocked"}`,
+          "events");
         break;
       case "drift": this.bumpChip(".drift-chip", d.flags.join("\n")); break;
       case "anomaly":
         this.bumpChip(".anomaly-chip", `${d.category}: ${d.detail}`);
         this.breakAgg();
         addRawToggle(this.addBlock("anomaly", null,
-          `⚠ ${d.category}: ${d.detail}`), ev);
+          `⚠ ${d.category}: ${d.detail}`, "harness"), ev);
         break;
       case "unrecognized":
         this.breakAgg();
         addRawToggle(this.addBlock("unrecognized", null,
-          `unrecognized protocol data (${d.why})`), ev);
+          `unrecognized protocol data (${d.why})`, "harness"), ev);
         break;
       default:
         this.breakAgg();
         addRawToggle(this.addBlock("unrecognized", null,
-          `unknown event kind ${ev.kind}`), ev);
+          `unknown event kind ${ev.kind}`, "harness"), ev);
     }
   }
 
@@ -538,6 +586,7 @@ class Session {
       const node = document.createElement("div");
       node.dataset.kind = "tool_call";
       node.dataset.toolCall = id;
+      node.dataset.lane = "tools";
       const head = document.createElement("div");
       head.className = "tool-head";
       const det = document.createElement("details");
@@ -556,6 +605,18 @@ class Session {
       if (v !== null && v !== undefined && k !== "sessionUpdate") entry.data[k] = v;
     }
     const t = entry.data;
+    // A tool call stamped with a parent belongs to a subagent, and so does
+    // the Task row that owns it (marked retroactively, since the parent row
+    // arrives first and only its children reveal the relationship).
+    const parent = (t._meta && t._meta.claudeCode
+                    && t._meta.claudeCode.parentToolUseId) || null;
+    const toolName = (t._meta && t._meta.claudeCode
+                      && t._meta.claudeCode.toolName) || "";
+    if (parent || toolName === "Task") entry.node.dataset.lane = "subagents";
+    if (parent) {
+      const owner = this.tools.get(parent);
+      if (owner) owner.node.dataset.lane = "subagents";
+    }
     entry.head.textContent =
       `${t.kind || "tool"} · ${t.title || id} [${t.status || "pending"}]`;
     entry.node.dataset.status = t.status || "pending";
@@ -773,7 +834,95 @@ function showWorking(S, on) {
   if (workingTimer) clearInterval(workingTimer);
   workingTimer = setInterval(render, 1000);
   S.pane.append(w);
-  w.scrollIntoView({block: "end"});
+  scrollIfFollowing();
+}
+
+/* ---------------- following the bottom ----------------
+
+   The conversation follows new rows only while the reader is AT the bottom.
+   Scroll up and it stays put; a "jump to latest" button appears and puts
+   you back in the stream. */
+
+const FOLLOW_SLACK = 40;          // px from the bottom that still counts
+
+function atBottom() {
+  const el = $("#conversation");
+  return el.scrollHeight - el.scrollTop - el.clientHeight <= FOLLOW_SLACK;
+}
+
+function scrollIfFollowing() {
+  const el = $("#conversation");
+  if (following) el.scrollTop = el.scrollHeight;
+  renderJumpButton();
+}
+
+function renderJumpButton() {
+  $("#jump-bottom").hidden = following;
+}
+
+let following = true;
+
+function initFollow() {
+  const el = $("#conversation");
+  el.addEventListener("scroll", () => {
+    following = atBottom();
+    renderJumpButton();
+  });
+  $("#jump-bottom").onclick = () => {
+    following = true;
+    el.scrollTop = el.scrollHeight;
+    renderJumpButton();
+  };
+  renderJumpButton();
+}
+
+/* ---------------- lanes (what the conversation shows) ----------------
+
+   Five switches, applied to the conversation as a whole: a lane that is off
+   is GONE from the page, not dimmed. The choice is remembered per browser. */
+
+const LANES = [
+  ["thinking", "the model's own summary of its reasoning"],
+  ["tools", "tool calls made by the main agent"],
+  ["subagents", "Task rows and everything a subagent did"],
+  ["events", "turn separators, file access, answers you gave"],
+  ["harness", "adapter log rows, anomalies, drift, unknown frames"],
+];
+const LANE_KEY = "claudiu.lanes";
+
+function hiddenLanes() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(LANE_KEY) || "[]"));
+  } catch (e) { return new Set(); }
+}
+
+function applyLanes(hidden) {
+  const el = $("#conversation");
+  for (const [lane] of LANES) el.classList.toggle("hide-" + lane, hidden.has(lane));
+  for (const b of $("#lanes").children) {
+    b.setAttribute("aria-pressed",
+                   hidden.has(b.dataset.laneToggle) ? "false" : "true");
+  }
+  try { localStorage.setItem(LANE_KEY, JSON.stringify([...hidden])); } catch (e) {}
+}
+
+function initLanes() {
+  const hidden = hiddenLanes();
+  $("#lanes").replaceChildren(...LANES.map(([lane, title]) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.dataset.laneToggle = lane;
+    b.textContent = lane;
+    b.title = title;
+    b.onclick = () => {
+      const now = hiddenLanes();
+      if (now.has(lane)) now.delete(lane); else now.add(lane);
+      applyLanes(now);
+      scrollIfFollowing();
+    };
+    return b;
+  }));
+  applyLanes(hidden);
 }
 
 /* ---------------- permissions (modal, queued across sessions) ---------------- */
@@ -1007,6 +1156,16 @@ $("#elicitation").addEventListener("cancel", (e) => e.preventDefault());
 
 const promptEl = $("#prompt-input");
 
+/* The box is two rows until the text needs more, then grows to the CSS cap
+   (30vh) and scrolls. A fixed three-row box ate a third of a short window. */
+function sizeComposer() {
+  promptEl.style.height = "auto";
+  promptEl.style.height = Math.min(promptEl.scrollHeight + 2,
+                                   Math.round(innerHeight * 0.3)) + "px";
+}
+promptEl.addEventListener("input", sizeComposer);
+addEventListener("resize", sizeComposer);
+
 function sendPrompt() {
   const text = promptEl.value.trim();
   if (!active || !text || active.state !== "ready") return;
@@ -1015,6 +1174,7 @@ function sendPrompt() {
   active.breakAgg();
   active.send({cmd: "prompt", text});
   promptEl.value = "";
+  sizeComposer();
   const pal = $("#palette");
   if (pal) pal.hidden = true;
 }
@@ -1036,6 +1196,26 @@ const expandBox = $("#expand-tools");
 expandBox.checked = expandTools();
 expandBox.onchange = () => applyExpandTools(expandBox.checked);
 $("#cancel").onclick = () => active && active.send({cmd: "cancel"});
+
+/* Archiving is the session publisher's job, not ours: the server runs the
+   installed tool and we report exactly what it said. */
+$("#archive").onclick = async () => {
+  if (!active) return;
+  const note = $("#archive-note");
+  note.hidden = false;
+  note.className = "";
+  note.textContent = "archiving…";
+  try {
+    const r = await api(`/api/sessions/${active.sid}/archive`,
+                        {method: "POST", body: "{}"});
+    note.textContent = r.output && r.output.length
+      ? "archived:\n" + r.output.join("\n")
+      : "the archiver reported no output";
+  } catch (e) {
+    note.className = "error";
+    note.textContent = e.message;
+  }
+};
 promptEl.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendPrompt(); }
 });
@@ -1090,4 +1270,7 @@ document.addEventListener("keydown", (e) => {
 });
 
 initLauncher();
+initLanes();
+initFollow();
+sizeComposer();
 showLauncher();
