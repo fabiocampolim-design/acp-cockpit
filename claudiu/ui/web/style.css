@@ -216,6 +216,9 @@ body {
   background: linear-gradient(to right, color-mix(in srgb, var(--accent) 35%, transparent) var(--pct, 0%), transparent var(--pct, 0%));
   border: 1px solid var(--border); border-radius: 4px; padding: 0 .5em;
 }
+/* An empty gauge is still a bordered box: 14 px of nothing in the strip
+   until the agent reports usage (seen live, 2026-09-04). */
+#status .usage:empty { display: none; }
 .config-option { display: inline-flex; align-items: center; gap: .45rem; }
 .working.stale { color: var(--warn); animation: none; }
 [data-kind="turn_ended"] { color: var(--fg-dim); text-align: center;
@@ -274,14 +277,20 @@ pre.raw {
 #toolbar .actions { display: flex; gap: .5rem; flex: 0 0 auto; }
 #composer .actions button { padding: .3rem .9rem; }
 
-/* ---- lane switches (bottom panel, with the other session controls) ---- */
+/* ---- lane switches (bottom panel, with the other session controls) ----
+   They live inside #composer now, where `#composer button` would otherwise
+   make each one a filled accent button 85 px wide — five of those dominated
+   the panel (seen in a live session, 2026-09-04). They are switches, not
+   actions: quiet outlines that read as pressed or not. */
 #lanes { display: flex; gap: .25rem; flex-wrap: wrap; }
-#lanes button {
-  font: inherit; font-size: .9em; line-height: 1.5; cursor: pointer;
-  border: 1px solid var(--border); border-radius: 999px; padding: 0 .6em;
+#composer #lanes button {
+  font: inherit; font-size: .85em; line-height: 1.6; cursor: pointer;
+  border: 1px solid var(--border); border-radius: 999px;
+  padding: 0 .65em; margin: 0; font-weight: normal;
   background: var(--bg); color: var(--accent);
 }
-#lanes button[aria-pressed="false"] {
+#composer #lanes button:hover { border-color: var(--accent); }
+#composer #lanes button[aria-pressed="false"] {
   color: var(--fg-dim); opacity: .55; text-decoration: line-through;
 }
 #conversation.hide-thinking [data-lane="thinking"],

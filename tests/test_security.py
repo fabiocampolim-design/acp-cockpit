@@ -77,6 +77,13 @@ class SecurityTest(tornado.testing.AsyncHTTPTestCase):
         assert b"ClaudIU" in r.body or b"session" in r.body
         assert "default-src 'self'" in r.headers["Content-Security-Policy"]
 
+    def test_the_ui_files_are_revalidated_not_cached(self):
+        # "Reload the page" is the documented recovery from half the things
+        # that go wrong; it only works if the reload fetches the new file.
+        r = self.fetch("/ui/app.js", headers=self.ok_headers())
+        assert r.headers["Cache-Control"] == "no-cache"
+        assert r.headers.get("Etag"), "no ETag: revalidation would cost a body"
+
     def test_the_ui_files_refuse_a_foreign_origin(self):
         r = self.fetch("/ui/app.js", headers={
             **self.ok_headers(), "Origin": "http://127.0.0.1:31337"})

@@ -255,6 +255,15 @@ class GuardedStaticFileHandler(Guard, tornado.web.StaticFileHandler):
         super().initialize(path)
         self.auth = auth
 
+    def set_extra_headers(self, path):
+        # Revalidate every time. "Reload the page" is this client's documented
+        # recovery — after a server upgrade, after a dropped socket — and it
+        # only works if the reload actually fetches the new file. Without a
+        # directive a browser is free to serve its copy from heuristic
+        # freshness and show yesterday's UI (seen live, 2026-09-04). The ETag
+        # keeps the cost at a 304.
+        self.set_header("Cache-Control", "no-cache")
+
 
 class BaseHandler(Guard, tornado.web.RequestHandler):
     def initialize(self, manager=None, auth=None):

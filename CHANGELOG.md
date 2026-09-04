@@ -54,6 +54,16 @@ plane) found eleven things; these are the ones fixed here.
   the strip never appears and nothing changes. The ACPUPSTREAM project holds
   the two-line adapter change that makes them arrive, the reproduction, and
   the issue drafted for upstream.
+- **Found by using it: two regressions from round 11 and a caching gap.**
+  The lane switches, moved into the composer, had inherited its button style
+  and become five filled accent buttons that dominated the panel — they are
+  quiet outlined switches again. The context gauge drew an empty bordered box
+  in the status strip until the agent first reported usage. And the UI files
+  went out with no cache directive, so a browser could serve its own copy
+  from heuristic freshness: "reload the page" is this client's documented
+  recovery from half of what goes wrong, and it only works if the reload
+  fetches the new file. They revalidate now (`Cache-Control: no-cache`, with
+  the ETag keeping it at a 304).
 - **`agents/local-*.toml` is yours.** Profiles matching that name load
   exactly like the shipped ones and are never tracked, so a profile pointing
   at a local adapter build keeps its machine-specific path out of the
