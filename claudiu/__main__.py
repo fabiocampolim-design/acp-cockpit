@@ -30,7 +30,8 @@ def main():
                          "(with --port, the printed URL stays valid)")
     args = ap.parse_args()
 
-    auth = TokenAuth.from_file(args.token_file) if args.token_file         else TokenAuth()
+    auth = (TokenAuth.from_file(args.token_file) if args.token_file
+            else TokenAuth())
     app = make_app(Path(args.profiles), Path(args.records), auth,
                    drift_online=not args.no_drift_online,
                    archiver=args.archiver)

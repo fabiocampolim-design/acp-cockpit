@@ -1,3 +1,5 @@
-# Vendored byte-identical files must not be CRLF-converted on checkout
-tests/conformance.py text eol=lf
-tests/test_githubify_conformance.py text eol=lf
+# Vendored byte-identical files must not be CRLF-converted on checkout.
+# GITHUBIFY rule 21: when a shared tool is vendored here, pin it with
+#   <path> text eol=lf
+# Nothing is vendored at the moment (the two entries that used to sit
+# here named files removed with the vendored conformance checker).

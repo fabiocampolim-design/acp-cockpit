@@ -2,7 +2,7 @@
 
 ## What this is
 
-ClaudIU 0.2: a browser ACP client (see `README.md` and
+ClaudIU 0.3: a browser ACP client (see `README.md` and
 `docs/superpowers/specs/2026-08-31-claudiu-acp-design.md`). The v0.1
 terminal-mirror app is archived in `archive/claudiu-v0.1/` (own `.git`,
 gitignored) — read-only history, never modified.
@@ -24,7 +24,8 @@ gitignored) — read-only history, never modified.
 - Bash `python` = 3.13 (has playwright — run the full suite here);
   PowerShell `python` = 3.14 (e2e import-skips there). Floor: 3.11.
 - Full suite: `python -m pytest tests/ -q`. Real-adapter contract tier
-  (costs tokens, needs `claude-code-acp` + credentials):
+  (costs tokens, needs the adapter named in `agents/claude.toml` —
+  `claude-agent-acp` — plus credentials):
   `CLAUDIU_CONTRACT=1 python -m pytest tests/contract/ -q`.
 - Always `python -m pyflakes claudiu tools tests` before committing.
 - `tools/check_schema_drift.py` must stay green; when it reports novel
@@ -39,4 +40,5 @@ gitignored) — read-only history, never modified.
 - README's "Verified by N checks" is counted from a FULL suite run only.
 - TDD: failing test first, then the code. Keep tasks small and committed.
 - Update `CHANGELOG.md` for anything user-visible; releases bump
-  `claudiu/__init__.py` + `pyproject.toml` together.
+  `claudiu/__init__.py`, `pyproject.toml` **and `CITATION.cff`** together
+  (the citation was forgotten for two releases; conformance checks it).

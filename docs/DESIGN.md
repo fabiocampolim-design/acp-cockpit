@@ -24,7 +24,7 @@ can never be a safety boundary.
 The Agent Client Protocol (ACP) removes the guesswork: the same
 conversation arrives as structured JSON-RPC over stdio — messages, thoughts,
 tool calls with diffs, permission requests with typed options, config
-options, usage. ClaudIU 0.2 is a browser client for that protocol, with
+options, usage. ClaudIU 0.3 is a browser client for that protocol, with
 one guarantee: **nothing that crosses the wire is lost or silently
 misread.**
 

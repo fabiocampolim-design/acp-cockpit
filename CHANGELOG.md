@@ -2,7 +2,47 @@
 
 All notable changes to CLAUDIU are documented in this file.
 
-## Unreleased - daily-use round 9 (2026-09-04)
+## Unreleased (2026-09-04)
+
+### audit fixes
+
+A full-scope audit of the project (report in the dev machine's control
+plane) found eleven things; these are the ones fixed here.
+
+- **Any local web page could reach the API.** The host/origin guard accepted
+  every `http://127.0.0.1:<any port>` origin — but cookies are *not* scoped
+  by port, so a page served from any other port on the loopback interface
+  arrived carrying our token, and a `text/plain` POST (a CORS "simple
+  request", so no preflight to stop it) was executed. It could not read the
+  answer, so it could not drive a session, but it could start one in any
+  directory. The origin must now equal this server's own address **and
+  port**, on the REST routes and on the WebSocket alike, where it is the
+  only defence there is.
+- **The UI files were served without a token.** `/ui/*` was mounted as a
+  bare static handler, outside the guard: no token, no host or origin check,
+  no CSP header. Nothing secret lives in those three files, but the README
+  said every request carried a token and that was not true. It is now.
+- **The account panel showed one window and no number.** It read
+  `utilization` from the top level of the rate-limit payload; the payload
+  the agent actually sends has no `utilization` there at all, and carries
+  every window inside `unifiedWindows` as a *fraction* (0.55 = 55 %). So the
+  5 h chip read "5h —" and the 7 d window was never shown. Every reported
+  window now gets its own chip with its real percentage, and the agent's own
+  payload sits in the tooltip. The test fixture had invented the shape it
+  was testing; it now carries a payload captured from a real session.
+- **The folder picker opens wide enough to read.** A home directory of 55
+  folders showed eight of them behind a scrollbar that was there the moment
+  the dialog opened. The dialog is wider and the list is a responsive grid,
+  so an ordinary directory fits whole; long names ellipsize with the full
+  name in the tooltip.
+- Docs and hygiene: `AGENTS.md` and `docs/DESIGN.md` still said "0.2";
+  `AGENTS.md` still named the pre-rename `claude-code-acp` for the contract
+  tier and listed two of the three files a release must bump; the README
+  pointed readers at a directory that is gitignored; `.gitattributes` pinned
+  two files that no longer exist; three lines mangled by an earlier patch
+  were reflowed; and this file had two `## Unreleased` sections.
+
+### daily-use round 9
 
 - **Errors from the REST API are JSON, always.** A malformed request body
   reached `json.loads` unguarded and Tornado answered with its HTML 500
@@ -26,7 +66,7 @@ All notable changes to CLAUDIU are documented in this file.
   output starts open. The palette answers to the choice in both directions
   instead of only following the OS.
 
-## Unreleased - daily-use round 8 (2026-09-04)
+### daily-use round 8
 
 - **The conversation follows you, not the other way round.** New rows scroll
   into view only while you are at the bottom; scrolled up, the view stays
