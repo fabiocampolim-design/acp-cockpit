@@ -46,6 +46,7 @@ conversation shows — the five lanes</a></li>
 <li><a href="#the-top-right-account-limits-help-settings" id="toc-the-top-right-account-limits-help-settings">The top right:
 account limits, help, settings</a></li>
 <li><a href="#keyboard" id="toc-keyboard">Keyboard</a></li>
+<li><a href="#archiving-a-conversation-1" id="toc-archiving-a-conversation-1">Archiving a conversation</a></li>
 <li><a href="#approvals" id="toc-approvals">Approvals</a></li>
 <li><a href="#questions-from-the-agent" id="toc-questions-from-the-agent">Questions from the agent</a></li>
 <li><a href="#your-accounts-limits" id="toc-your-accounts-limits">Your
@@ -80,6 +81,10 @@ each launch gets a fresh token and old URLs die with the server; with
 stable and can be bookmarked (the file is created owner-only where the
 OS supports it — treat it like a password).</p>
 <h2 id="tabs">Tabs</h2>
+<p>The tabs scroll; the account chips, help and settings stay pinned to
+the right whatever happens. As tabs multiply their labels shrink, the
+way a browser’s do, and past that the strip scrolls and the oldest go
+out of sight.</p>
 <p>Each session is a tab (Alt+1…9 switch, Alt+N opens the launcher, ×
 closes and ends the session). The tab shows the agent’s own title for
 the session once it sets one, and a dot: green ready, pulsing blue
@@ -263,6 +268,24 @@ prompt.</td>
 </table>
 <p>An approval dialog is the one place <code>Esc</code> does nothing: it
 will not be dismissed unanswered.</p>
+<h2 id="archiving-a-conversation-1">Archiving a conversation</h2>
+<p><strong>Archive</strong> opens a panel beside the conversation — it
+never covers it, and it closes. Choose where to save and which
+formats:</p>
+<ul>
+<li>With <strong>claude-session-publisher</strong> configured
+(<code>--archiver &lt;path&gt;</code> or <code>CLAUDIU_ARCHIVER</code>),
+you get its full document: HTML, Markdown, text, LaTeX or PDF, with the
+fidelity report that proves nothing was dropped.</li>
+<li>Without it, ClaudIU writes a <strong>plain Markdown
+transcript</strong> from the session’s own record — prompts, answers,
+thinking and tool-call titles — and says so, in the panel and in the
+file itself. A missing optional tool is a reason to write less, not a
+reason to refuse to save.</li>
+</ul>
+<p>The destination is remembered per browser. What was written is listed
+in the panel and noted once in the conversation’s harness lane, so the
+record of what you did sits with the rest of the session’s history.</p>
 <h2 id="approvals">Approvals</h2>
 <p>When the agent wants to do something that needs permission, a dialog
 shows the tool call (with diff when provided) and the agent’s own
@@ -305,17 +328,18 @@ a balance or a currency.</p>
 <h2 id="status-strip-and-warnings">Status strip and warnings</h2>
 <p>The strip shows the session state, the current permission mode, a
 <strong>context gauge</strong> (tokens used / window size, percentage,
-and cost when the agent reports it) and the current model. The toolbar
-under the prompt holds the selectors: <strong>mode</strong>,
-<strong>model</strong> and whatever other <strong>configuration
-options</strong> the agent advertises (Claude Agent 0.73 offers mode,
-model, effort and agent). Each thing appears once — a config option
-replaces the legacy select for the same thing — and long descriptions
-are tooltips. The choices are offered in the order the agent’s profile
-asks for rather than the order the agent happens to send: the Claude
-profile lists the models by decreasing capability (default, Fable, Opus,
-Sonnet, Haiku). Nothing is renamed or left out — see
-<code>config_option_order</code> in
+and cost when the agent reports it) and the current model — as the API’s
+own id (<code>claude-opus-5</code>) once the agent has reported one,
+with the selector’s label in the tooltip. The toolbar under the prompt
+holds the selectors: <strong>mode</strong>, <strong>model</strong> and
+whatever other <strong>configuration options</strong> the agent
+advertises (Claude Agent 0.73 offers mode, model, effort and agent).
+Each thing appears once — a config option replaces the legacy select for
+the same thing — and long descriptions are tooltips. The choices are
+offered in the order the agent’s profile asks for rather than the order
+the agent happens to send: the Claude profile lists the models by
+decreasing capability (default, Fable, Opus, Sonnet, Haiku). Nothing is
+renamed or left out — see <code>config_option_order</code> in
 <code>agents/PROFILE-SCHEMA.md</code>. While a turn runs, a pulsing
 “agent working… 42s · last activity 3s ago (tool_call: Edit hello.py)”
 row sits at the end of the conversation — the elapsed time tells you the

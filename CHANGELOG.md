@@ -42,6 +42,43 @@ plane) found eleven things; these are the ones fixed here.
   two files that no longer exist; three lines mangled by an earlier patch
   were reflowed; and this file had two `## Unreleased` sections.
 
+### daily-use round 11 (2026-09-04)
+
+- **The conversation follows the last message again.** Following only ran
+  when a *row was added*, so a long answer arriving chunk by chunk — one row,
+  growing — scrolled off the bottom while it was written, under a working
+  line that rewrites itself every second. Any growth of the conversation now
+  follows it (a `ResizeObserver` on the pane, plus the explicit calls), so
+  the end of the text stays in view.
+- **One panel for the session controls.** The five lane switches moved from
+  the status strip down beside the selectors, under the prompt. The toolbar
+  wraps properly instead of leaving a hole between the two groups at half
+  width, and short windows get a more compact composer.
+- **Archiving is a side panel, not a banner.** It opens beside the
+  conversation (under it on a narrow window), never covers it, and closes.
+  It offers a destination — with a folder picker, remembered per browser —
+  and a checkbox per format the server can actually write. What was written
+  is listed there and noted once in the harness lane. The old "archived:"
+  note sat on top of the conversation with no way to dismiss it.
+- **Archiving works without claude-session-publisher.** It used to refuse
+  (501). Now the server writes a plain Markdown transcript from the session's
+  own record — prompts, answers, thinking, tool-call titles — warns that it
+  is the simpler one, and says so in the file too. With the publisher
+  configured you get its full document, and the destination is passed
+  through as `--archive-dir`.
+- **The status strip names the model the API named.** `claude-opus-5`, not
+  `Opus` — the canonical id, taken from the agent's own per-model tally
+  (`_meta.quota.model_usage`), which is the only place it appears. The
+  selector's label and the option value are in the tooltip. `usage` carries
+  `models_used` for any View.
+- **Tabs never push the account chips off the screen.** The strip scrolls on
+  its own; help, settings and the limit chips are pinned right. Labels shrink
+  as tabs multiply, browser-style, down to a couple of letters, and past that
+  the oldest tabs scroll out of sight.
+- **The launcher is two columns** on a wide window: the form on the left,
+  what the agent wants you to know on the right. One column when there is no
+  room, scrolling either way.
+
 ### daily-use round 10 (2026-09-04)
 
 - **The models are offered by decreasing capability** — default, Fable, Opus,

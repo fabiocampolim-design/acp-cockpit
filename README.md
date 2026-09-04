@@ -104,7 +104,7 @@ python -m pyflakes claudiu tools tests
 python tools/check_schema_drift.py
 ```
 
-Verified by 192 checks (plus the opt-in real-adapter contract test). See
+Verified by 196 checks (plus the opt-in real-adapter contract test). See
 `AGENTS.md` for the working rules and `docs/superpowers/specs/` for the
 design history — the research notes and the approved specifications the
 implementation followed. The v0.1 terminal-mirror app that preceded the ACP pivot is

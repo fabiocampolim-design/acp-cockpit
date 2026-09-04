@@ -28,6 +28,11 @@ treat it like a password).
 
 ## Tabs
 
+The tabs scroll; the account chips, help and settings stay pinned to the
+right whatever happens. As tabs multiply their labels shrink, the way a
+browser's do, and past that the strip scrolls and the oldest go out of
+sight.
+
 Each session is a tab (Alt+1…9 switch, Alt+N opens the launcher, × closes
 and ends the session). The tab shows the agent's own title for the
 session once it sets one, and a dot: green ready, pulsing blue working,
@@ -176,6 +181,23 @@ Every shortcut there is:
 An approval dialog is the one place `Esc` does nothing: it will not be
 dismissed unanswered.
 
+## Archiving a conversation
+
+**Archive** opens a panel beside the conversation — it never covers it,
+and it closes. Choose where to save and which formats:
+
+- With **claude-session-publisher** configured (`--archiver <path>` or
+  `CLAUDIU_ARCHIVER`), you get its full document: HTML, Markdown, text,
+  LaTeX or PDF, with the fidelity report that proves nothing was dropped.
+- Without it, ClaudIU writes a **plain Markdown transcript** from the
+  session's own record — prompts, answers, thinking and tool-call
+  titles — and says so, in the panel and in the file itself. A missing
+  optional tool is a reason to write less, not a reason to refuse to save.
+
+The destination is remembered per browser. What was written is listed in the
+panel and noted once in the conversation's harness lane, so the record of
+what you did sits with the rest of the session's history.
+
 ## Approvals
 
 When the agent wants to do something that needs permission, a dialog shows
@@ -221,7 +243,9 @@ because the agent never sends it**: the rate-limit payload carries the
 
 The strip shows the session state, the current permission mode, a
 **context gauge** (tokens used / window size, percentage, and cost when
-the agent reports it) and the current model. The toolbar under the prompt
+the agent reports it) and the current model — as the API's own id
+(`claude-opus-5`) once the agent has reported one, with the selector's
+label in the tooltip. The toolbar under the prompt
 holds the selectors: **mode**, **model** and whatever other **configuration
 options** the agent advertises (Claude Agent 0.73 offers mode, model, effort
 and agent). Each thing appears once — a config option replaces the legacy

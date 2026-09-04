@@ -34,19 +34,35 @@ body {
 }
 
 /* ---- tabs ---- */
+/* The tabs scroll; the account chips, help and settings never move. Before
+   this the whole bar scrolled together, so enough tabs pushed the right-hand
+   block off the screen entirely (Fabio, 2026-09-04). Tab labels shrink as
+   their number grows, the way a browser's do, down to a couple of letters —
+   past that the strip scrolls and the oldest tabs go out of sight. */
 #tabs {
-  display: flex; gap: .25rem; padding: .3rem .5rem 0; background: var(--bg);
-  border-bottom: 1px solid var(--border); overflow-x: auto;
+  display: flex; gap: .5rem; padding: .3rem .5rem 0; background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  align-items: flex-end;
   /* never shrink: the body is 100vh and a tall launcher once squashed
      this bar to a sliver with the "+" pushed above the top (2026-09-03) */
   flex: none;
+}
+#tabstrip {
+  display: flex; gap: .25rem; align-items: flex-end;
+  flex: 1 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: thin;
+  padding-bottom: 1px;
 }
 .tab {
   display: flex; align-items: center; gap: .5rem; padding: .3rem .7rem;
   border: 1px solid var(--border); border-bottom: none; border-radius: 6px 6px 0 0;
   background: var(--bg-raised); color: var(--fg-dim); cursor: pointer;
   font-size: .85em; white-space: nowrap;
+  flex: 0 1 auto; min-width: 4.2rem; max-width: 15rem; overflow: hidden;
 }
+.tab > span:not(.close) {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+}
+.tab.add { flex: none; min-width: 0; }
 .tab.active { color: var(--fg); background: var(--bg); border-color: var(--accent); }
 .tab[data-state="turn"]::before { content: "●"; color: var(--accent);
   animation: pulse 1.6s ease-in-out infinite; }
@@ -58,10 +74,25 @@ body {
 
 /* ---- launcher ---- */
 /* The launcher scrolls inside the 100vh body (its caveat list grows). */
+/* Two columns when there is room: the form on the left, what the agent
+   wants you to know on the right (Fabio, 2026-09-04). One column when
+   there is not, and the whole thing scrolls either way. */
 #launcher {
   flex: 1 1 auto; min-height: 0; overflow-y: auto;
-  width: 100%; max-width: 34rem; margin: 0 auto; padding: 10vh 1rem 2rem;
+  width: 100%; max-width: 64rem; margin: 0 auto; padding: 6vh 1.5rem 2rem;
 }
+#launcher .cols {
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.5rem 2.5rem;
+  align-items: start;
+}
+@media (min-width: 62rem) {
+  #launcher .cols { grid-template-columns: minmax(0, 22rem) minmax(0, 1fr); }
+}
+#launcher .col-side h3 {
+  font-size: .9em; color: var(--fg-dim); font-weight: 600;
+  margin: .8rem 0 .4rem; text-transform: none;
+}
+#launcher .col-side:has(#caveats:empty) { display: none; }
 #launcher .row { display: flex; gap: .5rem; align-items: stretch; }
 #launcher .row input { flex: 1; min-width: 0; }
 #launcher .row button { margin: 0; white-space: nowrap; }
@@ -100,7 +131,8 @@ body {
   padding: 0 .6em; cursor: pointer;
 }
 .anomaly-chip { background: var(--danger); }
-#status .model { margin-left: auto; }
+#status .model { margin-left: auto; font-family: ui-monospace, Consolas, monospace; }
+#status .model[data-canonical="1"] { color: var(--fg); }
 
 [data-kind="message_chunk"][data-role="thought"] .marker {
   opacity: .7; letter-spacing: .08em;
@@ -226,18 +258,24 @@ pre.raw {
   border: 1px solid var(--border); background: var(--bg); color: var(--fg);
   font: inherit; min-height: 2.6rem; max-height: 30vh; overflow-y: auto;
 }
+/* One panel for every session control. The controls take the width they
+   need and wrap; the actions stay on the right of the FIRST line, so a
+   narrow window wraps the selectors under them instead of leaving a hole
+   between the two groups (Fabio, 2026-09-04: "too much unused space when
+   resized to half width"). */
 #toolbar {
-  display: flex; align-items: center; gap: .5rem 1rem; flex-wrap: wrap;
+  display: flex; align-items: flex-start; gap: .4rem .8rem; flex-wrap: wrap-reverse;
+  justify-content: flex-end;
 }
 #toolbar .controls {
-  display: flex; align-items: center; gap: .5rem .9rem; flex-wrap: wrap;
-  min-width: 0; font-size: .85em; color: var(--fg-dim);
+  display: flex; align-items: center; gap: .35rem .8rem; flex-wrap: wrap;
+  flex: 1 1 18rem; min-width: 0; font-size: .85em; color: var(--fg-dim);
 }
-#toolbar .actions { display: flex; gap: .5rem; margin-left: auto; }
+#toolbar .actions { display: flex; gap: .5rem; flex: 0 0 auto; }
 #composer .actions button { padding: .3rem .9rem; }
 
-/* ---- lane switches (status strip) ---- */
-#lanes { display: flex; gap: .3rem; flex-wrap: wrap; }
+/* ---- lane switches (bottom panel, with the other session controls) ---- */
+#lanes { display: flex; gap: .25rem; flex-wrap: wrap; }
 #lanes button {
   font: inherit; font-size: .9em; line-height: 1.5; cursor: pointer;
   border: 1px solid var(--border); border-radius: 999px; padding: 0 .6em;
@@ -262,8 +300,16 @@ pre.raw {
 }
 #composer select {
   background: var(--bg); color: var(--fg); border: 1px solid var(--border);
-  border-radius: 6px; padding: .3rem .4rem; font: inherit; max-width: 13rem;
-  text-overflow: ellipsis;
+  border-radius: 6px; padding: .2rem .35rem; font: inherit;
+  font-size: .95em; max-width: 11rem; text-overflow: ellipsis;
+}
+/* Short windows: the controls get smaller rather than pushing the
+   conversation off the screen. */
+@media (max-height: 620px) {
+  #composer { padding: .3rem .6rem; gap: .25rem; }
+  #prompt-input { min-height: 2.2rem; max-height: 22vh; }
+  #toolbar .controls { font-size: .8em; gap: .3rem .6rem; }
+  #composer .actions button { padding: .25rem .7rem; }
 }
 #composer button {
   padding: .45rem 1.1rem; border: 1px solid var(--border); border-radius: 6px;
@@ -379,13 +425,62 @@ pre.raw {
 #elic-skip { margin-right: auto; }
 #elic-submit { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600; }
 
-/* ---- archive result note ---- */
+/* ---- archiving: a side panel, never a banner over the conversation ----
+   The old result note sat above the conversation, took its space and had no
+   way to go away (Fabio, 2026-09-04). This one sits beside the reading area
+   on a wide window, drops under it on a narrow one, and closes. */
+#middle { display: flex; flex: 1; min-height: 0; }
+#archive-panel {
+  flex: 0 0 22rem; min-width: 0; overflow-y: auto;
+  border-left: 1px solid var(--border); background: var(--bg-raised);
+  padding: .6rem .8rem; font-size: .9em;
+}
+#archive-panel .panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+  color: var(--accent); font-weight: 600; margin-bottom: .5rem;
+}
+#archive-close {
+  border: none; background: none; color: var(--fg-dim); cursor: pointer;
+  font-size: 1.2em; line-height: 1; padding: 0 .2rem;
+}
+#archive-close:hover { color: var(--danger); }
+#archive-panel label { display: block; color: var(--fg-dim); margin: .6rem 0 .25rem; }
+#archive-panel .row { display: flex; gap: .4rem; }
+#archive-panel input[type="text"], #archive-panel #archive-dest {
+  flex: 1; min-width: 0; padding: .35rem .45rem; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--bg); color: var(--fg);
+  font: inherit; font-size: .95em;
+}
+#archive-panel .row button, #archive-panel .actions button {
+  padding: .35rem .8rem; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg); color: var(--fg); cursor: pointer; font: inherit;
+  font-size: .95em; white-space: nowrap;
+}
+#archive-panel .actions { display: flex; gap: .5rem; margin-top: .8rem; }
+#archive-run { background: var(--accent); color: var(--bg);
+  border-color: var(--accent); font-weight: 600; }
+#archive-formats { display: flex; flex-direction: column; gap: .2rem; }
+#archive-formats label {
+  display: flex; align-items: center; gap: .4rem; margin: 0; color: var(--fg);
+}
+#archive-warning {
+  background: color-mix(in srgb, var(--warn) 25%, transparent);
+  border: 1px solid var(--warn); border-radius: 6px; padding: .4rem .5rem;
+  color: var(--fg); font-size: .9em;
+}
 #archive-note {
-  padding: .4rem .8rem; font-size: .85em; border-bottom: 1px solid var(--border);
-  background: var(--bg-raised); color: var(--fg-dim);
+  margin-top: .8rem; padding-top: .6rem; border-top: 1px solid var(--border);
+  font-size: .9em; color: var(--fg-dim);
   white-space: pre-wrap; word-break: break-word;
 }
 #archive-note.error { color: var(--danger); }
+@media (max-width: 60rem) {
+  #middle { flex-direction: column; }
+  #archive-panel {
+    flex: 0 0 auto; max-height: 45%; border-left: none;
+    border-top: 1px solid var(--border);
+  }
+}
 #composer button.secondary {
   background: var(--bg); color: var(--fg); font-weight: normal;
 }

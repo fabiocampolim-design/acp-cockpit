@@ -355,18 +355,66 @@ def test_launcher_sends_the_thinking_choice_with_the_session(server):
         assert posted["client_options"]["thinking"] == {"type": "disabled"}
 
 
-def test_archive_button_reports_what_the_server_says(server):
-    # The e2e server has no archiver configured: the button must say so
-    # plainly instead of failing silently.
+def test_archive_opens_a_side_panel_and_falls_back_to_markdown(server):
+    # The e2e server has no claude-session-publisher configured. Refusing to
+    # save anything was the wrong answer to a missing optional tool (Fabio,
+    # 2026-09-04): warn, offer what CAN be written, and write it. The panel
+    # is beside the conversation, never a banner on top of it, and it closes.
     url, tmp = server
     from playwright.sync_api import sync_playwright
     with sync_playwright() as pw:
         page = start_fake_session(pw, url, tmp)
+        page.fill("#prompt-input", "say hello")
+        page.click("#send")
+        page.wait_for_selector('.pane:not([hidden]) [data-kind="turn_ended"]')
+
         page.click("#archive")
-        # the note says "archiving…" first; wait for the verdict, not the
-        # placeholder (this raced on the first run)
-        page.wait_for_selector("#archive-note.error")
-        assert "archiver" in page.inner_text("#archive-note")
+        page.wait_for_selector("#archive-panel:not([hidden])")
+        page.wait_for_selector("#archive-formats input")
+        # only what this server can actually write
+        assert page.locator("#archive-formats input").count() == 1
+        assert page.get_attribute("#archive-formats input", "value") == \
+            "markdown"
+        assert "claude-session-publisher" in \
+            page.inner_text("#archive-warning")
+
+        dest = tmp / "saved here"
+        page.fill("#archive-dest", str(dest))
+        page.click("#archive-run")
+        page.wait_for_function(
+            "() => document.querySelector('#archive-note')"
+            ".textContent.startsWith('saved')", timeout=20000)
+        written = list(dest.glob("*.md"))
+        assert written, f"nothing written to {dest}"
+        text = written[0].read_text(encoding="utf-8")
+        assert "### You" in text and "say hello" in text
+        assert "built-in fallback" in text
+
+        # what you did is also in the conversation, in the harness lane
+        assert "archived to" in page.inner_text(".pane:not([hidden])")
+
+        page.click("#archive-close")
+        assert page.locator("#archive-panel:not([hidden])").count() == 0
+
+
+def test_the_archive_panel_does_not_cover_the_conversation(server):
+    # The old note sat above the conversation and had no way to go away.
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = start_fake_session(pw, url, tmp)
+        before = page.evaluate(
+            "() => document.querySelector('#conversation').clientWidth")
+        page.click("#archive")
+        page.wait_for_selector("#archive-panel:not([hidden])")
+        boxes = page.evaluate("""() => {
+          const c = document.querySelector('#conversation').getBoundingClientRect();
+          const p = document.querySelector('#archive-panel').getBoundingClientRect();
+          return {overlap: !(p.left >= c.right - 1 || p.right <= c.left + 1),
+                  narrower: c.width < %d};
+        }""" % before)
+        assert not boxes["overlap"], "the panel overlaps the conversation"
+        assert boxes["narrower"], "the conversation did not make room"
 
 
 def test_a_dropped_socket_reconnects_without_duplicating_the_conversation(server):
@@ -431,6 +479,45 @@ def test_account_usage_panel_shows_the_windows_the_agent_reported(server):
         assert "EC in use" in text, text
         assert "extra credits" in page.get_attribute(
             '#account [data-window="seven_day"]', "title")
+
+
+def test_many_tabs_never_push_the_account_block_off_the_screen(server):
+    # Enough tabs used to scroll the whole bar, chips and all, out of sight
+    # (Fabio, 2026-09-04). The strip scrolls; the right-hand block does not.
+    # Layout only: tab-shaped nodes, no sessions.
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = pw.chromium.launch().new_page()
+        open_launcher(page, url)
+        page.evaluate("""() => {
+          const strip = document.querySelector('#tabstrip');
+          const add = document.querySelector('#tab-add');
+          for (let i = 0; i < 20; i++) {
+            const b = document.createElement('button');
+            b.className = 'tab';
+            const l = document.createElement('span');
+            l.textContent = 'claude - some-long-project-name-' + i;
+            const x = document.createElement('span');
+            x.className = 'close'; x.textContent = 'x';
+            b.append(l, x);
+            strip.insertBefore(b, add);
+          }
+        }""")
+        box = page.evaluate("""() => {
+          const tr = document.querySelector('#topright').getBoundingClientRect();
+          const strip = document.querySelector('#tabstrip');
+          const tabs = [...strip.querySelectorAll('.tab:not(.add)')];
+          return {onScreen: tr.right <= innerWidth + 1 && tr.left >= 0,
+                  scrolls: strip.scrollWidth > strip.clientWidth,
+                  widest: Math.max(...tabs.map(t =>
+                            t.getBoundingClientRect().width)),
+                  viewport: innerWidth};
+        }""")
+        assert box["onScreen"], "the account/help/settings block scrolled away"
+        assert box["scrolls"], "the tab strip did not take the overflow"
+        assert box["widest"] < box["viewport"] / 4, \
+            f"tabs did not shrink: widest {box['widest']}px"
 
 
 def test_a_window_label_is_derived_from_whatever_the_agent_reports(server):

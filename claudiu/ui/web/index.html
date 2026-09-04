@@ -9,7 +9,9 @@
 </head>
 <body>
 <div id="tabs">
-  <button class="tab add" id="tab-add" title="New session (Alt+N)">+</button>
+  <div id="tabstrip">
+    <button class="tab add" id="tab-add" title="New session (Alt+N)">+</button>
+  </div>
   <div id="topright">
     <div id="account" hidden
       title="your account's limits, as last reported by the agent"></div>
@@ -19,6 +21,8 @@
 </div>
 <div id="launcher">
   <h1>ClaudIU</h1>
+  <div class="cols">
+  <div class="col-main">
   <label>Agent <select id="profile"></select></label>
   <label for="cwd">Project directory</label>
   <div class="row"><input id="cwd" spellcheck="false">
@@ -32,10 +36,15 @@
     </select></label>
   <button id="start">Start session</button>
   <button id="refresh-recent" class="secondary">Find resumable sessions</button>
-  <ul id="caveats"></ul>
   <div id="recent" hidden>
     <h3>Resume an agent session in this directory</h3>
     <ul id="recent-list"></ul>
+  </div>
+  </div>
+  <aside class="col-side">
+    <h3>What to know about this agent</h3>
+    <ul id="caveats"></ul>
+  </aside>
   </div>
 </div>
 <div id="workspace" hidden>
@@ -44,8 +53,7 @@
     <span class="anomaly-chip" hidden>anomalies</span>
     <span class="stderr-chip" hidden title="adapter log (stderr): diagnostics, not errors — click to show">log</span>
     <span class="usage" title="context window"></span>
-    <span class="model"></span>
-    <span id="lanes" title="show or hide whole lanes of the conversation"></span></div>
+    <span class="model"></span></div>
   <div id="stderr-drawer" data-kind="stderr" hidden><pre></pre></div>
   <div id="anomaly-drawer" hidden>
     <div class="drawer-head">
@@ -54,8 +62,27 @@
     </div>
     <pre></pre>
   </div>
-  <div id="archive-note" hidden></div>
-  <div id="conversation"></div>
+  <div id="middle">
+    <div id="conversation"></div>
+    <aside id="archive-panel" hidden>
+      <div class="panel-head">
+        <span>Archive this conversation</span>
+        <button id="archive-close" type="button" title="close">×</button>
+      </div>
+      <div id="archive-warning" hidden></div>
+      <label for="archive-dest">Save to</label>
+      <div class="row">
+        <input id="archive-dest" spellcheck="false">
+        <button id="archive-browse" class="secondary" type="button">Browse…</button>
+      </div>
+      <label>Formats</label>
+      <div id="archive-formats"></div>
+      <div class="actions">
+        <button id="archive-run" type="button">Save</button>
+      </div>
+      <div id="archive-note" hidden></div>
+    </aside>
+  </div>
   <div id="plan" hidden></div>
   <div id="composer">
     <button id="jump-bottom" type="button" hidden
@@ -67,12 +94,13 @@
         <select id="mode" hidden title="permission mode"></select>
         <select id="model" hidden title="model"></select>
         <span id="config-options"></span>
+        <span id="lanes" title="show or hide whole lanes of the conversation"></span>
         <label class="view-toggle" title="open tool results by default (per-row toggles always work)">
-          <input type="checkbox" id="expand-tools"> expand tool output</label>
+          <input type="checkbox" id="expand-tools"> tool output</label>
       </div>
       <div class="actions">
         <button id="archive" class="secondary" type="button"
-          title="archive this conversation with claude-session-publisher">Archive</button>
+          title="save this conversation to disk">Archive</button>
         <button id="cancel" hidden>Stop</button>
         <button id="send" disabled>Send</button>
       </div>
