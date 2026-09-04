@@ -45,8 +45,11 @@ conversation shows — the five lanes</a></li>
 <li><a href="#archiving-a-conversation" id="toc-archiving-a-conversation">Archiving a conversation</a></li>
 <li><a href="#the-top-right-account-limits-help-settings" id="toc-the-top-right-account-limits-help-settings">The top right:
 account limits, help, settings</a></li>
+<li><a href="#keyboard" id="toc-keyboard">Keyboard</a></li>
 <li><a href="#approvals" id="toc-approvals">Approvals</a></li>
 <li><a href="#questions-from-the-agent" id="toc-questions-from-the-agent">Questions from the agent</a></li>
+<li><a href="#your-accounts-limits" id="toc-your-accounts-limits">Your
+account’s limits</a></li>
 <li><a href="#status-strip-and-warnings" id="toc-status-strip-and-warnings">Status strip and warnings</a></li>
 <li><a href="#records" id="toc-records">Records</a></li>
 <li><a href="#security-notes" id="toc-security-notes">Security
@@ -143,11 +146,11 @@ frame behind them — the escape hatch into the session record.</li>
 <h2 id="prompting">Prompting</h2>
 <p>Enter sends; Shift+Enter inserts a newline. The Send button is
 enabled only while the session is ready (not during the agent’s turn,
-not before startup completes). <strong>Stop</strong> cancels the current
-turn. Typing <code>/</code> first opens the command palette listing the
-agent’s own slash commands; picking one only fills the composer —
-nothing is sent until you press Send, and the agent’s response to a
-command is always rendered.</p>
+not before startup completes). <strong>Stop</strong>, or
+<strong>Esc</strong>, cancels the current turn. Typing <code>/</code>
+first opens the command palette listing the agent’s own slash commands;
+picking one only fills the composer — nothing is sent until you press
+Send, and the agent’s response to a command is always rendered.</p>
 <p>Claude Code’s <em>prompt suggestions</em> (the predicted next prompt
 the terminal offers after a turn) are not available here yet: the Agent
 SDK provides them, but the ACP adapter neither enables the option nor
@@ -206,6 +209,60 @@ session in the launcher (the <strong>+</strong> tab).</p>
 this client did not expect; clicking one opens a drawer with every
 entry, kept until you press <strong>dismiss all</strong>. Looking at
 them never throws them away.</p>
+<h2 id="keyboard">Keyboard</h2>
+<p>Every shortcut there is:</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Key</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Esc</code></td>
+<td>Stops the agent mid-turn. With the command list open it closes that
+first; inside a dialog it belongs to the dialog.</td>
+</tr>
+<tr>
+<td><code>Enter</code></td>
+<td>Sends the prompt.</td>
+</tr>
+<tr>
+<td><code>Shift+Enter</code></td>
+<td>Starts a new line instead of sending.</td>
+</tr>
+<tr>
+<td><code>/</code></td>
+<td>In an empty composer, opens the list of the agent’s own slash
+commands.</td>
+</tr>
+<tr>
+<td><code>Alt+N</code></td>
+<td>Opens the launcher for a new session.</td>
+</tr>
+<tr>
+<td><code>Alt+1</code> … <code>Alt+9</code></td>
+<td>Switches to that tab.</td>
+</tr>
+<tr>
+<td><code>1</code> … <code>9</code></td>
+<td>Answers the open approval dialog (its buttons are numbered).</td>
+</tr>
+<tr>
+<td>any other key</td>
+<td>Types. Press one with the focus anywhere on the page and the
+character goes to the composer, the way a terminal always types at the
+prompt.</td>
+</tr>
+</tbody>
+</table>
+<p>An approval dialog is the one place <code>Esc</code> does nothing: it
+will not be dismissed unanswered.</p>
 <h2 id="approvals">Approvals</h2>
 <p>When the agent wants to do something that needs permission, a dialog
 shows the tool call (with diff when provided) and the agent’s own
@@ -228,6 +285,23 @@ by itself if the question goes unanswered past the timeout. Your answer
 is written into the conversation so the transcript shows what you chose.
 An option’s <em>preview</em> (the mockup the terminal shows on focus) is
 not displayed here; its description is.</p>
+<h2 id="your-accounts-limits">Your account’s limits</h2>
+<p>Top right, one chip per rate-limit window the agent has reported,
+with how much of it is used: <code>5h</code>, <code>7d</code>, and any
+per-model window your account has (<code>7d Fable</code>,
+<code>7d Opus</code>) as soon as the agent reports it — the names are
+read from what arrives, not from a list this client keeps.
+<code>7d +credits</code> is the seven-day window with extra credits
+included. <code>EC</code> on a chip means extra credits
+(<code>EC in use</code>, <code>EC available</code>,
+<code>EC out</code>); the tooltip spells it out, along with the reset
+time and the agent’s own payload.</p>
+<p>The chips appear only once the agent sends a rate-limit update, which
+it does as your account approaches a window — a quiet panel means
+nothing has been reported yet. <strong>How many credits are left, in
+money, is not shown because the agent never sends it</strong>: the
+rate-limit payload carries the <em>state</em> of extra credits and never
+a balance or a currency.</p>
 <h2 id="status-strip-and-warnings">Status strip and warnings</h2>
 <p>The strip shows the session state, the current permission mode, a
 <strong>context gauge</strong> (tokens used / window size, percentage,
@@ -237,12 +311,17 @@ under the prompt holds the selectors: <strong>mode</strong>,
 options</strong> the agent advertises (Claude Agent 0.73 offers mode,
 model, effort and agent). Each thing appears once — a config option
 replaces the legacy select for the same thing — and long descriptions
-are tooltips. While a turn runs, a pulsing “agent working… 42s · last
-activity 3s ago (tool_call: Edit hello.py)” row sits at the end of the
-conversation — the elapsed time tells you the turn is alive, the
-last-activity part tells you whether the agent is still producing events
-(it turns amber after a minute of silence). Three chips can appear; the
-first two should not be ignored:</p>
+are tooltips. The choices are offered in the order the agent’s profile
+asks for rather than the order the agent happens to send: the Claude
+profile lists the models by decreasing capability (default, Fable, Opus,
+Sonnet, Haiku). Nothing is renamed or left out — see
+<code>config_option_order</code> in
+<code>agents/PROFILE-SCHEMA.md</code>. While a turn runs, a pulsing
+“agent working… 42s · last activity 3s ago (tool_call: Edit hello.py)”
+row sits at the end of the conversation — the elapsed time tells you the
+turn is alive, the last-activity part tells you whether the agent is
+still producing events (it turns amber after a minute of silence). Three
+chips can appear; the first two should not be ignored:</p>
 <ul>
 <li><strong>drift</strong> — the agent sent protocol data newer than
 this client’s pinned ACP schema (hover for details). The client keeps

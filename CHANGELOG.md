@@ -42,6 +42,34 @@ plane) found eleven things; these are the ones fixed here.
   two files that no longer exist; three lines mangled by an earlier patch
   were reflowed; and this file had two `## Unreleased` sections.
 
+### daily-use round 10 (2026-09-04)
+
+- **The models are offered by decreasing capability** — default, Fable, Opus,
+  Sonnet, Haiku — instead of the order the adapter happens to send them in
+  (default, Sonnet, Fable, Opus, Haiku). The order is agent DATA, not code:
+  `config_option_order` in the profile, matched as substrings of a choice's
+  value and name, so a versioned id like `claude-fable-5-1[1m]` keeps being
+  recognised as Fable when the version moves. Nothing is renamed, dropped or
+  invented, and a choice nothing matches keeps its place after the rest.
+- **Esc stops the agent**, the way it does in the terminal — and with the
+  command list open it closes that first, while inside a dialog it stays the
+  dialog's own key (an approval still refuses to be dismissed unanswered).
+- **Every other key types.** Press one with the focus anywhere on the page
+  and the character lands in the composer, as a terminal always types at the
+  prompt.
+- **Every shortcut is written down**, in Help and in the user manual: Esc,
+  Enter, Shift+Enter, `/`, Alt+N, Alt+1…9, digits for an approval, and the
+  typing rule above.
+- **Account windows are labelled from what arrives**, not from a list this
+  client keeps guessing at: a per-model meter (`7d Fable`, `7d Opus`) reads
+  correctly the first time the agent ever reports it. `7d +credits` is the
+  seven-day window with extra credits included.
+- **The credits state is abbreviated on the chip** — `EC in use`, `EC
+  available`, `EC out` — with the words spelled out in the tooltip. There is
+  no amount and no currency, because the agent does not send one: the
+  rate-limit payload carries the *state* of extra credits and never a
+  balance. The manual says so where it would otherwise be looked for.
+
 ### audit fixes, round 2
 
 The rest of the audit's list, the four findings about living with the client

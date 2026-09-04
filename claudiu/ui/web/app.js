@@ -967,11 +967,24 @@ function showWorking(S, on) {
 const WINDOW_LABELS = {
   five_hour: "5h",
   seven_day: "7d",
-  seven_day_opus: "7d Opus",
-  seven_day_sonnet: "7d Sonnet",
-  seven_day_overage_included: "7d +credits",
-  overage: "credits",
 };
+
+/* The agent decides which windows exist — per-model ones appear and
+   disappear as the account changes (Fabio has a Fable meter in the desktop
+   app). So the label is DERIVED from the name rather than looked up in a
+   list we would have to keep guessing at: `seven_day_fable` reads "7d
+   Fable" the first time it ever arrives. */
+function windowLabel(type) {
+  for (const [prefix, short] of Object.entries(WINDOW_LABELS)) {
+    if (type === prefix) return short;
+    if (!type.startsWith(prefix + "_")) continue;
+    const words = type.slice(prefix.length + 1).split("_")
+      .filter(w => w !== "included");
+    return short + " " + words.map(w => w === "overage" ? "+credits"
+      : w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  }
+  return type.replace(/_/g, " ");
+}
 const limitWindows = new Map();     // window name -> latest reading
 
 /* The agent reports its windows in `unifiedWindows`
@@ -1013,11 +1026,15 @@ function fmtReset(epochSeconds) {
                     : `resets ${when.toLocaleString()}`;
 }
 
+/* Short on the chip (it sits in a corner), spelled out in the tooltip.
+   EC = extra credits. The agent reports the STATE of the credits and never
+   a balance — there is no amount, in any currency, anywhere in the
+   rate-limit payload — so none is shown. */
 function creditsNote(d) {
-  if (d.isUsingOverage || d.overageInUse) return "extra credits in use";
-  if (d.overageDisabledReason === "out_of_credits") return "out of credits";
-  if (d.canUserPurchaseCredits) return "extra credits available";
-  if (d.overageStatus) return `extra credits: ${d.overageStatus}`;
+  if (d.isUsingOverage || d.overageInUse) return "EC in use";
+  if (d.overageDisabledReason === "out_of_credits") return "EC out";
+  if (d.canUserPurchaseCredits) return "EC available";
+  if (d.overageStatus) return `EC ${d.overageStatus}`;
   return "";
 }
 
@@ -1030,7 +1047,7 @@ function renderAccount() {
     span.className = "window";
     span.dataset.window = type;
     if (w.status) span.dataset.status = w.status;
-    const label = WINDOW_LABELS[type] || type;
+    const label = windowLabel(type);
     // `utilization` is a FRACTION of the window: 0.55 is 55 %.
     const pct = typeof w.utilization === "number"
       ? Math.round(w.utilization * 100) + "%" : "—";
@@ -1039,8 +1056,10 @@ function renderAccount() {
     span.append(label + " ", b);
     if (w.credits) span.append(" · " + w.credits);
     span.title = [`${label}: ${pct} used`, `status: ${w.status || "?"}`,
-                  fmtReset(w.resetsAt), w.credits, "",
-                  "as the agent reported it:",
+                  fmtReset(w.resetsAt),
+                  w.credits && `${w.credits}  (EC = extra credits; the agent `
+                    + `reports their state, never a balance)`,
+                  "", "as the agent reported it:",
                   JSON.stringify(w.raw, null, 1)]
       .filter(v => v === "" || Boolean(v)).join("\n");
     return span;
@@ -1478,10 +1497,31 @@ document.addEventListener("keydown", (e) => {
     const btn = $("#perm-options").children[Number(e.key) - 1];
     if (btn) btn.click();
   }
-  if (e.key === "Escape" && $("#palette") && !$("#palette").hidden) {
-    $("#palette").hidden = true;
-    e.preventDefault();
+  if (e.key === "Escape") {
+    const pal = $("#palette");
+    if (pal && !pal.hidden) { pal.hidden = true; e.preventDefault(); return; }
+    // an open dialog owns its own Escape (the approval one refuses it)
+    if (document.querySelector("dialog[open]")) return;
+    // In the terminal Esc interrupts the agent. So it does here.
+    if (active && active.state === "turn") {
+      active.send({cmd: "cancel"});
+      e.preventDefault();
+    }
   }
+});
+
+/* Every other key behaves the way it does in a terminal: it types. With the
+   focus anywhere but a field — on a tab, on the conversation — a printable
+   key moves it to the composer and the character lands there (no
+   preventDefault: the keystroke types itself once the box has focus). */
+document.addEventListener("keydown", (e) => {
+  if (e.ctrlKey || e.altKey || e.metaKey || e.key.length !== 1) return;
+  if (document.querySelector("dialog[open]")) return;
+  const t = e.target;
+  if (t && (t.isContentEditable ||
+            /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || ""))) return;
+  const box = $("#prompt-input");
+  if (box && !box.disabled) box.focus();
 });
 
 /* ---------------- theme, help and settings ----------------
@@ -1524,9 +1564,14 @@ const HELP = [
    "approval, “Other” answers a question in your own words."],
   ["Archive", "Hands the conversation to claude-session-publisher, which " +
    "writes it into your usual archive directory."],
-  ["Keyboard", "Enter sends · Shift+Enter newline · “/” lists the agent's " +
-   "commands · Alt+N new session · Alt+1…9 switch tab · 1-9 answer an " +
-   "approval."],
+  ["Keyboard — every shortcut there is",
+   "Esc stops the agent mid-turn (and closes the command list first, if it " +
+   "is open) · Enter sends · Shift+Enter starts a new line · “/” in an " +
+   "empty composer lists the agent's commands · Alt+N starts a session · " +
+   "Alt+1…9 switches to that tab · 1…9 answers an open approval dialog · " +
+   "Esc in a dialog closes it, except an approval, which will not be " +
+   "dismissed unanswered. Every other key types: press one anywhere and it " +
+   "goes to the composer, as it would in a terminal."],
   ["Sessions", "They live in the server: reloading the page reattaches to " +
    "everything still running. Only one attachment per agent session."],
 ];

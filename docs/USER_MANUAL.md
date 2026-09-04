@@ -90,7 +90,7 @@ pane starts empty).
 
 Enter sends; Shift+Enter inserts a newline. The Send button is enabled
 only while the session is ready (not during the agent's turn, not before
-startup completes). **Stop** cancels the current turn. Typing `/` first
+startup completes). **Stop**, or **Esc**, cancels the current turn. Typing `/` first
 opens the command palette listing the agent's own slash commands; picking
 one only fills the composer — nothing is sent until you press Send, and
 the agent's response to a command is always rendered.
@@ -158,6 +158,24 @@ The **log** chip is the adapter's own diagnostics. The **anomalies** and
 drawer with every entry, kept until you press **dismiss all**. Looking at
 them never throws them away.
 
+## Keyboard
+
+Every shortcut there is:
+
+| Key | What it does |
+|---|---|
+| `Esc` | Stops the agent mid-turn. With the command list open it closes that first; inside a dialog it belongs to the dialog. |
+| `Enter` | Sends the prompt. |
+| `Shift+Enter` | Starts a new line instead of sending. |
+| `/` | In an empty composer, opens the list of the agent's own slash commands. |
+| `Alt+N` | Opens the launcher for a new session. |
+| `Alt+1` … `Alt+9` | Switches to that tab. |
+| `1` … `9` | Answers the open approval dialog (its buttons are numbered). |
+| any other key | Types. Press one with the focus anywhere on the page and the character goes to the composer, the way a terminal always types at the prompt. |
+
+An approval dialog is the one place `Esc` does nothing: it will not be
+dismissed unanswered.
+
 ## Approvals
 
 When the agent wants to do something that needs permission, a dialog shows
@@ -183,6 +201,22 @@ past the timeout. Your answer is written into the conversation so the
 transcript shows what you chose. An option's *preview* (the mockup the
 terminal shows on focus) is not displayed here; its description is.
 
+## Your account's limits
+
+Top right, one chip per rate-limit window the agent has reported, with how
+much of it is used: `5h`, `7d`, and any per-model window your account has
+(`7d Fable`, `7d Opus`) as soon as the agent reports it — the names are read
+from what arrives, not from a list this client keeps. `7d +credits` is the
+seven-day window with extra credits included. `EC` on a chip means extra
+credits (`EC in use`, `EC available`, `EC out`); the tooltip spells it out,
+along with the reset time and the agent's own payload.
+
+The chips appear only once the agent sends a rate-limit update, which it
+does as your account approaches a window — a quiet panel means nothing has
+been reported yet. **How many credits are left, in money, is not shown
+because the agent never sends it**: the rate-limit payload carries the
+*state* of extra credits and never a balance or a currency.
+
 ## Status strip and warnings
 
 The strip shows the session state, the current permission mode, a
@@ -191,7 +225,11 @@ the agent reports it) and the current model. The toolbar under the prompt
 holds the selectors: **mode**, **model** and whatever other **configuration
 options** the agent advertises (Claude Agent 0.73 offers mode, model, effort
 and agent). Each thing appears once — a config option replaces the legacy
-select for the same thing — and long descriptions are tooltips.
+select for the same thing — and long descriptions are tooltips. The choices
+are offered in the order the agent's profile asks for rather than the order
+the agent happens to send: the Claude profile lists the models by decreasing
+capability (default, Fable, Opus, Sonnet, Haiku). Nothing is renamed or left
+out — see `config_option_order` in `agents/PROFILE-SCHEMA.md`.
 While a turn runs, a pulsing "agent working… 42s · last activity 3s ago
 (tool_call: Edit hello.py)" row sits at the end of the conversation — the
 elapsed time tells you the turn is alive, the last-activity part tells you

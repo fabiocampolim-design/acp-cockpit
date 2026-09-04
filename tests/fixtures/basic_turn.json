@@ -308,6 +308,14 @@
   },
   {
     "on_method": "session/prompt",
+    "if_prompt_contains": "SLOW",
+    "delay_ms": 3000,
+    "respond": {
+      "stopReason": "end_turn"
+    }
+  },
+  {
+    "on_method": "session/prompt",
     "notify": [
       {
         "jsonrpc": "2.0",

@@ -426,7 +426,80 @@ def test_account_usage_panel_shows_the_windows_the_agent_reported(server):
         assert "—" not in text, f"a window reported no number: {text}"
         # the warning windows are marked, and credits state is legible
         assert page.locator('#account [data-status="allowed_warning"]').count() == 2
-        assert "credits" in page.inner_text("#account").lower()
+        # the credits state is abbreviated on the chip (it lives in a corner)
+        # and spelled out in the tooltip
+        assert "EC in use" in text, text
+        assert "extra credits" in page.get_attribute(
+            '#account [data-window="seven_day"]', "title")
+
+
+def test_a_window_label_is_derived_from_whatever_the_agent_reports(server):
+    # The agent decides which windows exist — per-model meters come and go
+    # with the account. This exercises the LABELLER, not a claim about which
+    # windows the adapter sends: the fixture carries only real ones.
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = start_fake_session(pw, url, tmp)
+        labels = page.evaluate(
+            "() => ['five_hour', 'seven_day', 'seven_day_fable',"
+            " 'seven_day_opus', 'seven_day_overage_included',"
+            " 'something_new'].map(windowLabel)")
+        assert labels == ["5h", "7d", "7d Fable", "7d Opus", "7d +credits",
+                          "something new"], labels
+
+
+def test_escape_stops_the_agent(server):
+    # Esc interrupts in the terminal; it interrupts here (Fabio, 2026-09-04).
+    # End to end: the key in the browser, the cancel in the session record.
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = start_fake_session(pw, url, tmp)
+        page.fill("#prompt-input", "SLOW please")
+        page.click("#send")
+        page.wait_for_selector("#cancel:not([hidden])")
+        page.keyboard.press("Escape")
+
+        deadline = time.time() + 15
+        cancelled = False
+        while time.time() < deadline and not cancelled:
+            for rec in (tmp / "rec").glob("*.jsonl"):
+                for line in rec.read_text(encoding="utf-8").splitlines():
+                    entry = json.loads(line)
+                    if entry.get("action") == "cancel":
+                        cancelled = True
+            if not cancelled:
+                time.sleep(0.3)
+        assert cancelled, "Escape did not reach the agent as a cancel"
+
+
+def test_escape_does_not_stop_the_agent_from_inside_a_dialog(server):
+    # An approval dialog owns its own Escape and refuses to be dismissed
+    # unanswered; Esc there must not be read as "stop".
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = start_fake_session(pw, url, tmp)
+        page.fill("#prompt-input", "PERMISSION please")
+        page.click("#send")
+        page.wait_for_selector("#permission[open]")
+        page.keyboard.press("Escape")
+        assert page.locator("#permission[open]").count() == 1
+        page.click('#perm-options button[data-kind="allow_once"]')
+
+
+def test_typing_anywhere_lands_in_the_composer(server):
+    # "all other keys should work like in the terminal": press one with the
+    # focus on the page and it types into the prompt.
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = start_fake_session(pw, url, tmp)
+        page.click("#conversation")
+        page.evaluate("() => document.activeElement.blur()")
+        page.keyboard.type("hello")
+        assert page.input_value("#prompt-input") == "hello"
 
 
 def test_anomalies_open_a_drawer_and_are_not_erased_by_clicking(server):
