@@ -7,7 +7,7 @@ import json
 import tornado.websocket
 
 from ..core.events import to_wire
-from .auth import COOKIE_NAME
+from .auth import COOKIE_NAME, origin_ok
 
 
 class BufferedSink:
@@ -48,8 +48,10 @@ class SessionWS(tornado.websocket.WebSocketHandler):
         self._entry = None
 
     def check_origin(self, origin: str) -> bool:
-        return origin.startswith(("http://127.0.0.1:",
-                                  "http://localhost:"))
+        # A WebSocket has no CORS preflight to fall back on, so this check
+        # is the whole defence: our own origin, port included (see
+        # `auth.origin_ok`).
+        return origin_ok(origin, self.request.host)
 
     def open(self, sid):
         if not self._auth.verify(self.get_cookie(COOKIE_NAME)):

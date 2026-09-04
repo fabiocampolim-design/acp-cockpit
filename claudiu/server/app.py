@@ -19,7 +19,7 @@ from ..core.policy import PathPolicy
 from ..core.profiles import load_profiles
 from ..core.record import Recorder
 from ..core.sentinel import Sentinel
-from .auth import COOKIE_NAME
+from .auth import COOKIE_NAME, origin_ok
 from .procs import SubprocessAgentProcess, resolve_env
 from .ws import BufferedSink, SessionWS
 
@@ -219,18 +219,17 @@ class SessionManager:
             self.close(sid)
 
 
-class BaseHandler(tornado.web.RequestHandler):
-    def initialize(self, manager=None, auth=None):
-        self.manager = manager
-        self.auth = auth
+class Guard:
+    """Host, origin and token, applied to every route this server answers —
+    the static UI included (it was mounted bare until the 2026-09-04 audit,
+    so `/ui/app.js` needed no token and carried no CSP)."""
 
     def prepare(self):
         host = self.request.host_name
         if host not in ("127.0.0.1", "localhost"):
             raise tornado.web.HTTPError(403, "bad host")
-        origin = self.request.headers.get("Origin")
-        if origin and not origin.startswith(("http://127.0.0.1:",
-                                             "http://localhost:")):
+        if not origin_ok(self.request.headers.get("Origin"),
+                         self.request.host):
             raise tornado.web.HTTPError(403, "bad origin")
         if not self._authed():
             raise tornado.web.HTTPError(403, "auth")
@@ -241,6 +240,25 @@ class BaseHandler(tornado.web.RequestHandler):
     def set_default_headers(self):
         self.set_header("Content-Security-Policy", CSP)
         self.set_header("X-Content-Type-Options", "nosniff")
+
+    def write_error(self, status_code, **kwargs):
+        """Errors are JSON too: the View shows `error` verbatim."""
+        exc = kwargs.get("exc_info", (None, None, None))[1]
+        reason = getattr(exc, "reason", None) or self._reason
+        self.set_header("Content-Type", "application/json")
+        self.finish(json.dumps({"error": reason, "status": status_code}))
+
+
+class GuardedStaticFileHandler(Guard, tornado.web.StaticFileHandler):
+    def initialize(self, path, auth):
+        super().initialize(path)
+        self.auth = auth
+
+
+class BaseHandler(Guard, tornado.web.RequestHandler):
+    def initialize(self, manager=None, auth=None):
+        self.manager = manager
+        self.auth = auth
 
     def json_body(self):
         """The request body as an object. A malformed body is the caller's
@@ -253,13 +271,6 @@ class BaseHandler(tornado.web.RequestHandler):
         if not isinstance(body, dict):
             raise tornado.web.HTTPError(400, reason="body must be a JSON object")
         return body
-
-    def write_error(self, status_code, **kwargs):
-        """Errors are JSON too: the View shows `error` verbatim."""
-        exc = kwargs.get("exc_info", (None, None, None))[1]
-        reason = getattr(exc, "reason", None) or self._reason
-        self.set_header("Content-Type", "application/json")
-        self.finish(json.dumps({"error": reason, "status": status_code}))
 
     def write_json(self, obj):
         self.set_header("Content-Type", "application/json")
@@ -301,7 +312,8 @@ class SessionsHandler(BaseHandler):
         body = self.json_body()
         profile_id = body.get("profile")
         cwd = body.get("cwd")
-        if profile_id not in self.manager.profiles or not cwd or                 not Path(cwd).is_dir():
+        if (profile_id not in self.manager.profiles or not cwd
+                or not Path(cwd).is_dir()):
             # JSON, not Tornado's HTML page: the View shows `error` verbatim.
             self.set_status(400)
             return self.write_json({"error": "bad profile or cwd: profile="
@@ -347,7 +359,8 @@ class ProfileSessionsHandler(BaseHandler):
         cwd = self.get_query_argument("cwd", "")
         # An empty cwd is Path("."), the SERVER's directory — never list for
         # it; the View must name a project directory (2026-09-01 live test).
-        if profile_id not in self.manager.profiles or not cwd or                 not Path(cwd).is_dir():
+        if (profile_id not in self.manager.profiles or not cwd
+                or not Path(cwd).is_dir()):
             self.set_status(400)
             return self.write_json({"sessions": [], "error":
                                     "pick an existing project directory first"})
@@ -540,7 +553,8 @@ def make_app(profiles_dir, records_dir, auth,
         (r"/api/dirs", DirsHandler, common),
         (r"/api/drift", DriftHandler, common),
         (r"/ws/sessions/([0-9a-f]+)", SessionWS, common),
-        (r"/ui/(.*)", tornado.web.StaticFileHandler, {"path": str(UI_DIR)}),
+        (r"/ui/(.*)", GuardedStaticFileHandler,
+         {"path": str(UI_DIR), "auth": auth}),
     ], drift_online=drift_online, archiver=archiver)
     app.manager = manager
     return app

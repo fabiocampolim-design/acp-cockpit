@@ -12,6 +12,23 @@ COOKIE_NAME = "claudiu_token"
 MIN_TOKEN_CHARS = 32
 
 
+def origin_ok(origin, host: str) -> bool:
+    """Is `origin` this very server, or no browser origin at all?
+
+    Cookies are NOT scoped by port: a page served from any other port on the
+    loopback interface carries our token automatically. Accepting every
+    `http://127.0.0.1:*` origin therefore handed the API to any local web
+    page the user happened to visit (audit 2026-09-04). The origin must
+    equal the host the browser actually connected to, port included.
+
+    A missing Origin is not an origin failure: same-origin subresource GETs
+    and non-browser clients send none, and the token authenticates those.
+    """
+    if not origin:
+        return True
+    return origin == "http://" + host
+
+
 class TokenAuth:
     def __init__(self, token: str | None = None):
         self.token = token or secrets.token_urlsafe(32)

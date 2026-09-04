@@ -219,7 +219,9 @@ made them. This is the audit trail and the ground truth; the UI's
 ## Security notes
 
 The server binds 127.0.0.1 only; every request needs the launch token;
-foreign Host/Origin headers are refused. Agent file access is confined to
+a Host that is not loopback, or an Origin that is not this server's own
+address and port, is refused (cookies are not scoped by port, so a page
+served from another local port would otherwise arrive authenticated). Agent file access is confined to
 the project directory (symlinks resolved). Adapter subprocesses run with a
 scrubbed environment (plus the profile's declared runtime resolution and
 settings, written as the first record of the session) and die with their

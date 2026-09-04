@@ -44,6 +44,44 @@ class SecurityTest(tornado.testing.AsyncHTTPTestCase):
             **self.ok_headers(), "Origin": "http://evil.example.com"})
         assert r.code == 403
 
+    def test_another_localhost_port_is_a_foreign_origin(self):
+        # Cookies are NOT port-scoped: a page served from any other port on
+        # the loopback interface sends our token automatically. Accepting
+        # every `http://127.0.0.1:*` origin therefore handed the API to any
+        # local web page (audit 2026-09-04). The origin must equal OUR own.
+        for foreign in ("http://127.0.0.1:31337", "http://localhost:31337",
+                        "http://127.0.0.1", "https://127.0.0.1:%d"):
+            origin = foreign % self.get_http_port() if "%d" in foreign                 else foreign
+            r = self.fetch("/api/profiles", headers={
+                **self.ok_headers(), "Origin": origin})
+            assert r.code == 403, (origin, r.code)
+
+    def test_our_own_origin_is_accepted(self):
+        r = self.fetch("/api/profiles", headers={
+            **self.ok_headers(),
+            "Origin": f"http://127.0.0.1:{self.get_http_port()}"})
+        assert r.code == 200
+
+    def test_a_request_without_an_origin_still_works(self):
+        # Same-origin subresource GETs and non-browser clients send no
+        # Origin at all; the token is what authenticates them.
+        r = self.fetch("/api/profiles", headers=self.ok_headers())
+        assert r.code == 200
+
+    def test_the_ui_files_are_token_gated_too(self):
+        # /ui/* was mounted as a bare StaticFileHandler, outside the guard:
+        # no token, no host/origin check, no CSP header (audit 2026-09-04).
+        assert self.fetch("/ui/app.js").code == 403
+        r = self.fetch("/ui/app.js", headers=self.ok_headers())
+        assert r.code == 200
+        assert b"ClaudIU" in r.body or b"session" in r.body
+        assert "default-src 'self'" in r.headers["Content-Security-Policy"]
+
+    def test_the_ui_files_refuse_a_foreign_origin(self):
+        r = self.fetch("/ui/app.js", headers={
+            **self.ok_headers(), "Origin": "http://127.0.0.1:31337"})
+        assert r.code == 403
+
     def test_csp_header_present(self):
         r = self.fetch("/api/profiles", headers=self.ok_headers())
         assert "default-src 'self'" in r.headers["Content-Security-Policy"]

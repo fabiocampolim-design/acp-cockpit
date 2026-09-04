@@ -72,9 +72,12 @@ agents/*.toml Data        everything agent-specific (see PROFILE-SCHEMA.md)
 
 ## Security model
 
-- Binds `127.0.0.1` only; every request and WebSocket carries a per-launch
-  random token (cookie, constant-time compare); foreign `Host`/`Origin`
-  rejected; strict CSP; no external resources.
+- Binds `127.0.0.1` only; every request and WebSocket — the UI files
+  included — carries a per-launch random token (cookie, constant-time
+  compare). A `Host` that is not loopback, or an `Origin` that is not
+  this server's own **port included**, is refused: cookies are not
+  scoped by port, so any other local web page would otherwise arrive
+  authenticated. Strict CSP; no external resources.
 - ACP lets the agent ask the client to read/write files: every such request
   is checked against the session's path boundary (project directory;
   symlink-resolved) and refused outside it. **Shell commands the agent runs
@@ -96,10 +99,10 @@ python -m pyflakes claudiu tools tests
 python tools/check_schema_drift.py
 ```
 
-Verified by 162 checks (plus the opt-in real-adapter contract test). See
+Verified by 167 checks (plus the opt-in real-adapter contract test). See
 `AGENTS.md` for the working rules and `docs/superpowers/specs/` for the
-design history. The v0.1 terminal-mirror app lives in `archive/claudiu-v0.1`
-with its own git history.
+design history. The v0.1 terminal-mirror app that preceded the ACP pivot is
+kept out of this repository, with its own history.
 
 ## License
 
