@@ -49,6 +49,9 @@ core/         Model       pure stdlib; JSON-RPC, ACP state machine,
 agents/*.toml Data        everything agent-specific (see PROFILE-SCHEMA.md)
 ```
 
+- **Sessions outlive the browser**: they live in the server, so a reload
+  reattaches and a dropped socket reconnects by itself, asking only for
+  the events it missed.
 - **Swap the UI**: implement `docs/UI-PROTOCOL.md` (enforced in tests).
 - **Swap the server**: implement the three ports in `claudiu/core/ports.py`.
 - **Add an agent**: write one TOML profile; the engine never changes.
@@ -58,7 +61,9 @@ agents/*.toml Data        everything agent-specific (see PROFILE-SCHEMA.md)
 - Every protocol frame, in and out, is appended verbatim to a per-session
   JSONL record **before** interpretation, along with every client action
   (prompts, permission answers, policy decisions). Each rendered event
-  carries a `raw_ref` back into that record.
+  carries a `raw_ref` back into that record. Records are kept for ever
+  unless you ask otherwise (`--records-keep-days N`); they hold the whole
+  conversation, and the server says how much it is holding at startup.
 - Unknown methods, update kinds, fields, or enum values are checked against
   a registry pinned to a vendored ACP schema release (`vendor/acp/VERSION`)
   — mismatches surface as `drift` events in the UI and the log, with the
@@ -99,9 +104,11 @@ python -m pyflakes claudiu tools tests
 python tools/check_schema_drift.py
 ```
 
-Verified by 167 checks (plus the opt-in real-adapter contract test). See
+Verified by 180 checks (plus the opt-in real-adapter contract test). See
 `AGENTS.md` for the working rules and `docs/superpowers/specs/` for the
-design history. The v0.1 terminal-mirror app that preceded the ACP pivot is
+design history. `docs/superpowers/plans/` holds the build plans those specs
+were executed from — kept as a record of how the thing was actually made,
+not as documentation of how it works. The v0.1 terminal-mirror app that preceded the ACP pivot is
 kept out of this repository, with its own history.
 
 ## License

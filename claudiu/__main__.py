@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-"""CLI: python -m claudiu [--port N] [--profiles DIR] [--records DIR] [--token-file F]"""
+"""CLI: python -m claudiu [--port N] [--profiles DIR] [--records DIR]
+                          [--records-keep-days N] [--token-file F]"""
 import argparse
 import os
 import signal
@@ -9,6 +10,7 @@ import tornado.httpserver
 import tornado.ioloop
 import tornado.netutil
 
+from .core.record import prune
 from .server.app import make_app
 from .server.auth import TokenAuth
 
@@ -20,6 +22,9 @@ def main():
     ap.add_argument("--profiles", default="agents")
     ap.add_argument("--records",
                     default=str(Path.home() / ".claudiu" / "records"))
+    ap.add_argument("--records-keep-days", type=int, default=0,
+                    help="delete records older than N days at startup "
+                         "(default 0 = keep every record for ever)")
     ap.add_argument("--no-drift-online", action="store_true",
                     help="disable the online schema/adapter version check")
     ap.add_argument("--archiver", default=os.environ.get("CLAUDIU_ARCHIVER"),
@@ -30,9 +35,21 @@ def main():
                          "(with --port, the printed URL stays valid)")
     args = ap.parse_args()
 
+    records = Path(args.records)
+    gone = prune(records, args.records_keep_days)
+    if gone:
+        print(f"records: removed {len(gone)} older than "
+              f"{args.records_keep_days} days", flush=True)
+    held = sorted(records.glob("*.jsonl")) if records.is_dir() else []
+    if held:
+        size = sum(p.stat().st_size for p in held)
+        print(f"records: {len(held)} session(s), {size / 1e6:.1f} MB in "
+              f"{records} (they hold the whole conversation; "
+              f"--records-keep-days prunes them)", flush=True)
+
     auth = (TokenAuth.from_file(args.token_file) if args.token_file
             else TokenAuth())
-    app = make_app(Path(args.profiles), Path(args.records), auth,
+    app = make_app(Path(args.profiles), records, auth,
                    drift_online=not args.no_drift_online,
                    archiver=args.archiver)
     sockets = tornado.netutil.bind_sockets(args.port, address="127.0.0.1")

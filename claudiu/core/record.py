@@ -4,9 +4,34 @@ from __future__ import annotations
 
 import io
 import json
+import time
 from pathlib import Path
 
 from .events import now_iso
+
+
+def prune(directory, keep_days: int) -> list[str]:
+    """Delete `*.jsonl` records last modified more than `keep_days` days ago.
+
+    Records hold the full conversation, and nothing used to remove them
+    (7.9 MB in a week of daily use — audit 2026-09-04). `keep_days <= 0`
+    keeps everything, which is the default: deleting a transcript is the
+    owner's decision, so the policy exists, is documented and is opt-in.
+    Returns the names removed.
+    """
+    directory = Path(directory)
+    if keep_days <= 0 or not directory.is_dir():
+        return []
+    cutoff = time.time() - keep_days * 86400
+    removed = []
+    for path in sorted(directory.glob("*.jsonl")):
+        try:
+            if path.stat().st_mtime < cutoff:
+                path.unlink()
+                removed.append(path.name)
+        except OSError:
+            continue                 # in use, or not ours to delete
+    return removed
 
 
 class Recorder:

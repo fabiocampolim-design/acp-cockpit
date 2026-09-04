@@ -1,5 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
-from claudiu.core.record import Recorder
+import os
+import time
+
+from claudiu.core.record import Recorder, prune
 
 
 def test_append_returns_line_numbers_and_replay_roundtrips(tmp_path):
@@ -30,3 +33,41 @@ def test_append_survives_reopen(tmp_path):
         rec.append({"dir": "in", "frame": {}})
     with Recorder(p) as rec:
         assert rec.append({"dir": "in", "frame": {}}) == 2
+
+
+def _aged(path, days):
+    old = time.time() - days * 86400
+    os.utime(path, (old, old))
+
+
+def test_prune_keeps_everything_by_default(tmp_path):
+    # Records hold the whole conversation: deleting one is the owner's
+    # decision, so the policy exists but is opt-in (audit 2026-09-04).
+    p = tmp_path / "old.jsonl"
+    p.write_text("{}\n", encoding="utf-8")
+    _aged(p, 400)
+    assert prune(tmp_path, 0) == []
+    assert prune(tmp_path, -1) == []
+    assert p.exists()
+
+
+def test_prune_removes_only_what_is_older_than_the_window(tmp_path):
+    old, recent = tmp_path / "old.jsonl", tmp_path / "recent.jsonl"
+    for f in (old, recent):
+        f.write_text("{}\n", encoding="utf-8")
+    _aged(old, 40)
+    _aged(recent, 3)
+    assert prune(tmp_path, 30) == ["old.jsonl"]
+    assert recent.exists() and not old.exists()
+
+
+def test_prune_ignores_everything_that_is_not_a_record(tmp_path):
+    keep = tmp_path / "notes.txt"
+    keep.write_text("x", encoding="utf-8")
+    _aged(keep, 400)
+    assert prune(tmp_path, 1) == []
+    assert keep.exists()
+
+
+def test_prune_on_a_missing_directory_is_not_an_error(tmp_path):
+    assert prune(tmp_path / "nope", 30) == []

@@ -42,6 +42,41 @@ plane) found eleven things; these are the ones fixed here.
   two files that no longer exist; three lines mangled by an earlier patch
   were reflowed; and this file had two `## Unreleased` sections.
 
+### audit fixes, round 2
+
+The rest of the audit's list, the four findings about living with the client
+day to day.
+
+- **A dropped socket no longer kills the tab.** The session lives in the
+  server, so losing the WebSocket — a restart, a sleeping laptop — never
+  ended it; but the View just said *disconnected* and sat there until
+  somebody thought to reload. It now reconnects on its own with a backoff,
+  asking only for the events it missed (`?after=<seq>`), and restores the
+  state it was in. Two closes it does not retry, because retrying cannot
+  help: a refused login and a session the server no longer has. Both say so.
+- **The replay buffer is bounded, and says what it dropped.** Every event of
+  every session was kept in memory for the life of the process and re-sent
+  in full on every attach. It now keeps the most recent 2,000 per session,
+  and a client asking for older ones is told exactly which range it will not
+  get (`replay_truncated`) rather than being handed a silent gap. The JSONL
+  record on disk is, as ever, the complete copy.
+- **Streaming text can be selected while it streams.** Every chunk
+  re-rendered the whole message, which was quadratic and — the part you
+  could feel — wiped out any selection you had made inside it, so an answer
+  could not be copied until the turn ended. Only the unfinished tail is
+  rebuilt now; settled lines are rendered once and left alone, and the split
+  never lands inside a code fence.
+- **Two live sessions no longer confuse each other's questions.** The map
+  holding a form's field titles was keyed by request id alone, and request
+  ids restart at 1 in every session, so the second question overwrote the
+  first's labels.
+- **Records have a retention policy.** `--records-keep-days N` deletes
+  records older than N days at startup; the default keeps everything,
+  because deleting a transcript is your decision, and the server now prints
+  how many sessions and how many megabytes it is holding.
+- The build plans in `docs/superpowers/plans/` are labelled for what they
+  are: the record of how this was made, not documentation of how it works.
+
 ### daily-use round 9
 
 - **Errors from the REST API are JSON, always.** A malformed request body

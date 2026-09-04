@@ -67,14 +67,15 @@ data, and every byte that crosses the wire is recorded.</p>
 <p>Options: <code>--port N</code> (default 0 = OS-assigned),
 <code>--profiles DIR</code> (default <code>agents/</code>),
 <code>--records DIR</code> (default <code>~/.claudiu/records</code>),
-<code>--no-drift-online</code> (skip the update check),
-<code>--token-file FILE</code> (keep the auth token across launches).
-The server prints a URL with a token — open it; the token becomes a
-cookie and the address bar cleans itself. By default each launch gets a
-fresh token and old URLs die with the server; with <code>--port</code>
-and <code>--token-file</code> together the URL is stable and can be
-bookmarked (the file is created owner-only where the OS supports it —
-treat it like a password).</p>
+<code>--records-keep-days N</code> (delete records older than N days at
+startup; default 0 = keep them all), <code>--no-drift-online</code>
+(skip the update check), <code>--token-file FILE</code> (keep the auth
+token across launches). The server prints a URL with a token — open it;
+the token becomes a cookie and the address bar cleans itself. By default
+each launch gets a fresh token and old URLs die with the server; with
+<code>--port</code> and <code>--token-file</code> together the URL is
+stable and can be bookmarked (the file is created owner-only where the
+OS supports it — treat it like a password).</p>
 <h2 id="tabs">Tabs</h2>
 <p>Each session is a tab (Alt+1…9 switch, Alt+N opens the launcher, ×
 closes and ends the session). The tab shows the agent’s own title for
@@ -257,6 +258,13 @@ as anomalies. Click to open the drawer under the strip. Never shown
 inline, never dropped — it is in the record.</li>
 </ul>
 <h2 id="records">Records</h2>
+<p>If the browser loses its connection — the server restarted, the
+machine slept — the tab reconnects on its own and asks only for what it
+missed; the session itself never stopped, because it lives in the
+server, not the page. While it is trying, the status strip says
+<em>reconnecting</em>. Two things it will not retry: a refused login and
+a session the server no longer has, both of which say so and ask you to
+reload.</p>
 <p>Every session appends to
 <code>&lt;records-dir&gt;/&lt;session&gt;.jsonl</code>: each protocol
 frame verbatim (before any interpretation) plus every client action —

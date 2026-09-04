@@ -16,6 +16,8 @@ python -m claudiu
 
 Options: `--port N` (default 0 = OS-assigned), `--profiles DIR` (default
 `agents/`), `--records DIR` (default `~/.claudiu/records`),
+`--records-keep-days N` (delete records older than N days at startup;
+default 0 = keep them all),
 `--no-drift-online` (skip the update check), `--token-file FILE` (keep the
 auth token across launches). The server prints a URL with a token — open
 it; the token becomes a cookie and the address bar cleans itself. By
@@ -209,6 +211,13 @@ of silence). Three chips can appear; the first two should not be ignored:
   the record.
 
 ## Records
+
+If the browser loses its connection — the server restarted, the machine
+slept — the tab reconnects on its own and asks only for what it missed; the
+session itself never stopped, because it lives in the server, not the page.
+While it is trying, the status strip says *reconnecting*. Two things it will
+not retry: a refused login and a session the server no longer has, both of
+which say so and ask you to reload.
 
 Every session appends to `<records-dir>/<session>.jsonl`: each protocol
 frame verbatim (before any interpretation) plus every client action —
