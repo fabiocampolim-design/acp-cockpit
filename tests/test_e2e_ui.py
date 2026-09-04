@@ -369,6 +369,41 @@ def test_archive_button_reports_what_the_server_says(server):
         assert "archiver" in page.inner_text("#archive-note")
 
 
+def test_a_dropped_socket_reconnects_without_duplicating_the_conversation(server):
+    # R1 + R2 (audit 2026-09-04): the session lives in the server, so a
+    # dropped socket used to leave the tab dead until someone reloaded — and
+    # a naive reattach would have replayed the whole conversation again.
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = start_fake_session(pw, url, tmp)
+        page.fill("#prompt-input", "say hello")
+        page.click("#send")
+        page.wait_for_selector('.pane:not([hidden]) [data-kind="turn_ended"]')
+        rows = page.locator(".pane:not([hidden]) > div").count()
+        seq_before = page.evaluate(
+            "() => [...sessions.values()][0].lastSeq")
+        assert seq_before > 0, "the View kept no resume cursor"
+
+        # the socket dies the way a server restart or a sleeping laptop
+        # kills it: no page reload, no user action
+        page.evaluate("() => [...sessions.values()][0].ws.close()")
+        page.wait_for_function(
+            "() => [...sessions.values()][0].ws.readyState === WebSocket.OPEN",
+            timeout=20000)
+        assert page.locator(".pane:not([hidden]) > div").count() == rows, \
+            "the reconnect replayed the conversation a second time"
+
+        # and the tab still works
+        page.wait_for_selector("#send:not([disabled])")
+        page.fill("#prompt-input", "say hello")
+        page.click("#send")
+        page.wait_for_function(
+            "n => document.querySelectorAll("
+            "'.pane:not([hidden]) [data-kind=\"turn_ended\"]').length > n",
+            arg=1, timeout=20000)
+
+
 def test_account_usage_panel_shows_the_windows_the_agent_reported(server):
     # Account-wide limits (5 h, 7 d, overage/credits) belong at the top
     # right, not inside one session's context gauge.

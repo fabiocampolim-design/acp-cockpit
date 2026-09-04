@@ -238,6 +238,7 @@ function activate(S) {
 }
 
 function closeSession(S) {
+  S.closing = true;                    // a pending retry must not revive it
   fetch(`/api/sessions/${S.sid}`, {method: "DELETE"}).catch(() => {});
   if (S.ws) { S.ws.onclose = null; S.ws.close(); }
   S.pane.remove();
@@ -278,6 +279,9 @@ class Session {
     this.stderr = [];             // adapter stderr lines: drawer, never inline
     this.stderrOpen = false;
     this.turnAgentNodes = [];     // agent text nodes of the running turn
+    this.lastSeq = 0;             // resume cursor: highest seq we hold
+    this.serverState = null;      // last state the SERVER reported
+    this.retries = 0; this.closing = false;
     this.pane = document.createElement("div");
     this.pane.className = "pane";
     this.pane.dataset.session = sid;
@@ -296,11 +300,51 @@ class Session {
 
   get isActive() { return active === this; }
 
+  /* The socket drops for ordinary reasons — the server restarts, the laptop
+     sleeps. The SESSION is still alive on the server, so the View comes back
+     to it by itself, asking only for what it missed (`?after=`); before this,
+     a dropped socket left the tab dead until someone thought to reload. */
   connect() {
-    this.ws = new WebSocket(`ws://${location.host}/ws/sessions/${this.sid}`);
-    this.ws.onopen = () => { while (this.queue.length) this.ws.send(this.queue.shift()); };
-    this.ws.onmessage = (m) => this.handle(JSON.parse(m.data));
-    this.ws.onclose = () => this.setState("disconnected");
+    this.ws = new WebSocket(`ws://${location.host}/ws/sessions/${this.sid}` +
+                            `?after=${this.lastSeq}`);
+    this.ws.onopen = () => {
+      this.retries = 0;
+      // the replay starts after our cursor, so nothing re-announces the
+      // state we were in: restore it ourselves.
+      if (this.serverState) this.setState(this.serverState);
+      while (this.queue.length) this.ws.send(this.queue.shift());
+    };
+    this.ws.onmessage = (m) => {
+      const ev = JSON.parse(m.data);
+      if (typeof ev.seq === "number" && ev.seq > this.lastSeq)
+        this.lastSeq = ev.seq;
+      this.handle(ev);
+    };
+    this.ws.onclose = (e) => this.dropped(e);
+  }
+
+  dropped(e) {
+    if (this.closing) return;              // we closed it on purpose
+    const code = e && e.code;
+    if (code === 4403 || code === 4404) {  // retrying cannot help either one
+      this.setState(code === 4404 ? "closed" : "failed");
+      this.note(code === 4404
+        ? "this session is no longer on the server — reload the page to see "
+          + "what is running"
+        : "the server refused this connection — reload the page to sign in "
+          + "again");
+      return;
+    }
+    this.setState("reconnecting");
+    const wait = Math.min(500 * 2 ** this.retries++, 15000);
+    setTimeout(() => { if (!this.closing) this.connect(); }, wait);
+  }
+
+  /* A line about the client itself: it belongs to the harness lane, not to
+     the conversation. */
+  note(text) {
+    this.breakAgg();
+    this.addBlock("client_note", null, `— ${text} —`, "harness");
   }
 
   send(obj) {
@@ -453,8 +497,12 @@ class Session {
       if (text) { const m = $(".marker", this.agg.node); if (m) m.remove(); }
       const node = this.agg.node;
       node.rawText = (node.rawText || "") + text;
-      if (rich) renderRich($(".text", node), node.rawText);
-      else $(".text", node).textContent += text;
+      // Only the unfinished tail is re-rendered. Re-rendering the whole
+      // message on every chunk was quadratic AND wiped out any selection
+      // the reader had made inside it, so an answer could not be copied
+      // until the turn ended (audit 2026-09-04).
+      if (rich) growRich(node, $(".text", node));
+      else $(".text", node).append(text);
       return node;
     }
     const div = document.createElement("div");
@@ -464,7 +512,15 @@ class Session {
     const span = document.createElement("span");
     span.className = "text";
     div.rawText = text;
-    if (rich) renderRich(span, text); else span.textContent = text;
+    if (rich) {
+      span.append(document.createElement("span"),      // settled
+                  document.createElement("span"));     // still arriving
+      span.children[0].className = "settled";
+      span.children[1].className = "arriving";
+      div.stableEnd = 0; div.safeEnd = 0; div.scanned = 0;
+      div.fenceOpen = false;
+      growRich(div, span);
+    } else span.textContent = text;
     div.append(span);
     this.appendRow(div);
     this.agg.currentKey = key;
@@ -495,7 +551,14 @@ class Session {
     switch (ev.kind) {
       case "session_state":
         if (d.state === "turn") this.turnAgentNodes = [];
+        this.serverState = d.state;
         this.setState(d.state); break;
+      case "replay_truncated":
+        // The server's replay buffer is bounded; the JSONL record is not.
+        this.note(`events ${d.from_seq}–${d.to_seq} are not replayed here `
+                  + "(the server keeps a bounded buffer; the session record "
+                  + "on disk has them all)");
+        break;
       case "message_chunk": {
         const node = this.addBlock("message_chunk", d.role, d.text,
           d.role === "thought" ? "thinking"
@@ -532,7 +595,7 @@ class Session {
       case "permission_resolved": resolvePermission(this, d.request); break;
       case "elicitation_request": queueElicitation(this, ev); break;
       case "elicitation_resolved": {
-        const titles = fieldTitles(d.request);
+        const titles = fieldTitles(this, d.request);
         closeElicitation(this, d.request);
         this.breakAgg();
         this.addBlock("elicitation_resolved", null,
@@ -664,8 +727,36 @@ class Session {
 /* ---------------- markdown-lite for agent text ----------------
    Fenced code, headings, **bold**, *em*, `code`, [text](url). Built from
    DOM nodes only — the text is never interpreted as HTML. */
+/* The text a chunk completes never changes again, so it is rendered once
+   into `.settled` and left alone; only `.arriving` is rebuilt. A line ends
+   the settled part only when it is OUTSIDE a code fence — splitting inside
+   one would render half a code block as prose. The fence state is carried
+   forward, so each character is scanned once. */
+function growRich(node, el) {
+  const raw = node.rawText;
+  let i = node.scanned;
+  for (;;) {
+    const nl = raw.indexOf("\n", i);
+    if (nl < 0) break;                        // no complete line left
+    if (/^\s*```/.test(raw.slice(i, nl))) node.fenceOpen = !node.fenceOpen;
+    i = nl + 1;
+    if (!node.fenceOpen) node.safeEnd = i;
+  }
+  node.scanned = i;
+  const settled = el.children[0], arriving = el.children[1];
+  if (node.safeEnd > node.stableEnd) {
+    settled.append(...richNodes(raw.slice(node.stableEnd, node.safeEnd)));
+    node.stableEnd = node.safeEnd;
+  }
+  arriving.replaceChildren(...richNodes(raw.slice(node.stableEnd)));
+}
+
 function renderRich(el, text) {
-  el.replaceChildren();
+  el.replaceChildren(...richNodes(text));
+}
+
+function richNodes(text) {
+  const el = document.createDocumentFragment();
   const lines = text.split("\n");
   let i = 0;
   while (i < lines.length) {
@@ -695,6 +786,7 @@ function renderRich(el, text) {
     i++;
     if (i < lines.length) el.append("\n");
   }
+  return [...el.childNodes];
 }
 
 function inlineRich(s) {
@@ -1110,19 +1202,24 @@ $("#permission").addEventListener("cancel", (e) => e.preventDefault());
 
 const elicQueue = [];   // {S, ev}
 let elicOpen = null;
-// request id -> {field: human title}. Kept from the request so the answered
-// row can name the question ("Colour: Blue"), not the wire key.
+// "<sid>:<request>" -> {field: human title}. Kept from the request so the
+// answered row can name the question ("Colour: Blue"), not the wire key.
+// Keyed by SESSION too: request ids restart at 1 in every session, so two
+// live sessions used to overwrite each other's titles (audit 2026-09-04).
 const elicTitles = new Map();
 
-function fieldTitles(requestId) {
-  const titles = elicTitles.get(requestId) || {};
-  elicTitles.delete(requestId);
+function titleKey(S, requestId) { return `${S.sid}:${requestId}`; }
+
+function fieldTitles(S, requestId) {
+  const key = titleKey(S, requestId);
+  const titles = elicTitles.get(key) || {};
+  elicTitles.delete(key);
   return titles;
 }
 
 function queueElicitation(S, ev) {
   const props = (ev.data.schema && ev.data.schema.properties) || {};
-  elicTitles.set(ev.data.request, Object.fromEntries(
+  elicTitles.set(titleKey(S, ev.data.request), Object.fromEntries(
     Object.entries(props).map(([field, prop]) =>
       [field, (prop && prop.title) || field])));
   elicQueue.push({S, ev});

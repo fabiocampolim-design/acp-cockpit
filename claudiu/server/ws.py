@@ -6,32 +6,66 @@ import json
 
 import tornado.websocket
 
-from ..core.events import to_wire
+from ..core.events import now_iso, to_wire
 from .auth import COOKIE_NAME, origin_ok
 
 
 class BufferedSink:
-    def __init__(self):
-        self._buffer: list[str] = []
+    """What a browser sees when it attaches or comes back after a drop.
+
+    Bounded. A pinned server runs for days, and every event of every session
+    used to be kept for the life of the process and re-sent in full on every
+    attach (audit 2026-09-04). The JSONL record is the lossless copy; this
+    buffer is only the convenience that lets a late or returning browser
+    catch up, so it keeps the most recent `cap` events and SAYS SO when a
+    client asks for a range it no longer holds.
+    """
+
+    CAP = 2000
+
+    def __init__(self, sid: str | None = None, cap: int | None = None):
+        self.sid = sid
+        self.cap = cap or self.CAP
+        self._buffer: list[tuple[int, str]] = []
+        self._dropped_through = 0        # highest seq no longer retained
         self._handlers: list = []
 
     def emit(self, event) -> None:
         wire = to_wire(event)
-        self._buffer.append(wire)
+        self._buffer.append((event.seq, wire))
+        while len(self._buffer) > self.cap:
+            seq, _ = self._buffer.pop(0)
+            self._dropped_through = seq
         for h in list(self._handlers):
             try:
                 h.write_message(wire)
             except tornado.websocket.WebSocketClosedError:
                 self._handlers.remove(h)
 
-    def attach(self, handler) -> None:
-        for wire in self._buffer:
-            handler.write_message(wire)
+    def attach(self, handler, after: int = 0) -> None:
+        """Replay what this client has not seen. `after` is the last `seq` it
+        already holds, so a reconnecting View gets the gap and not a second
+        copy of the conversation."""
+        if self._dropped_through > after:
+            handler.write_message(to_wire_truncated(
+                self.sid, after + 1, self._dropped_through))
+        for seq, wire in self._buffer:
+            if seq > after:
+                handler.write_message(wire)
         self._handlers.append(handler)
 
     def detach(self, handler) -> None:
         if handler in self._handlers:
             self._handlers.remove(handler)
+
+
+def to_wire_truncated(sid, first: int, last: int) -> str:
+    """`seq` is set to the last dropped event, so the client's cursor lands
+    exactly where the replay resumes."""
+    return json.dumps({"kind": "replay_truncated", "session": sid,
+                       "seq": last, "ts": now_iso(),
+                       "data": {"from_seq": first, "to_seq": last},
+                       "raw_ref": None})
 
 
 def to_wire_error(detail: str) -> str:
@@ -61,7 +95,11 @@ class SessionWS(tornado.websocket.WebSocketHandler):
         if self._entry is None:
             self.close(4404, "no such session")
             return
-        self._entry.sink.attach(self)
+        try:
+            after = int(self.get_query_argument("after", "0"))
+        except ValueError:
+            after = 0
+        self._entry.sink.attach(self, after=max(0, after))
 
     def on_message(self, message):
         if self._entry is None:

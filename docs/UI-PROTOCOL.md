@@ -104,9 +104,20 @@ default: the first profile that declares one; `null` = no adapter check).
 
 ## 3. WebSocket
 
-`GET /ws/sessions/<sid>` (cookie-authenticated). The server first replays
-every event the session has emitted so far, then streams live. Client →
-server messages are JSON commands:
+`GET /ws/sessions/<sid>?after=<seq>` (cookie-authenticated). The server
+replays what the client does not have — everything when `after` is absent or
+`0`, otherwise only events with a higher `seq` — and then streams live.
+
+**A View must reconnect by itself.** The session lives in the server, so a
+dropped socket (a restart, a sleeping laptop) is not the end of it: reopen
+the socket with `after=<the highest seq you hold>`, which is what keeps the
+reconnect from replaying the conversation a second time. Close codes `4403`
+(authentication) and `4404` (no such session) are final — retrying cannot
+help; anything else should be retried with a backoff. The replay resumes
+after your cursor, so nothing re-announces the state you were in: keep the
+last `session_state` yourself and restore it when the socket reopens.
+
+Client → server messages are JSON commands:
 
 ```json
 {"cmd": "prompt", "text": "the user's message"}
@@ -164,6 +175,7 @@ Every server → client message is one event:
 | `elicitation_resolved` | `request`, `action` (`accept`/`decline`), `content` (what was answered, or null), `source` (`user`/`failsafe`) | Close the dialog and record the answer in the conversation; a `failsafe` decline means nobody answered in time. |
 | `fs_request` | `op` (`read`/`write`), `path`, `allowed` | Inline notice of agent file access and the policy verdict. |
 | `turn_ended` | `stop_reason`; when `"error"` also `error` `{code, message}` | Turn separator; re-enable composer. A failed `session/prompt` still ends the turn (the same message arrives first as a `turn-error` anomaly). |
+| `replay_truncated` | `from_seq`, `to_seq` | The server's replay buffer no longer holds that range (it keeps the most recent events, not the whole session; the JSONL record keeps everything). Say so where the reader can see it — silently skipping a gap is the one thing this protocol does not do. Transport, not agent traffic. |
 | `anomaly` | `category`, `detail` | MUST be surfaced (chip + inline row); never dropped. Reading them MUST NOT destroy them: ClaudIU's chip opened and *cleared* the list in one click until 2026-09-04 — dismissal is a separate, explicit act. |
 | `drift` | `flags` (list of strings) | MUST be surfaced (chip with details); protocol has outgrown the client. |
 | `unrecognized` | `why`, `frame` | MUST be surfaced; render as an explicit unknown with raw access. |
@@ -189,9 +201,12 @@ mid-session.
 
 ## 5. Ordering guarantees
 
-`seq` strictly increases per session (gaps impossible). WS attach replays
-the full buffer in order before live events; reconnecting is therefore
-lossless.
+`seq` strictly increases per session (gaps impossible). WS attach replays,
+in order, everything after the client's cursor before any live event, so a
+reconnect is lossless in the ordinary case. The buffer is bounded, so a
+client that was away long enough may be told a range was dropped — with
+`replay_truncated`, naming exactly which. The JSONL record is the lossless
+copy; the buffer is a convenience.
 
 ## 6. The losslessness contract
 

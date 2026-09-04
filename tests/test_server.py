@@ -164,6 +164,49 @@ class ServerTest(tornado.testing.AsyncHTTPTestCase):
             conn.close()
         self.io_loop.run_sync(drive, timeout=30)
 
+    def test_a_reconnect_asks_only_for_what_it_missed(self):
+        # R1/R2 (audit 2026-09-04): the View comes back by itself after a
+        # dropped socket, passing the last seq it holds — and must not be
+        # handed the conversation a second time.
+        resp = self.fetch("/api/sessions", method="POST",
+                          headers=self._headers(),
+                          body=json.dumps({"profile": "fake",
+                                           "cwd": str(self.tmpdir)}))
+        sid = json.loads(resp.body)["id"]
+
+        async def drive():
+            base = (f"ws://127.0.0.1:{self.get_http_port()}"
+                    f"/ws/sessions/{sid}")
+            first = await tornado.websocket.websocket_connect(
+                tornado.httpclient.HTTPRequest(base, headers=self._headers()))
+            seen = []
+            while True:
+                ev = json.loads(await first.read_message())
+                seen.append(ev["seq"])
+                if ev["kind"] == "session_state" and \
+                        ev["data"]["state"] == "ready":
+                    break
+            first.close()
+            again = await tornado.websocket.websocket_connect(
+                tornado.httpclient.HTTPRequest(
+                    f"{base}?after={max(seen)}", headers=self._headers()))
+            await again.write_message(json.dumps(
+                {"cmd": "prompt", "text": "say hello"}))
+            fresh = []
+            while True:
+                ev = json.loads(await again.read_message())
+                fresh.append(ev["seq"])
+                if ev["kind"] == "turn_ended":
+                    break
+            again.close()
+            return seen, fresh
+
+        seen, fresh = self.io_loop.run_sync(drive, timeout=30)
+        assert seen, "nothing replayed on the first attach"
+        assert min(fresh) > max(seen), (
+            f"the reconnect replayed events it already had: "
+            f"{fresh} after {seen}")
+
     def test_permission_roundtrip_over_ws(self):
         resp = self.fetch("/api/sessions", method="POST",
                           headers=self._headers(),

@@ -35,6 +35,9 @@ KINDS = frozenset({
     "fs_request",          # {"op": "read"|"write", "path": str, "allowed": bool}
     "turn_ended",          # {"stop_reason": str}; "error" adds
                            #  {"error": {"code": int|None, "message": str}}
+    "replay_truncated",    # {"from_seq": int, "to_seq": int} — the server's
+                           #  replay buffer no longer holds that range; the
+                           #  JSONL record does. Transport, not agent traffic.
     "anomaly",             # {"category": str, "detail": str}
     "drift",               # {"flags": [str]}
     "unrecognized",        # {"why": str, "frame": dict}

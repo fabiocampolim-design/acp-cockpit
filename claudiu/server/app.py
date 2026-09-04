@@ -142,7 +142,7 @@ class SessionManager:
             if holder:
                 raise AgentSessionBusy(holder)
         sid = uuid.uuid4().hex[:12]
-        sink = BufferedSink()
+        sink = BufferedSink(sid)
         session, loop = self._spawn(profile, cwd, sid, sink,
                                     client_options=client_options)
         entry = Entry(session, sink, profile_id, cwd, resume_of=resume)
@@ -159,7 +159,7 @@ class SessionManager:
         Future of the sessions list (empty + reason on failure)."""
         profile = self.profiles[profile_id]
         sid = "probe-" + uuid.uuid4().hex[:8]
-        sink = BufferedSink()
+        sink = BufferedSink(sid)
         session, loop = self._spawn(profile, cwd, sid, sink)
         future = tornado.concurrent.Future()
 
