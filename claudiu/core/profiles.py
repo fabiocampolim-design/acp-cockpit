@@ -30,6 +30,12 @@ class AgentProfile:
     # adapter merges them into its SDK call via `_meta.claudeCode.options`).
     # Passthrough: the engine validates the shape, never the contents.
     client_options: dict = field(default_factory=dict)
+    # {config id: [substring, ...]} — the order the AGENT's options should be
+    # offered in, when the order it sends is not the useful one. Each entry is
+    # matched case-insensitively against an option's value and its name, so a
+    # versioned id (`claude-fable-5-1[1m]`) is still matched by `fable`.
+    # Options nothing matches keep their order and follow the matched ones.
+    config_option_order: dict = field(default_factory=dict)
 
 
 _REQUIRED = ("id", "name", "command", "install_hint", "env_scrub")
@@ -63,6 +69,13 @@ def load_profile(path: Path) -> AgentProfile:
     client_options = raw.get("client_options", {})
     if not isinstance(client_options, dict):
         raise ProfileError(f"{path}: 'client_options' must be a table")
+    order = raw.get("config_option_order", {})
+    if not isinstance(order, dict) or not all(
+            isinstance(k, str) and isinstance(v, list)
+            and all(isinstance(x, str) and x for x in v)
+            for k, v in order.items()):
+        raise ProfileError(f"{path}: 'config_option_order' must map a config "
+                           "id to a list of match strings")
     return AgentProfile(
         id=raw["id"], name=raw["name"], command=list(raw["command"]),
         install_hint=raw["install_hint"], env_scrub=list(raw["env_scrub"]),
@@ -73,6 +86,7 @@ def load_profile(path: Path) -> AgentProfile:
         caveats=list(raw.get("caveats", [])),
         extensions=list(raw.get("extensions", [])),
         client_options=dict(client_options),
+        config_option_order={k: list(v) for k, v in order.items()},
     )
 
 

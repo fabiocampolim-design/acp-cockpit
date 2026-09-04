@@ -81,3 +81,10 @@ text = "After you approve a plan the agent changes its own permission mode witho
 [[caveats]]
 id = "terminal-unadvertised"
 text = "This client does not advertise the terminal capability in v1; the agent runs commands through its own executor instead. Nothing is lost, output arrives as tool calls."
+
+# The adapter offers the models in its own order (default, sonnet, fable,
+# opus, haiku in 0.73). Offer them by decreasing capability instead — matched
+# as substrings of the value or the name, so a versioned id like
+# `claude-fable-5-1[1m]` keeps working when the version moves.
+[config_option_order]
+model = ["default", "fable", "opus", "sonnet", "haiku"]

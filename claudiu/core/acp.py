@@ -62,6 +62,34 @@ class AcpSession:
         self._conn = JsonRpcConn(self._on_request, self._on_notify,
                                  self._on_anomaly)
 
+    # ---- config options -------------------------------------------------
+    def _ordered_options(self, options):
+        """Offer each config option's choices in the order the PROFILE asks
+        for, when it asks for one. The agent sends the model list in its own
+        order (default, sonnet, fable, opus, haiku for claude-agent-acp
+        0.73); a reader picking a model wants them by capability. Data, not
+        code: `config_option_order` in the profile."""
+        wanted = getattr(self.profile, "config_option_order", None) or {}
+        if not wanted or not isinstance(options, list):
+            return options
+        out = []
+        for opt in options:
+            order = wanted.get(opt.get("id")) if isinstance(opt, dict) else None
+            choices = opt.get("options") if isinstance(opt, dict) else None
+            if not order or not isinstance(choices, list):
+                out.append(opt)
+                continue
+
+            def rank(choice, order=order):
+                hay = (f"{choice.get('value', '')} {choice.get('name', '')}"
+                       ).casefold()
+                for i, want in enumerate(order):
+                    if want.casefold() in hay:
+                        return i
+                return len(order)      # unmatched: after the rest, in order
+            out.append({**opt, "options": sorted(choices, key=rank)})
+        return out
+
     # ---- plumbing -------------------------------------------------------
     def _emit(self, kind, data, raw_ref=None):
         self._seq += 1
@@ -147,7 +175,7 @@ class AcpSession:
         # them here left the View without its selectors on 2026-09-01.
         cfg = result.get("configOptions")
         if cfg:
-            self._emit("config_option", {"options": cfg})
+            self._emit("config_option", {"options": self._ordered_options(cfg)})
         early, self._early_updates = self._early_updates, []
         for params, ref in early:
             self._last_raw_ref = ref
@@ -271,8 +299,8 @@ class AcpSession:
                                         "updatedAt": update.get("updatedAt")},
                        ref)
         elif kind == "config_option_update":
-            self._emit("config_option",
-                       {"options": update.get("configOptions", [])}, ref)
+            self._emit("config_option", {"options": self._ordered_options(
+                update.get("configOptions", []))}, ref)
         else:
             self._emit("unrecognized",
                        {"why": f"unknown update kind {kind!r}",
@@ -482,8 +510,8 @@ class AcpSession:
                 self._emit("anomaly", {"category": "set-config-error",
                                        "detail": str(error)})
             else:
-                self._emit("config_option",
-                           {"options": (result or {}).get("configOptions", [])})
+                self._emit("config_option", {"options": self._ordered_options(
+                    (result or {}).get("configOptions", []))})
         self._conn.request("session/set_config_option",
                            {"sessionId": self.acp_session_id,
                             "configId": config_id, "value": value}, done)
@@ -529,7 +557,7 @@ class AcpSession:
                                     "available": modes.get("availableModes", [])})
             cfg = (res or {}).get("configOptions")
             if cfg:
-                self._emit("config_option", {"options": cfg})
+                self._emit("config_option", {"options": self._ordered_options(cfg)})
             early, self._early_updates = self._early_updates, []
             for params, ref in early:
                 self._last_raw_ref = ref

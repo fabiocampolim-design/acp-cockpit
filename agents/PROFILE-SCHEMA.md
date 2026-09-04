@@ -46,3 +46,17 @@ display = "summarized"
 id = "model-picker"
 text = "The interactive /model picker has no ACP equivalent."
 ```
+
+### `config_option_order` (table, optional)
+
+`{config id: [match, ...]}` — the order this agent's config choices should be
+offered in, when the order the agent sends is not the useful one. Each match
+is compared case-insensitively against a choice's `value` **and** its `name`,
+as a substring, so a versioned id survives a version bump. Choices nothing
+matches keep their relative order and follow the matched ones. The engine
+reorders; it never invents, drops or renames a choice.
+
+```toml
+[config_option_order]
+model = ["default", "fable", "opus", "sonnet", "haiku"]
+```
