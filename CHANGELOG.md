@@ -42,6 +42,23 @@ plane) found eleven things; these are the ones fixed here.
   two files that no longer exist; three lines mangled by an earlier patch
   were reflowed; and this file had two `## Unreleased` sections.
 
+### daily-use round 12 (2026-09-04)
+
+- **Prompt suggestions, when an adapter forwards them.** After a turn the
+  agent's guess at your next prompt appears as a dashed strip over the
+  composer: click to put it in the box — never sent for you — or dismiss it.
+  It clears when a turn starts and when you send. The carrier is an
+  otherwise empty message chunk, and it stays out of the conversation:
+  a prediction is not something the agent said.
+  `claude-agent-acp` 0.73 forwards none of these, so with the stock adapter
+  the strip never appears and nothing changes. The ACPUPSTREAM project holds
+  the two-line adapter change that makes them arrive, the reproduction, and
+  the issue drafted for upstream.
+- **`agents/local-*.toml` is yours.** Profiles matching that name load
+  exactly like the shipped ones and are never tracked, so a profile pointing
+  at a local adapter build keeps its machine-specific path out of the
+  repository.
+
 ### daily-use round 11 (2026-09-04)
 
 - **The conversation follows the last message again.** Following only ran

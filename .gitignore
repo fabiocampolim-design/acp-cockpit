@@ -15,3 +15,8 @@ docs/superpowers/plans/
 .githubify-scrub-allow
 .claudiu-server.log*
 .playwright-mcp/
+
+# Profiles you add for yourself: a local adapter build, a private agent, an
+# experiment. `agents/local-*.toml` is loaded exactly like the shipped ones
+# and never tracked, so a machine-specific path never reaches the repo.
+agents/local-*.toml

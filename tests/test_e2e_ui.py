@@ -481,6 +481,44 @@ def test_account_usage_panel_shows_the_windows_the_agent_reported(server):
             '#account [data-window="seven_day"]', "title")
 
 
+def test_a_prompt_suggestion_is_offered_and_never_sent(server):
+    # An adapter that forwards them puts the prediction on the `_meta` of an
+    # otherwise empty chunk. It must reach the composer only if the reader
+    # asks, and it must not become a message row.
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = start_fake_session(pw, url, tmp)
+        page.fill("#prompt-input", "SUGGEST something")
+        page.click("#send")
+        page.wait_for_selector("#suggestion:not([hidden])")
+        assert "add a test for add()" in page.inner_text("#suggestion")
+        # the empty carrier chunk is not a row in the conversation
+        rows = page.inner_text(".pane:not([hidden])")
+        assert rows.count("add a test for add()") == 0, \
+            "the suggestion leaked into the conversation"
+        # nothing was sent, and the composer is untouched until asked
+        assert page.input_value("#prompt-input") == ""
+        page.click("#suggestion .take")
+        assert page.input_value("#prompt-input") == "add a test for add()"
+        assert page.locator("#suggestion:not([hidden])").count() == 0
+        assert page.locator('.pane:not([hidden]) [data-kind="turn_ended"]') \
+            .count() == 1, "accepting a suggestion started a turn"
+
+
+def test_a_suggestion_can_be_dismissed(server):
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = start_fake_session(pw, url, tmp)
+        page.fill("#prompt-input", "SUGGEST something")
+        page.click("#send")
+        page.wait_for_selector("#suggestion:not([hidden])")
+        page.click("#suggestion .drop")
+        assert page.locator("#suggestion:not([hidden])").count() == 0
+        assert page.input_value("#prompt-input") == ""
+
+
 def test_many_tabs_never_push_the_account_block_off_the_screen(server):
     # Enough tabs used to scroll the whole bar, chips and all, out of sight
     # (Fabio, 2026-09-04). The strip scrolls; the right-hand block does not.

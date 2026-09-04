@@ -268,6 +268,17 @@ class AcpSession:
         if kind in _UPDATE_TO_EVENT:
             event_kind, role = _UPDATE_TO_EVENT[kind]
             text = (update.get("content") or {}).get("text", "")
+            # A predicted next prompt rides on an otherwise empty chunk
+            # (claude-agent-acp does not forward these yet — see the ACP
+            # notes; an adapter that does uses this vendor key). It is not
+            # something the agent SAID, so it never becomes a message row.
+            suggestion = ((update.get("_meta") or {})
+                          .get("_claude/promptSuggestion") or {})
+            if isinstance(suggestion, dict) and suggestion.get("suggestion"):
+                self._emit("prompt_suggestion",
+                           {"text": suggestion["suggestion"]}, ref)
+                if not text:
+                    return
             # Subagent text and thinking are stamped with the tool call that
             # owns them; the View files those under the subagent.
             parent = ((update.get("_meta") or {}).get("claudeCode") or {}

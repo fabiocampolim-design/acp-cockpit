@@ -279,6 +279,7 @@ class Session {
     this.model = {current: null, available: []};
     this.config = []; this.plan = []; this.usage = null; this.commands = [];
     this.modelsUsed = [];         // canonical ids the API has reported
+    this.suggestion = null;       // the agent's guess at the next prompt
     // Chips count what happened and KEEP it: clicking one opens the
     // drawer, it never throws the entries away (that is what "surfaced,
     // never dropped" means — 2026-09-04, Fabio: "it seems to go away").
@@ -377,6 +378,7 @@ class Session {
 
   renderAll() {
     this.renderTab();
+    this.renderSuggestion();
     this.renderStatus();
     this.renderControls();
     this.renderPlan();
@@ -430,6 +432,36 @@ class Session {
     sc.onclick = () => { this.stderrOpen = !this.stderrOpen; this.renderStderrDrawer(); };
     $("#send").disabled = this.state !== "ready";
     $("#cancel").hidden = this.state !== "turn";
+  }
+
+  /* Offered, never sent: it fills the composer and waits, because the one
+     thing a predicted prompt must not do is prompt. */
+  renderSuggestion() {
+    if (!this.isActive) return;
+    const box = $("#suggestion");
+    box.hidden = !this.suggestion || this.state !== "ready";
+    if (box.hidden) return;
+    box.replaceChildren();
+    const use = document.createElement("button");
+    use.type = "button";
+    use.className = "take";
+    use.textContent = this.suggestion;
+    use.title = "put this in the composer (it is not sent)";
+    use.onclick = () => {
+      const input = $("#prompt-input");
+      input.value = this.suggestion;
+      input.focus();
+      sizeComposer();
+      this.suggestion = null;
+      this.renderSuggestion();
+    };
+    const drop = document.createElement("button");
+    drop.type = "button";
+    drop.className = "drop";
+    drop.textContent = "×";
+    drop.title = "dismiss";
+    drop.onclick = () => { this.suggestion = null; this.renderSuggestion(); };
+    box.append(use, drop);
   }
 
   renderStderrDrawer() {
@@ -518,6 +550,9 @@ class Session {
 
   setState(s) {
     this.state = s;
+    // a suggestion is for the gap between turns, not for the middle of one
+    if (s === "turn") this.suggestion = null;
+    this.renderSuggestion();
     if (s === "turn") this.turnStarted = Date.now();
     this.renderTab();
     this.renderStatus();
@@ -636,6 +671,10 @@ class Session {
           this.modelsUsed = d.models_used;
         this.renderStatus(); break;
       case "rate_limit": recordRateLimit(d); break;
+      case "prompt_suggestion":
+        this.suggestion = d.text;
+        this.renderSuggestion();
+        break;
       case "session_info":
         if (d.title !== undefined) this.title = d.title;
         this.renderTab(); break;
@@ -1456,6 +1495,7 @@ promptEl.addEventListener("input", sizeComposer);
 addEventListener("resize", sizeComposer);
 
 function sendPrompt() {
+  if (active) { active.suggestion = null; active.renderSuggestion(); }
   const text = promptEl.value.trim();
   if (!active || !text || active.state !== "ready") return;
   active.breakAgg();
@@ -1712,6 +1752,10 @@ const HELP = [
    "Esc in a dialog closes it, except an approval, which will not be " +
    "dismissed unanswered. Every other key types: press one anywhere and it " +
    "goes to the composer, as it would in a terminal."],
+  ["Prompt suggestions", "After a turn the agent may offer a guess at " +
+   "your next prompt, above the composer. Clicking it fills the box — it " +
+   "is never sent for you. Most adapters forward none, so the strip is " +
+   "usually absent."],
   ["Sessions", "They live in the server: reloading the page reattaches to " +
    "everything still running. Only one attachment per agent session."],
 ];

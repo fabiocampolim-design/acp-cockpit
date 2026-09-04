@@ -22,6 +22,9 @@ KINDS = frozenset({
     "rate_limit",          # the agent's ACCOUNT rate-limit state, passed
                            # through: {status, rateLimitType, utilization,
                            # resetsAt, overage*/credits fields...}
+    "prompt_suggestion",   # {"text": str} — the agent's guess at the next
+                           #  prompt, offered after a turn. Only arrives
+                           #  from an adapter that forwards it.
     "session_info",        # {"title": str|None, "updatedAt": str|None}
     "config_option",       # {"options": [SessionConfigOption...]} full current set
     "permission_request",  # {"request": int, "tool_call": dict, "options": [...],

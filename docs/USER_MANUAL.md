@@ -198,6 +198,29 @@ The destination is remembered per browser. What was written is listed in the
 panel and noted once in the conversation's harness lane, so the record of
 what you did sits with the rest of the session's history.
 
+## Prompt suggestions
+
+After a turn the agent can offer a guess at what you might ask next. It
+appears as a dashed strip over the composer: click it to put the text in the
+box — **it is never sent for you** — or dismiss it with the ×. It disappears
+when a turn starts, and when you send anything.
+
+Most adapters never send one. `claude-agent-acp` 0.73 neither asks the SDK
+for suggestions nor forwards the message, so with the stock adapter this
+strip simply never appears; ClaudIU works exactly as before. A patched
+adapter that forwards them puts the prediction on
+`_meta._claude/promptSuggestion` of an otherwise empty message chunk, and
+this client renders that.
+
+## Adding your own agent profile
+
+Every file in `agents/*.toml` is an agent this client can start
+(`agents/PROFILE-SCHEMA.md` is the contract). Anything named
+`agents/local-*.toml` is **yours**: loaded exactly like the shipped
+profiles, never tracked by git. That is where a profile pointing at a local
+adapter build, an experiment, or a private agent belongs — a machine-specific
+path never reaches the repository.
+
 ## Approvals
 
 When the agent wants to do something that needs permission, a dialog shows

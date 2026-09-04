@@ -2,6 +2,7 @@
 """Engine behaviour driven by Fabio's first live test (2026-08-31 20:41)."""
 from tests.helpers import make_session
 from tests.test_acp_handshake import do_handshake, feed, sent_frames
+from tests.test_acp_sessions import update
 
 
 def test_models_in_session_new_become_model_event(tmp_path):
@@ -181,3 +182,42 @@ def test_main_agent_text_has_no_parent_tool_call(tmp_path):
                    "content": {"type": "text", "text": "the answer"}}}})
     ev = [e for e in sink.events if e.kind == "message_chunk"][-1]
     assert ev.data["parent_tool_call_id"] is None
+
+
+def test_a_forwarded_prompt_suggestion_becomes_its_own_event(tmp_path):
+    # An adapter that forwards them (claude-agent-acp 0.73 does not) puts the
+    # prediction on `_meta` of an otherwise EMPTY message chunk. It is not
+    # something the agent said, so it must not become a message row.
+    session, proc, sink = make_session(tmp_path)
+    do_handshake(session, proc)
+    feed(session, update("agent_message_chunk",
+                         content={"type": "text", "text": ""},
+                         _meta={"_claude/promptSuggestion": {
+                             "type": "prompt_suggestion",
+                             "suggestion": "add a test for add()"}}))
+    kinds = sink.kinds()
+    assert "prompt_suggestion" in kinds
+    assert kinds.count("message_chunk") == 0, \
+        "an empty carrier chunk became a message row"
+    assert [e for e in sink.events if e.kind == "prompt_suggestion"][0] \
+        .data == {"text": "add a test for add()"}
+
+
+def test_a_chunk_that_carries_both_text_and_a_suggestion_keeps_both(tmp_path):
+    session, proc, sink = make_session(tmp_path)
+    do_handshake(session, proc)
+    feed(session, update("agent_message_chunk",
+                         content={"type": "text", "text": "done."},
+                         _meta={"_claude/promptSuggestion":
+                                {"suggestion": "now run the tests"}}))
+    kinds = sink.kinds()
+    assert "prompt_suggestion" in kinds and "message_chunk" in kinds
+
+
+def test_a_meta_without_a_suggestion_is_ignored(tmp_path):
+    session, proc, sink = make_session(tmp_path)
+    do_handshake(session, proc)
+    feed(session, update("agent_message_chunk",
+                         content={"type": "text", "text": "hi"},
+                         _meta={"_claude/promptSuggestion": {}}))
+    assert "prompt_suggestion" not in sink.kinds()

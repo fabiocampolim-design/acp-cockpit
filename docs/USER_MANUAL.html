@@ -47,6 +47,10 @@ conversation shows — the five lanes</a></li>
 account limits, help, settings</a></li>
 <li><a href="#keyboard" id="toc-keyboard">Keyboard</a></li>
 <li><a href="#archiving-a-conversation-1" id="toc-archiving-a-conversation-1">Archiving a conversation</a></li>
+<li><a href="#prompt-suggestions" id="toc-prompt-suggestions">Prompt
+suggestions</a></li>
+<li><a href="#adding-your-own-agent-profile" id="toc-adding-your-own-agent-profile">Adding your own agent
+profile</a></li>
 <li><a href="#approvals" id="toc-approvals">Approvals</a></li>
 <li><a href="#questions-from-the-agent" id="toc-questions-from-the-agent">Questions from the agent</a></li>
 <li><a href="#your-accounts-limits" id="toc-your-accounts-limits">Your
@@ -286,6 +290,27 @@ reason to refuse to save.</li>
 <p>The destination is remembered per browser. What was written is listed
 in the panel and noted once in the conversation’s harness lane, so the
 record of what you did sits with the rest of the session’s history.</p>
+<h2 id="prompt-suggestions">Prompt suggestions</h2>
+<p>After a turn the agent can offer a guess at what you might ask next.
+It appears as a dashed strip over the composer: click it to put the text
+in the box — <strong>it is never sent for you</strong> — or dismiss it
+with the ×. It disappears when a turn starts, and when you send
+anything.</p>
+<p>Most adapters never send one. <code>claude-agent-acp</code> 0.73
+neither asks the SDK for suggestions nor forwards the message, so with
+the stock adapter this strip simply never appears; ClaudIU works exactly
+as before. A patched adapter that forwards them puts the prediction on
+<code>_meta._claude/promptSuggestion</code> of an otherwise empty
+message chunk, and this client renders that.</p>
+<h2 id="adding-your-own-agent-profile">Adding your own agent
+profile</h2>
+<p>Every file in <code>agents/*.toml</code> is an agent this client can
+start (<code>agents/PROFILE-SCHEMA.md</code> is the contract). Anything
+named <code>agents/local-*.toml</code> is <strong>yours</strong>: loaded
+exactly like the shipped profiles, never tracked by git. That is where a
+profile pointing at a local adapter build, an experiment, or a private
+agent belongs — a machine-specific path never reaches the
+repository.</p>
 <h2 id="approvals">Approvals</h2>
 <p>When the agent wants to do something that needs permission, a dialog
 shows the tool call (with diff when provided) and the agent’s own

@@ -316,6 +316,49 @@
   },
   {
     "on_method": "session/prompt",
+    "if_prompt_contains": "SUGGEST",
+    "notify": [
+      {
+        "jsonrpc": "2.0",
+        "method": "session/update",
+        "params": {
+          "sessionId": "$SESSION",
+          "update": {
+            "sessionUpdate": "agent_message_chunk",
+            "content": {
+              "type": "text",
+              "text": "done."
+            }
+          }
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "session/update",
+        "params": {
+          "sessionId": "$SESSION",
+          "update": {
+            "sessionUpdate": "agent_message_chunk",
+            "content": {
+              "type": "text",
+              "text": ""
+            },
+            "_meta": {
+              "_claude/promptSuggestion": {
+                "type": "prompt_suggestion",
+                "suggestion": "add a test for add()"
+              }
+            }
+          }
+        }
+      }
+    ],
+    "respond": {
+      "stopReason": "end_turn"
+    }
+  },
+  {
+    "on_method": "session/prompt",
     "notify": [
       {
         "jsonrpc": "2.0",
