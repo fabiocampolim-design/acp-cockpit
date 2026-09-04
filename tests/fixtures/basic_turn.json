@@ -225,9 +225,21 @@
             "_meta": {
               "_claude/rateLimit": {
                 "status": "allowed",
+                "resetsAt": 1788537600,
                 "rateLimitType": "five_hour",
-                "utilization": 42,
-                "resetsAt": 1788000000
+                "overageStatus": "allowed",
+                "overageResetsAt": 1790812800,
+                "isUsingOverage": false,
+                "unifiedWindows": {
+                  "five_hour": {
+                    "utilization": 0.42,
+                    "resetsAt": 1788537600
+                  },
+                  "seven_day": {
+                    "utilization": 0.88,
+                    "resetsAt": 1788631200
+                  }
+                }
               }
             }
           }
@@ -245,11 +257,22 @@
             "_meta": {
               "_claude/rateLimit": {
                 "status": "allowed_warning",
+                "resetsAt": 1788631200,
                 "rateLimitType": "seven_day",
-                "utilization": 88,
-                "resetsAt": 1788600000,
+                "utilization": 0.88,
+                "surpassedThreshold": true,
                 "isUsingOverage": true,
-                "canUserPurchaseCredits": true
+                "canUserPurchaseCredits": true,
+                "unifiedWindows": {
+                  "seven_day": {
+                    "utilization": 0.88,
+                    "resetsAt": 1788631200
+                  },
+                  "seven_day_overage_included": {
+                    "utilization": 0.45,
+                    "resetsAt": 1788631200
+                  }
+                }
               }
             }
           }

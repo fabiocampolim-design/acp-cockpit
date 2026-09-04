@@ -120,6 +120,7 @@ async function browseTo(path) {
     const item = document.createElement("li");
     const b = document.createElement("button");
     b.type = "button"; b.textContent = d.name; b.dataset.name = d.name;
+    b.title = d.name;                   // the column may ellipsize it
     b.onclick = () => browseTo(d.path);
     item.append(b);
     return item;
@@ -879,11 +880,33 @@ const WINDOW_LABELS = {
   seven_day_overage_included: "7d +credits",
   overage: "credits",
 };
-const limitWindows = new Map();     // rateLimitType -> latest payload
+const limitWindows = new Map();     // window name -> latest reading
 
+/* The agent reports its windows in `unifiedWindows`
+   ({utilization: 0..1, resetsAt}) and keeps the account-wide status and the
+   credits fields at the top level; a simpler payload carries a single
+   window as top-level `rateLimitType` + `utilization`. Both shapes are
+   rendered, neither is invented.
+
+   2026-09-04: only the top-level shape was read, and the live payload has
+   no top-level `utilization` at all — so the panel showed a single chip,
+   for a single window, with no number in it. */
 function recordRateLimit(d) {
-  const type = d.rateLimitType || "unknown";
-  limitWindows.set(type, d);
+  d = d || {};
+  const windows = (typeof d.unifiedWindows === "object" &&
+                   d.unifiedWindows) || null;
+  const entries = windows && Object.keys(windows).length
+    ? Object.entries(windows).map(([type, w]) => [type, w || {}])
+    : [[d.rateLimitType || "unknown", d]];
+  const credits = creditsNote(d);
+  for (const [type, w] of entries) {
+    limitWindows.set(type, {
+      utilization: typeof w.utilization === "number" ? w.utilization
+                                                     : d.utilization,
+      resetsAt: w.resetsAt || d.resetsAt,
+      status: d.status, credits, raw: d,
+    });
+  }
   renderAccount();
 }
 
@@ -910,22 +933,24 @@ function renderAccount() {
   const el = $("#account");
   const entries = [...limitWindows.entries()];
   el.hidden = entries.length === 0;
-  el.replaceChildren(...entries.map(([type, d]) => {
+  el.replaceChildren(...entries.map(([type, w]) => {
     const span = document.createElement("span");
     span.className = "window";
     span.dataset.window = type;
-    if (d.status) span.dataset.status = d.status;
+    if (w.status) span.dataset.status = w.status;
     const label = WINDOW_LABELS[type] || type;
-    const pct = typeof d.utilization === "number"
-      ? Math.round(d.utilization) + "%" : "—";
+    // `utilization` is a FRACTION of the window: 0.55 is 55 %.
+    const pct = typeof w.utilization === "number"
+      ? Math.round(w.utilization * 100) + "%" : "—";
     const b = document.createElement("b");
     b.textContent = pct;
     span.append(label + " ", b);
-    const credits = creditsNote(d);
-    if (credits) span.append(" · " + credits);
-    span.title = [`${label}: ${pct} used`, `status: ${d.status || "?"}`,
-                  fmtReset(d.resetsAt), credits]
-      .filter(Boolean).join("\n");
+    if (w.credits) span.append(" · " + w.credits);
+    span.title = [`${label}: ${pct} used`, `status: ${w.status || "?"}`,
+                  fmtReset(w.resetsAt), w.credits, "",
+                  "as the agent reported it:",
+                  JSON.stringify(w.raw, null, 1)]
+      .filter(v => v === "" || Boolean(v)).join("\n");
     return span;
   }));
 }

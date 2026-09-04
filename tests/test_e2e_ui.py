@@ -379,11 +379,18 @@ def test_account_usage_panel_shows_the_windows_the_agent_reported(server):
         page.fill("#prompt-input", "report the LIMITS")
         page.click("#send")
         page.wait_for_selector("#account:not([hidden])")
+        page.wait_for_selector('#account [data-window="seven_day_overage_included"]')
         text = page.inner_text("#account")
+        # One chip per window in `unifiedWindows` — the real payload reports
+        # several at once and carries NO top-level utilization, so reading
+        # only the top level showed one window with no number (2026-09-04).
         assert "5h" in text and "42%" in text
         assert "7d" in text and "88%" in text
-        # the warning window is marked, and credits state is legible
-        assert page.locator('#account [data-status="allowed_warning"]').count() == 1
+        assert "7d +credits" in text and "45%" in text
+        assert page.locator("#account .window").count() == 3
+        assert "—" not in text, f"a window reported no number: {text}"
+        # the warning windows are marked, and credits state is legible
+        assert page.locator('#account [data-status="allowed_warning"]').count() == 2
         assert "credits" in page.inner_text("#account").lower()
 
 

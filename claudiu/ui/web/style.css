@@ -295,7 +295,7 @@ pre.raw {
 /* ---- folder picker ---- */
 #dirpick {
   background: var(--bg-raised); color: var(--fg);
-  border: 1px solid var(--accent); border-radius: 10px; width: min(36rem, 92vw);
+  border: 1px solid var(--accent); border-radius: 10px; width: min(58rem, 94vw);
 }
 #dirpick::backdrop { background: rgba(0, 0, 0, .55); }
 #dirpick h2 { margin-top: 0; color: var(--accent); font-size: 1.05em; }
@@ -305,16 +305,24 @@ pre.raw {
   border: 1px solid var(--border); border-radius: 6px; padding: .4rem .6rem;
   overflow-x: auto; white-space: nowrap;
 }
+/* Folders in columns, not one long strip: a home directory of 55 entries
+   used to show 8 of them behind a scrollbar that was there from the moment
+   the dialog opened (Fabio, 2026-09-04). An ordinary directory now fits
+   whole; a very large one still scrolls, with far more of it in view. */
 #dirpick-list {
-  list-style: none; padding: 0; margin: .5rem 0; max-height: 45vh;
+  list-style: none; padding: 0; margin: .5rem 0; max-height: 52vh;
   overflow-y: auto; border: 1px solid var(--border); border-radius: 6px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  align-content: start;
 }
 #dirpick-list li { margin: 0; color: var(--fg-dim); padding: .35rem .6rem; }
 #dirpick-list li:has(button) { padding: 0; }
+#dirpick-list li:not(:has(button)) { grid-column: 1 / -1; }
 #dirpick-list li button {
   display: block; width: 100%; text-align: left; padding: .35rem .6rem;
   border: none; border-bottom: 1px solid var(--border); background: transparent;
   color: var(--fg); cursor: pointer; font: inherit;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 #dirpick-list li button::before { content: "▸ "; color: var(--fg-dim); }
 #dirpick-list li button:hover { background: var(--bg-hover); }
