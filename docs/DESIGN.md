@@ -3,9 +3,9 @@
 What this program is trying to be, the decisions that shaped it, what each
 one cost, and what was rejected. `README.md` is the product page and
 `AGENTS.md` the inventory; this file is the *why*. The design history in
-full — research notes, the approved specification and the implementation
-plan — is under `docs/superpowers/` (`specs/2026-08-31-acp-research.md`,
-`specs/2026-08-31-claudiu-acp-design.md`, `plans/2026-08-31-claudiu-acp.md`).
+full — the research notes and the approved specification — is under
+`docs/superpowers/specs/` (`2026-08-31-acp-research.md`,
+`2026-08-31-claudiu-acp-design.md`).
 
 ## 1. The problem framing
 

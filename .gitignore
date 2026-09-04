@@ -8,6 +8,10 @@ logs/
 .remember/
 
 archive/
+# The build plans are the record of HOW this was made, kept on the dev
+# machine; the approved specs under docs/superpowers/specs/ are the
+# design history the repo publishes (Fabio, 2026-09-04).
+docs/superpowers/plans/
 .githubify-scrub-allow
 .claudiu-server.log*
 .playwright-mcp/

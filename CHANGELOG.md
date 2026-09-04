@@ -74,8 +74,11 @@ day to day.
   records older than N days at startup; the default keeps everything,
   because deleting a transcript is your decision, and the server now prints
   how many sessions and how many megabytes it is holding.
-- The build plans in `docs/superpowers/plans/` are labelled for what they
-  are: the record of how this was made, not documentation of how it works.
+- The build plans the specs were executed from are no longer tracked: the
+  repo publishes the research notes and the approved specifications
+  (`docs/superpowers/specs/`), which are the design history a reader wants;
+  the task-by-task plans were a record of the making, and stay on the
+  machine that did it.
 
 ### daily-use round 9
 

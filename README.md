@@ -106,9 +106,8 @@ python tools/check_schema_drift.py
 
 Verified by 180 checks (plus the opt-in real-adapter contract test). See
 `AGENTS.md` for the working rules and `docs/superpowers/specs/` for the
-design history. `docs/superpowers/plans/` holds the build plans those specs
-were executed from — kept as a record of how the thing was actually made,
-not as documentation of how it works. The v0.1 terminal-mirror app that preceded the ACP pivot is
+design history — the research notes and the approved specifications the
+implementation followed. The v0.1 terminal-mirror app that preceded the ACP pivot is
 kept out of this repository, with its own history.
 
 ## License
