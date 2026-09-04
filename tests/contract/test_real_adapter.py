@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Contract tests against the real claude-code-acp adapter.
+"""Contract tests against the real ACP adapter named by the profile.
 
 Run: CLAUDIU_CONTRACT=1 python -m pytest tests/contract/ -q
 Costs real tokens; requires claude credentials and the adapter installed.
@@ -17,9 +17,14 @@ from claudiu.core.sentinel import Sentinel
 from claudiu.server.app import LocalFiles
 from claudiu.server.procs import SubprocessAgentProcess
 
+# The adapter to look for is the one the PROFILE names: the package was
+# renamed (claude-code-acp -> claude-agent-acp) and a hardcoded old name
+# silently skipped this whole tier instead of running it.
+_ADAPTER = load_profile(Path("agents/claude.toml")).command[0]
+
 pytestmark = pytest.mark.skipif(
     os.environ.get("CLAUDIU_CONTRACT") != "1"
-    or shutil.which("claude-code-acp") is None,
+    or shutil.which(_ADAPTER) is None,
     reason="contract tier: set CLAUDIU_CONTRACT=1 with adapter installed")
 
 

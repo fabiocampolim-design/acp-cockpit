@@ -9,3 +9,5 @@ logs/
 
 archive/
 .githubify-scrub-allow
+.claudiu-server.log*
+.playwright-mcp/

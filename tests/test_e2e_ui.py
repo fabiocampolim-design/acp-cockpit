@@ -165,6 +165,9 @@ def test_elicitation_form_asks_and_shows_the_answer(server):
         page.wait_for_selector('[data-kind="elicitation_resolved"]')
         row = page.inner_text('[data-kind="elicitation_resolved"]')
         assert "Blue" in row and "Ice" in row
+        # the row names the QUESTION, not the wire field key
+        assert "Colour" in row and "Extras" in row
+        assert "question_0" not in row
 
 
 def test_elicitation_can_be_skipped(server):
@@ -197,4 +200,5 @@ def test_elicitation_free_text_answer_wins_over_the_options(server):
                   "Aubergine")
         page.click("#elic-submit")
         page.wait_for_selector('[data-kind="elicitation_resolved"]')
-        assert "Aubergine" in page.inner_text('[data-kind="elicitation_resolved"]')
+        row = page.inner_text('[data-kind="elicitation_resolved"]')
+        assert "Aubergine" in row and "question_0_custom" not in row

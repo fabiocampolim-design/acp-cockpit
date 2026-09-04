@@ -475,15 +475,17 @@ class Session {
       case "permission_request": queuePermission(this, ev); break;
       case "permission_resolved": resolvePermission(this, d.request); break;
       case "elicitation_request": queueElicitation(this, ev); break;
-      case "elicitation_resolved":
+      case "elicitation_resolved": {
+        const titles = fieldTitles(d.request);
         closeElicitation(this, d.request);
         this.breakAgg();
         this.addBlock("elicitation_resolved", null,
           d.action === "accept"
-            ? `\u2014 you answered: ${describeAnswer(d.content)} \u2014`
+            ? `\u2014 you answered: ${describeAnswer(d.content, titles)} \u2014`
             : `\u2014 question skipped${d.source === "failsafe"
                 ? " (no answer in time)" : ""} \u2014`);
         break;
+      }
       case "turn_ended":
         this.breakAgg();
         this.addBlock("turn_ended", null, `— turn ended (${d.stop_reason}) —`);
@@ -841,8 +843,21 @@ $("#permission").addEventListener("cancel", (e) => e.preventDefault());
 
 const elicQueue = [];   // {S, ev}
 let elicOpen = null;
+// request id -> {field: human title}. Kept from the request so the answered
+// row can name the question ("Colour: Blue"), not the wire key.
+const elicTitles = new Map();
+
+function fieldTitles(requestId) {
+  const titles = elicTitles.get(requestId) || {};
+  elicTitles.delete(requestId);
+  return titles;
+}
 
 function queueElicitation(S, ev) {
+  const props = (ev.data.schema && ev.data.schema.properties) || {};
+  elicTitles.set(ev.data.request, Object.fromEntries(
+    Object.entries(props).map(([field, prop]) =>
+      [field, (prop && prop.title) || field])));
   elicQueue.push({S, ev});
   if (!elicOpen) showNextElicitation();
 }
@@ -952,9 +967,9 @@ function collectAnswers(form) {
   return content;
 }
 
-function describeAnswer(content) {
+function describeAnswer(content, titles = {}) {
   const parts = Object.entries(content || {}).map(([k, v]) =>
-    `${k}: ${Array.isArray(v) ? v.join(", ") : v}`);
+    `${titles[k] || k}: ${Array.isArray(v) ? v.join(", ") : v}`);
   return parts.length ? parts.join(" · ") : "(nothing)";
 }
 
