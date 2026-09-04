@@ -2,6 +2,22 @@
 
 All notable changes to CLAUDIU are documented in this file.
 
+## Unreleased - the agent can ask questions (2026-09-04)
+
+- **AskUserQuestion works over ACP.** The adapter disables that tool
+  unless the client advertises `elicitation.form`; CLAUDIU now does, and
+  handles `elicitation/create` (form mode) as a modal form - single-select
+  questions as radios, multi-select as checkboxes, each question's "Other"
+  box as free text, plus **Skip**. Answers travel back as
+  `{"action": "accept", "content": {...}}` over the new `elicitation` WS
+  command and are written into the conversation. A property type the View
+  cannot render is named and left unanswered, never mis-rendered as
+  something else; `url`-mode elicitation is not advertised and is answered
+  "cancel" with an anomaly. Unanswered questions decline themselves on the
+  same fail-safe timer that rejects stale permissions (decline, not
+  cancel: the agent continues without an answer). Engine, server,
+  protocol-doc and end-to-end tests.
+
 ## Unreleased - thinking summaries (2026-09-04)
 
 - **Thinking arrives with text.** The empty thought chunks were never

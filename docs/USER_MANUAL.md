@@ -111,6 +111,18 @@ choices and drawn dashed/amber; they are never disabled. Unanswered
 requests are auto-rejected after a timeout (default one hour) and marked
 as fail-safe rejections.
 
+## Questions from the agent
+
+The agent can ask you a multiple-choice question instead of guessing (its
+AskUserQuestion tool). It arrives as a form: single-answer questions are
+radio buttons, multi-answer ones checkboxes, and every question has an
+**Other** box for an answer in your own words, which wins over the
+options. **Skip** answers nothing — the agent is told you skipped and
+carries on; the same happens by itself if the question goes unanswered
+past the timeout. Your answer is written into the conversation so the
+transcript shows what you chose. An option's *preview* (the mockup the
+terminal shows on focus) is not displayed here; its description is.
+
 ## Status strip and warnings
 
 The strip shows the session state, the current permission mode, a

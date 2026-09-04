@@ -88,10 +88,11 @@ Recorded decisions, not open questions — each waits for the stated trigger.
   blocks daily work, or upstream declining the patches.
 - **Prompt suggestions** wait for upstream (`prompt_suggestion` is dropped
   by the adapter); the request is drafted.
-- **AskUserQuestion is not loaded in adapter sessions** (the CLI runs
-  non-interactively there): the agent asks in plain text and the user
-  answers in the next prompt. Skills built on the tool degrade to text.
-  Trigger: the adapter or the CLI exposing it over ACP.
+- **AskUserQuestion — done (2026-09-04).** The adapter disabled the tool
+  only because this client did not advertise `elicitation.form`; it does
+  now, and the questions arrive as ACP form elicitations rendered as a
+  modal form. URL-mode elicitation stays unadvertised and is answered
+  "cancel" with an anomaly if one ever arrives.
 - **Plan-mode exit**: the adapter sends no mode update after
   `ExitPlanMode`; the profile's `permission_mode_followups` re-asserts the
   implied mode. Remove the rule when the adapter announces the change.

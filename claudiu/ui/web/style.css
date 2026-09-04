@@ -299,3 +299,34 @@ pre.raw {
 }
 #perm-options button:first-child { border-color: var(--ok); }
 #perm-options button:hover { background: var(--bg-hover); }
+
+/* ---- elicitation dialog (the agent's own questions) ---- */
+#elicitation {
+  background: var(--bg-raised); color: var(--fg);
+  border: 1px solid var(--accent); border-radius: 10px; width: min(38rem, 92vw);
+}
+#elicitation::backdrop { background: rgba(0, 0, 0, .55); }
+#elicitation h2 { margin-top: 0; color: var(--accent); font-size: 1.05em; }
+#elic-message { margin-bottom: .6rem; }
+#elic-form { max-height: 60vh; overflow-y: auto; }
+#elic-form fieldset {
+  border: 1px solid var(--border); border-radius: 6px; margin: 0 0 .6rem;
+  padding: .5rem .7rem;
+}
+#elic-form legend { color: var(--fg-dim); padding: 0 .3rem; }
+#elic-form .field-desc { color: var(--fg-dim); font-size: .85em; margin-bottom: .4rem; }
+#elic-form label { display: block; padding: .15rem 0; cursor: pointer; }
+#elic-form label .opt-desc { color: var(--fg-dim); font-size: .85em; }
+#elic-form input[type="text"], #elic-form input[type="number"] {
+  width: 100%; background: var(--bg); color: var(--fg);
+  border: 1px solid var(--border); border-radius: 6px; padding: .35rem .5rem;
+  font: inherit;
+}
+#elic-form .unsupported { color: var(--warn); font-size: .85em; }
+#elicitation .actions { display: flex; gap: .5rem; justify-content: flex-end; margin-top: .5rem; }
+#elicitation .actions button {
+  padding: .35rem .8rem; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg); color: var(--fg); cursor: pointer; font: inherit;
+}
+#elic-skip { margin-right: auto; }
+#elic-submit { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600; }

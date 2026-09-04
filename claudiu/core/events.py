@@ -22,6 +22,11 @@ KINDS = frozenset({
     "permission_request",  # {"request": int, "tool_call": dict, "options": [...],
                            #  "outside_boundary": [paths mentioned outside the policy root]}
     "permission_resolved", # {"request": int, "option": str|None, "source": "user"|"failsafe"}
+    "elicitation_request", # {"request": int, "message": str, "schema": dict,
+                           #  "tool_call_id": str|None} — a form the user fills in
+    "elicitation_resolved",# {"request": int, "action": "accept"|"decline",
+                           #  "content": dict|None (what was answered),
+                           #  "source": "user"|"failsafe"}
     "fs_request",          # {"op": "read"|"write", "path": str, "allowed": bool}
     "turn_ended",          # {"stop_reason": str}; "error" adds
                            #  {"error": {"code": int|None, "message": str}}

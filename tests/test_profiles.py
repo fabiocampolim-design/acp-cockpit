@@ -105,3 +105,15 @@ def test_thinking_caveat_describes_summaries_not_redaction():
     assert "thinking-redacted" not in ids
     text = next(c["text"] for c in p.caveats if c["id"] == "thinking-summary")
     assert "summar" in text.lower()
+
+
+def test_ask_user_question_caveat_is_retired():
+    # The tool works now (the client advertises form elicitation), so the
+    # "not loaded" caveat would be a lie. What remains true is that an
+    # option's `preview` has no slot in ACP's EnumOption and is not shown.
+    p = load_profile(Path("agents/claude.toml"))
+    ids = [c["id"] for c in p.caveats]
+    assert "no-ask-user-question" not in ids
+    text = next(c["text"] for c in p.caveats
+                if c["id"] == "ask-question-preview")
+    assert "preview" in text.lower()

@@ -71,8 +71,8 @@ id = "no-prompt-suggestions"
 text = "Claude Code's predicted next-prompt suggestions do not cross ACP yet: the adapter neither enables the SDK's promptSuggestions option nor forwards the prompt_suggestion message (claude-agent-acp 0.73)."
 
 [[caveats]]
-id = "no-ask-user-question"
-text = "The agent's AskUserQuestion tool (multiple-choice questions to you) is not loaded in adapter sessions; the agent asks in plain text instead - answer in your next prompt. Skills that rely on it degrade to text."
+id = "ask-question-preview"
+text = "The agent's multiple-choice questions arrive as a form (AskUserQuestion over ACP elicitation): pick an option, type your own answer in \"Other\", or Skip. An option's preview (the mockup or snippet the terminal shows on focus) travels in a vendor _meta field and is not displayed here; its title and description are."
 
 [[caveats]]
 id = "plan-exit-mode"

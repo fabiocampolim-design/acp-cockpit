@@ -95,7 +95,17 @@ server messages are JSON commands:
 {"cmd": "set_model", "model": "sonnet"}
 {"cmd": "set_config_option", "config": "effort", "value": "low"}
 {"cmd": "permission", "request": 44, "option": "allow"}
+{"cmd": "elicitation", "request": 77, "action": "accept",
+ "content": {"question_0": "Blue", "question_1": ["Ice"]}}
+{"cmd": "elicitation", "request": 77, "action": "decline"}
 ```
+
+`elicitation` answers an `elicitation_request`. `accept` carries the
+`content` object the form produced (values may be strings, numbers,
+booleans or string arrays, per the requested schema); `decline` carries
+none and means "the user answered nothing" — the agent continues without
+an answer, so it is also the fail-safe. Fields the View could not render
+are simply absent from `content`.
 
 `set_model` uses the agent's `session/set_model` extension (listed in the
 profile's `extensions`); agents without it answer with an error that
@@ -129,6 +139,8 @@ Every server → client message is one event:
 | `config_option` | `options` — the FULL current set of `SessionConfigOption` (`id`, `name`, `type` `select`/`boolean`, `currentValue`, `options` for selects) | Generic selectors; changing one sends `set_config_option`. |
 | `permission_request` | `request` (id), `tool_call`, `options` (list of `{optionId, name, kind}`), `outside_boundary` (absolute paths mentioned by the tool call that fall outside the session boundary) | Modal approval dialog; explicit choice required. Non-empty `outside_boundary` MUST be shown prominently: shell execution is agent-side and the user's answer is the only control. Present one-shot options before standing grants. |
 | `permission_resolved` | `request`, `option`, `source` (`user`/`failsafe`) | Close the dialog; show fail-safe rejections distinctly. |
+| `elicitation_request` | `request` (id), `message`, `schema` (the requested JSON Schema: `properties`, each a `string` — with `oneOf`/`enum` for single-select — `array` with `items.anyOf`/`items.enum` for multi-select, `boolean`, `number`, `integer`), `tool_call_id` (or null) | Modal form dialog. A single-select renders as radios, a multi-select as checkboxes, a plain string as a text box (this is how an "Other" free-text field arrives). A property type the View does not understand MUST NOT be rendered as another control — name it and leave it unanswered. Offer an explicit skip (`decline`). |
+| `elicitation_resolved` | `request`, `action` (`accept`/`decline`), `content` (what was answered, or null), `source` (`user`/`failsafe`) | Close the dialog and record the answer in the conversation; a `failsafe` decline means nobody answered in time. |
 | `fs_request` | `op` (`read`/`write`), `path`, `allowed` | Inline notice of agent file access and the policy verdict. |
 | `turn_ended` | `stop_reason`; when `"error"` also `error` `{code, message}` | Turn separator; re-enable composer. A failed `session/prompt` still ends the turn (the same message arrives first as a `turn-error` anomaly). |
 | `anomaly` | `category`, `detail` | MUST be surfaced (chip + inline row); never dropped. |

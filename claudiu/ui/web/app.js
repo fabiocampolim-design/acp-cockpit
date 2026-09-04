@@ -474,6 +474,16 @@ class Session {
       case "stderr": this.renderStderr(ev); break;
       case "permission_request": queuePermission(this, ev); break;
       case "permission_resolved": resolvePermission(this, d.request); break;
+      case "elicitation_request": queueElicitation(this, ev); break;
+      case "elicitation_resolved":
+        closeElicitation(this, d.request);
+        this.breakAgg();
+        this.addBlock("elicitation_resolved", null,
+          d.action === "accept"
+            ? `\u2014 you answered: ${describeAnswer(d.content)} \u2014`
+            : `\u2014 question skipped${d.source === "failsafe"
+                ? " (no answer in time)" : ""} \u2014`);
+        break;
       case "turn_ended":
         this.breakAgg();
         this.addBlock("turn_ended", null, `— turn ended (${d.stop_reason}) —`);
@@ -649,6 +659,7 @@ function summarize(ev) {
       return `${ev.kind}: ${d.title || d.toolCallId || ""}`.trim();
     case "stderr": return "adapter stderr";
     case "permission_request": return "waiting for your approval";
+    case "elicitation_request": return "waiting for your answer";
     default: return ev.kind;
   }
 }
@@ -818,6 +829,164 @@ function showNextPermission() {
 }
 
 $("#permission").addEventListener("cancel", (e) => e.preventDefault());
+
+/* ---------------- elicitation (the agent's own questions) ----------------
+
+   `elicitation/create`, form mode: the schema's properties become one
+   fieldset each — a titled `oneOf`/`enum` string is a radio group, an array
+   with `anyOf`/`enum` items is a checkbox group, a plain string is a text
+   box (this is how the "Other" field arrives), booleans and numbers get
+   their own controls. A property type this View does not understand is
+   NEVER rendered as some other control: it is named and left out.        */
+
+const elicQueue = [];   // {S, ev}
+let elicOpen = null;
+
+function queueElicitation(S, ev) {
+  elicQueue.push({S, ev});
+  if (!elicOpen) showNextElicitation();
+}
+
+function closeElicitation(S, requestId) {
+  if (elicOpen && elicOpen.S === S && elicOpen.ev.data.request === requestId) {
+    $("#elicitation").close();
+    elicOpen = null;
+    showNextElicitation();
+  } else {
+    const i = elicQueue.findIndex(p => p.S === S && p.ev.data.request === requestId);
+    if (i >= 0) elicQueue.splice(i, 1);
+  }
+}
+
+function enumOptions(prop) {
+  // titled options (`oneOf` / `items.anyOf`) or bare `enum` strings
+  const titled = prop.oneOf || (prop.items && prop.items.anyOf);
+  if (Array.isArray(titled)) {
+    return titled.map(o => ({value: o.const, title: o.title || o.const,
+                             description: o.description}));
+  }
+  const bare = prop.enum || (prop.items && prop.items.enum);
+  if (Array.isArray(bare)) return bare.map(v => ({value: v, title: v}));
+  return null;
+}
+
+function choiceLabel(field, opt, type) {
+  const label = document.createElement("label");
+  const input = document.createElement("input");
+  input.type = type;
+  input.name = field;
+  input.value = opt.value;
+  label.append(input, document.createTextNode(" " + opt.title));
+  if (opt.description) {
+    const d = document.createElement("span");
+    d.className = "opt-desc";
+    d.textContent = " — " + opt.description;
+    label.append(d);
+  }
+  return label;
+}
+
+function renderField(form, field, prop) {
+  const box = document.createElement("fieldset");
+  box.dataset.field = field;
+  box.dataset.type = prop.type || "";
+  const legend = document.createElement("legend");
+  legend.textContent = prop.title || field;
+  box.append(legend);
+  if (prop.description) {
+    const d = document.createElement("div");
+    d.className = "field-desc";
+    d.textContent = prop.description;
+    box.append(d);
+  }
+  const options = enumOptions(prop);
+  if (prop.type === "string" && options) {
+    for (const o of options) box.append(choiceLabel(field, o, "radio"));
+  } else if (prop.type === "array" && options) {
+    for (const o of options) box.append(choiceLabel(field, o, "checkbox"));
+  } else if (prop.type === "boolean") {
+    const label = document.createElement("label");
+    const input = document.createElement("input");
+    input.type = "checkbox"; input.dataset.field = field; input.name = field;
+    input.checked = prop.default === true;
+    label.append(input, document.createTextNode(" yes"));
+    box.append(label);
+  } else if (prop.type === "string" || prop.type === "number" ||
+             prop.type === "integer") {
+    const input = document.createElement("input");
+    input.type = prop.type === "string" ? "text" : "number";
+    input.dataset.field = field;
+    if (prop.default !== undefined && prop.default !== null) {
+      input.value = prop.default;
+    }
+    box.append(input);
+  } else {
+    const note = document.createElement("div");
+    note.className = "unsupported";
+    note.textContent = `this client cannot render a ${prop.type || "?"} ` +
+      `field (${field}); it is left unanswered`;
+    box.append(note);
+  }
+  form.append(box);
+}
+
+function collectAnswers(form) {
+  const content = {};
+  for (const box of form.querySelectorAll("fieldset")) {
+    const field = box.dataset.field;
+    if (box.dataset.type === "array") {
+      const picked = [...box.querySelectorAll("input[type=checkbox]:checked")]
+        .map(i => i.value);
+      if (picked.length) content[field] = picked;
+      continue;
+    }
+    const radio = box.querySelector("input[type=radio]:checked");
+    if (radio) { content[field] = radio.value; continue; }
+    const free = box.querySelector("input[data-field]");
+    if (!free) continue;
+    if (free.type === "checkbox") { content[field] = free.checked; continue; }
+    const raw = free.value.trim();
+    if (!raw) continue;
+    content[field] = free.type === "number" ? Number(raw) : raw;
+  }
+  return content;
+}
+
+function describeAnswer(content) {
+  const parts = Object.entries(content || {}).map(([k, v]) =>
+    `${k}: ${Array.isArray(v) ? v.join(", ") : v}`);
+  return parts.length ? parts.join(" · ") : "(nothing)";
+}
+
+function showNextElicitation() {
+  const next = elicQueue.shift();
+  if (!next) return;
+  elicOpen = next;
+  const {S, ev} = next;
+  $("#elic-session").textContent =
+    sessions.size > 1 ? `— ${S.tabLabel.textContent}` : "";
+  $("#elic-message").textContent = ev.data.message || "";
+  const form = $("#elic-form");
+  form.replaceChildren();
+  const props = (ev.data.schema && ev.data.schema.properties) || {};
+  for (const [field, prop] of Object.entries(props)) {
+    renderField(form, field, prop || {});
+  }
+  $("#elicitation").showModal();
+}
+
+$("#elic-submit").onclick = () => {
+  if (!elicOpen) return;
+  const {S, ev} = elicOpen;
+  S.send({cmd: "elicitation", request: ev.data.request, action: "accept",
+          content: collectAnswers($("#elic-form"))});
+};
+$("#elic-skip").onclick = () => {
+  if (!elicOpen) return;
+  const {S, ev} = elicOpen;
+  S.send({cmd: "elicitation", request: ev.data.request, action: "decline"});
+};
+$("#elicitation").addEventListener("cancel", (e) => e.preventDefault());
 
 /* ---------------- composer ---------------- */
 

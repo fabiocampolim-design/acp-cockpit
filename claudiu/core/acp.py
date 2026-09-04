@@ -24,7 +24,10 @@ class StateError(Exception):
 
 class AcpSession:
     PROTOCOL_VERSION = 1
-    DEFAULT_CAPS = {"fs": {"readTextFile": True, "writeTextFile": True}}
+    # `elicitation.form` is what makes the Claude adapter load its
+    # AskUserQuestion tool at all; `url` is deliberately not claimed.
+    DEFAULT_CAPS = {"fs": {"readTextFile": True, "writeTextFile": True},
+                    "elicitation": {"form": {}}}
 
     def __init__(self, sid, profile, proc, sink, recorder, sentinel, policy,
                  files, client_capabilities=None):
@@ -43,6 +46,7 @@ class AcpSession:
         self._turn_id = None
         self._last_raw_ref = None
         self._pending_perms: dict = {}
+        self._pending_elicits: dict = {}
         self._early_updates: list = []
         self._exited = False
         self._close_record_on_exit = False
@@ -265,7 +269,9 @@ class AcpSession:
                 "options": params.get("options") or [],
                 "outside_boundary": self._paths_outside(tool_call)}, ref)
             return  # answered later by answer_permission / fail_safe_reject
-        if method in ("fs/read_text_file", "fs/write_text_file"):
+        if method == "elicitation/create":
+            self._handle_elicitation(msg_id, params, ref)
+        elif method in ("fs/read_text_file", "fs/write_text_file"):
             self._handle_fs(msg_id, method, params, ref)
         else:
             self._conn.error(msg_id, -32601, f"unsupported method: {method}")
@@ -351,6 +357,58 @@ class AcpSession:
         else:
             self._resolve_permission(
                 request_id, {"outcome": "cancelled"}, None, "failsafe")
+
+    # ---- elicitation (the agent asks the user a structured question) ----
+    def _handle_elicitation(self, msg_id, params, ref):
+        """`elicitation/create`, form mode: hand the schema to the View and
+        wait. Any other mode is answered "cancel" at once — we advertise
+        only `form`, and pretending otherwise would strand the agent."""
+        mode = params.get("mode", "form")
+        if mode != "form":
+            self._emit("anomaly", {
+                "category": "unsupported-elicitation-mode",
+                "detail": f"agent asked for {mode!r} elicitation; this "
+                          "client advertises only form"}, ref)
+            self._conn.respond(msg_id, {"action": "cancel"})
+            return
+        self._pending_elicits[msg_id] = params
+        self._emit("elicitation_request", {
+            "request": msg_id,
+            "message": params.get("message", ""),
+            "schema": params.get("requestedSchema") or {},
+            "tool_call_id": params.get("toolCallId")}, ref)
+        # answered later by answer_elicitation / fail_safe_decline_elicitation
+
+    def pending_elicitations(self):
+        return sorted(self._pending_elicits)
+
+    def _resolve_elicitation(self, request_id, action, content, source):
+        if request_id not in self._pending_elicits:
+            raise StateError(f"no pending elicitation {request_id}")
+        del self._pending_elicits[request_id]
+        result = {"action": action}
+        if action == "accept":
+            result["content"] = dict(content or {})
+        self._conn.respond(request_id, result)
+        self.recorder.append({"dir": "client", "action": "elicitation",
+                              "request": request_id, "elicit_action": action,
+                              "content": result.get("content"),
+                              "source": source})
+        # The answer travels WITH the event: a second browser tab, a reload
+        # or another View has no other way to know what was answered.
+        self._emit("elicitation_resolved", {"request": request_id,
+                   "action": action, "content": result.get("content"),
+                   "source": source})
+        self._flush()
+
+    def answer_elicitation(self, request_id: int, action: str,
+                           content: dict | None = None) -> None:
+        self._resolve_elicitation(request_id, action, content, "user")
+
+    def fail_safe_decline_elicitation(self, request_id: int) -> None:
+        """Unanswered questions decline, never cancel: decline lets the agent
+        continue with no answer, cancel aborts its tool call."""
+        self._resolve_elicitation(request_id, "decline", None, "failsafe")
 
     # ---- more user actions ---------------------------------------------
     def cancel(self) -> None:

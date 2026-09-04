@@ -40,6 +40,7 @@ user manual</a>
 conversation</a></li>
 <li><a href="#prompting" id="toc-prompting">Prompting</a></li>
 <li><a href="#approvals" id="toc-approvals">Approvals</a></li>
+<li><a href="#questions-from-the-agent" id="toc-questions-from-the-agent">Questions from the agent</a></li>
 <li><a href="#status-strip-and-warnings" id="toc-status-strip-and-warnings">Status strip and warnings</a></li>
 <li><a href="#records" id="toc-records">Records</a></li>
 <li><a href="#security-notes" id="toc-security-notes">Security
@@ -156,6 +157,17 @@ the agent offers a third option. Standing grants are listed after the
 one-shot choices and drawn dashed/amber; they are never disabled.
 Unanswered requests are auto-rejected after a timeout (default one hour)
 and marked as fail-safe rejections.</p>
+<h2 id="questions-from-the-agent">Questions from the agent</h2>
+<p>The agent can ask you a multiple-choice question instead of guessing
+(its AskUserQuestion tool). It arrives as a form: single-answer
+questions are radio buttons, multi-answer ones checkboxes, and every
+question has an <strong>Other</strong> box for an answer in your own
+words, which wins over the options. <strong>Skip</strong> answers
+nothing — the agent is told you skipped and carries on; the same happens
+by itself if the question goes unanswered past the timeout. Your answer
+is written into the conversation so the transcript shows what you chose.
+An option’s <em>preview</em> (the mockup the terminal shows on focus) is
+not displayed here; its description is.</p>
 <h2 id="status-strip-and-warnings">Status strip and warnings</h2>
 <p>The strip shows the session state, the current permission mode, a
 <strong>context gauge</strong> (tokens used / window size, percentage,

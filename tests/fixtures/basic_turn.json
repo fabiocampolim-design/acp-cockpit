@@ -1,29 +1,161 @@
 [
-  {"on_method": "initialize",
-   "respond": {"protocolVersion": 1, "agentCapabilities": {}}},
-  {"on_method": "session/new",
-   "respond": {"sessionId": "$SESSION",
-               "modes": {"currentModeId": "default",
-                          "availableModes": [{"id": "default",
-                                              "name": "Default"}]}}},
-  {"on_method": "session/prompt", "if_prompt_contains": "PERMISSION",
-   "request": [{"jsonrpc": "2.0", "id": 900,
-     "method": "session/request_permission",
-     "params": {"sessionId": "$SESSION",
-       "toolCall": {"toolCallId": "t1", "title": "Write file"},
-       "options": [{"optionId": "y", "name": "Allow", "kind": "allow_once"},
-                    {"optionId": "n", "name": "Reject",
-                     "kind": "reject_once"}]}}],
-   "respond": {"stopReason": "end_turn"}},
-  {"on_method": "session/prompt",
-   "notify": [
-     {"jsonrpc": "2.0", "method": "session/update",
-      "params": {"sessionId": "$SESSION",
-        "update": {"sessionUpdate": "agent_message_chunk",
-                    "content": {"type": "text", "text": "hello "}}}},
-     {"jsonrpc": "2.0", "method": "session/update",
-      "params": {"sessionId": "$SESSION",
-        "update": {"sessionUpdate": "agent_message_chunk",
-                    "content": {"type": "text", "text": "world"}}}}],
-   "respond": {"stopReason": "end_turn"}}
+  {
+    "on_method": "initialize",
+    "respond": {
+      "protocolVersion": 1,
+      "agentCapabilities": {}
+    }
+  },
+  {
+    "on_method": "session/new",
+    "respond": {
+      "sessionId": "$SESSION",
+      "modes": {
+        "currentModeId": "default",
+        "availableModes": [
+          {
+            "id": "default",
+            "name": "Default"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "on_method": "session/prompt",
+    "if_prompt_contains": "PERMISSION",
+    "request": [
+      {
+        "jsonrpc": "2.0",
+        "id": 900,
+        "method": "session/request_permission",
+        "params": {
+          "sessionId": "$SESSION",
+          "toolCall": {
+            "toolCallId": "t1",
+            "title": "Write file"
+          },
+          "options": [
+            {
+              "optionId": "y",
+              "name": "Allow",
+              "kind": "allow_once"
+            },
+            {
+              "optionId": "n",
+              "name": "Reject",
+              "kind": "reject_once"
+            }
+          ]
+        }
+      }
+    ],
+    "respond": {
+      "stopReason": "end_turn"
+    }
+  },
+  {
+    "on_method": "session/prompt",
+    "if_prompt_contains": "ASKQUESTION",
+    "request": [
+      {
+        "jsonrpc": "2.0",
+        "id": 901,
+        "method": "elicitation/create",
+        "params": {
+          "mode": "form",
+          "sessionId": "$SESSION",
+          "toolCallId": "t-ask",
+          "message": "Please answer the following questions.",
+          "requestedSchema": {
+            "type": "object",
+            "properties": {
+              "question_0": {
+                "type": "string",
+                "title": "Colour",
+                "description": "Which colour?",
+                "oneOf": [
+                  {
+                    "const": "Red",
+                    "title": "Red"
+                  },
+                  {
+                    "const": "Blue",
+                    "title": "Blue",
+                    "description": "the cold one"
+                  }
+                ]
+              },
+              "question_0_custom": {
+                "type": "string",
+                "title": "Other",
+                "description": "Type your own answer instead of choosing an option above (optional)."
+              },
+              "question_1": {
+                "type": "array",
+                "title": "Extras",
+                "description": "Which extras?",
+                "items": {
+                  "anyOf": [
+                    {
+                      "const": "Ice",
+                      "title": "Ice"
+                    },
+                    {
+                      "const": "Lemon",
+                      "title": "Lemon"
+                    }
+                  ]
+                }
+              },
+              "question_1_custom": {
+                "type": "string",
+                "title": "Other",
+                "description": "Type your own answer instead of choosing an option above (optional)."
+              }
+            }
+          }
+        }
+      }
+    ],
+    "respond": {
+      "stopReason": "end_turn"
+    }
+  },
+  {
+    "on_method": "session/prompt",
+    "notify": [
+      {
+        "jsonrpc": "2.0",
+        "method": "session/update",
+        "params": {
+          "sessionId": "$SESSION",
+          "update": {
+            "sessionUpdate": "agent_message_chunk",
+            "content": {
+              "type": "text",
+              "text": "hello "
+            }
+          }
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "session/update",
+        "params": {
+          "sessionId": "$SESSION",
+          "update": {
+            "sessionUpdate": "agent_message_chunk",
+            "content": {
+              "type": "text",
+              "text": "world"
+            }
+          }
+        }
+      }
+    ],
+    "respond": {
+      "stopReason": "end_turn"
+    }
+  }
 ]

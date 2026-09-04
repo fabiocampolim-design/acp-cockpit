@@ -80,6 +80,9 @@ class SessionWS(tornado.websocket.WebSocketHandler):
                 session.set_config_option(msg["config"], msg["value"])
             elif cmd == "permission":
                 session.answer_permission(msg["request"], msg["option"])
+            elif cmd == "elicitation":
+                session.answer_elicitation(msg["request"], msg["action"],
+                                           msg.get("content"))
             else:
                 self.write_message(to_wire_error(f"unknown cmd {cmd!r}"))
         except Exception as exc:  # surfaced, never silent

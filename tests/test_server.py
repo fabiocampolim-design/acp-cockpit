@@ -207,3 +207,91 @@ class ServerTest(tornado.testing.AsyncHTTPTestCase):
         assert data["pinned_schema"].startswith("schema-v")
         assert data["online"] is False
         assert data["adapter_package"] is None      # fixture declares none
+
+    def test_elicitation_roundtrip_over_ws(self):
+        resp = self.fetch("/api/sessions", method="POST",
+                          headers=self._headers(),
+                          body=json.dumps({"profile": "fake",
+                                           "cwd": str(self.tmpdir)}))
+        sid = json.loads(resp.body)["id"]
+
+        async def drive():
+            url = (f"ws://127.0.0.1:{self.get_http_port()}"
+                   f"/ws/sessions/{sid}")
+            conn = await tornado.websocket.websocket_connect(
+                tornado.httpclient.HTTPRequest(url, headers=self._headers()))
+            while True:
+                ev = json.loads(await conn.read_message())
+                if ev["kind"] == "session_state" and \
+                        ev["data"]["state"] == "ready":
+                    break
+            await conn.write_message(json.dumps(
+                {"cmd": "prompt", "text": "do the ASKQUESTION thing"}))
+            request_id = None
+            while request_id is None:
+                ev = json.loads(await conn.read_message())
+                if ev["kind"] == "elicitation_request":
+                    request_id = ev["data"]["request"]
+                    props = ev["data"]["schema"]["properties"]
+                    assert props["question_0"]["oneOf"][1]["const"] == "Blue"
+                    assert ev["data"]["tool_call_id"] == "t-ask"
+            await conn.write_message(json.dumps(
+                {"cmd": "elicitation", "request": request_id,
+                 "action": "accept",
+                 "content": {"question_0": "Blue",
+                             "question_1": ["Ice", "Lemon"]}}))
+            while True:
+                ev = json.loads(await conn.read_message())
+                if ev["kind"] == "elicitation_resolved":
+                    assert ev["data"]["action"] == "accept"
+                    assert ev["data"]["source"] == "user"
+                    break
+            conn.close()
+        self.io_loop.run_sync(drive, timeout=30)
+
+
+class ElicitationTimeoutTest(tornado.testing.AsyncHTTPTestCase):
+    """An unanswered question must not hold the agent's turn forever: the
+    same fail-safe timer that rejects a stale permission declines it."""
+
+    def get_app(self):
+        self.tmpdir = Path(tempfile.mkdtemp())
+        profs = self.tmpdir / "agents"
+        profs.mkdir()
+        (profs / "fake.toml").write_text(
+            FIXTURE_PROFILE.format(python=sys.executable), encoding="utf-8")
+        self.auth = TokenAuth()
+        return make_app(profiles_dir=profs,
+                        records_dir=self.tmpdir / "records", auth=self.auth,
+                        permission_timeout=0.3)
+
+    def _headers(self):
+        return {"Cookie": f"claudiu_token={self.auth.token}"}
+
+    def test_unanswered_elicitation_declines_itself(self):
+        resp = self.fetch("/api/sessions", method="POST",
+                          headers=self._headers(),
+                          body=json.dumps({"profile": "fake",
+                                           "cwd": str(self.tmpdir)}))
+        sid = json.loads(resp.body)["id"]
+
+        async def drive():
+            url = (f"ws://127.0.0.1:{self.get_http_port()}"
+                   f"/ws/sessions/{sid}")
+            conn = await tornado.websocket.websocket_connect(
+                tornado.httpclient.HTTPRequest(url, headers=self._headers()))
+            while True:
+                ev = json.loads(await conn.read_message())
+                if ev["kind"] == "session_state" and \
+                        ev["data"]["state"] == "ready":
+                    break
+            await conn.write_message(json.dumps(
+                {"cmd": "prompt", "text": "do the ASKQUESTION thing"}))
+            while True:                      # never answered by the user
+                ev = json.loads(await conn.read_message())
+                if ev["kind"] == "elicitation_resolved":
+                    assert ev["data"]["action"] == "decline"
+                    assert ev["data"]["source"] == "failsafe"
+                    break
+            conn.close()
+        self.io_loop.run_sync(drive, timeout=30)

@@ -11,7 +11,8 @@ def test_every_event_kind_documented():
 
 
 def test_every_ws_command_documented():
-    for cmd in ("prompt", "cancel", "set_mode", "permission"):
+    for cmd in ("prompt", "cancel", "set_mode", "permission",
+                "elicitation"):
         assert f'"cmd": "{cmd}"' in DOC
 
 

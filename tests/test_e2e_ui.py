@@ -144,3 +144,57 @@ def test_folder_picker_navigates_and_fills_the_directory(server):
         page.click("#dirpick-use")
         page.wait_for_selector("#dirpick", state="hidden")
         assert page.input_value("#cwd") == str(sub.resolve())
+
+
+def test_elicitation_form_asks_and_shows_the_answer(server):
+    # The agent's AskUserQuestion arrives as a form elicitation: single-select
+    # questions are radios, multi-select are checkboxes, and every question
+    # has its own free-text "Other" box.
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = start_fake_session(pw, url, tmp)
+        page.fill("#prompt-input", "do the ASKQUESTION thing")
+        page.click("#send")
+        page.wait_for_selector("#elicitation[open]")
+        assert "Please answer" in page.inner_text("#elic-message")
+        page.check('#elic-form input[type="radio"][value="Blue"]')
+        page.check('#elic-form input[type="checkbox"][value="Ice"]')
+        page.click("#elic-submit")
+        page.wait_for_selector("#elicitation", state="hidden")
+        page.wait_for_selector('[data-kind="elicitation_resolved"]')
+        row = page.inner_text('[data-kind="elicitation_resolved"]')
+        assert "Blue" in row and "Ice" in row
+
+
+def test_elicitation_can_be_skipped(server):
+    # Skipping declines: the agent is told the user answered nothing and the
+    # turn continues — it must never look like the question was answered.
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = start_fake_session(pw, url, tmp)
+        page.fill("#prompt-input", "do the ASKQUESTION thing")
+        page.click("#send")
+        page.wait_for_selector("#elicitation[open]")
+        page.click("#elic-skip")
+        page.wait_for_selector("#elicitation", state="hidden")
+        page.wait_for_selector('[data-kind="elicitation_resolved"]')
+        assert "skipped" in page.inner_text('[data-kind="elicitation_resolved"]')
+
+
+def test_elicitation_free_text_answer_wins_over_the_options(server):
+    # The per-question "Other" box is how the user answers in their own
+    # words; it must reach the agent as that question's answer.
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = start_fake_session(pw, url, tmp)
+        page.fill("#prompt-input", "do the ASKQUESTION thing")
+        page.click("#send")
+        page.wait_for_selector("#elicitation[open]")
+        page.fill('#elic-form input[data-field="question_0_custom"]',
+                  "Aubergine")
+        page.click("#elic-submit")
+        page.wait_for_selector('[data-kind="elicitation_resolved"]')
+        assert "Aubergine" in page.inner_text('[data-kind="elicitation_resolved"]')

@@ -57,6 +57,19 @@ class Entry:
 
 
 class SessionManager:
+    # Requests that wait for the user, and how each answers itself when the
+    # wait runs out: {request event: (resolved event, still-pending probe,
+    # fail-safe answer)}. A question nobody answers must never hold a turn
+    # open forever, and the fail-safe must be the SAFE answer for its kind
+    # (reject a permission; decline — not cancel — an elicitation).
+    PENDING_KINDS = {
+        "permission_request": ("permission_resolved",
+                               "pending_permissions", "fail_safe_reject"),
+        "elicitation_request": ("elicitation_resolved",
+                                "pending_elicitations",
+                                "fail_safe_decline_elicitation"),
+    }
+
     def __init__(self, profiles_dir: Path, records_dir: Path,
                  permission_timeout: float = 3600.0):
         self.profiles = load_profiles(profiles_dir)
@@ -128,23 +141,26 @@ class SessionManager:
 
     def _watch_events(self, entry, loop):
         session, sink = entry.session, entry.sink
-        timers: dict[int, object] = {}
+        timers: dict[tuple, object] = {}
+        asked_by = {resolved: asked
+                    for asked, (resolved, _, _) in self.PENDING_KINDS.items()}
         original_emit = sink.emit
 
         def emit(event):
             original_emit(event)
             if event.kind == "session_info" and event.data.get("title"):
                 entry.title = event.data["title"]
-            if event.kind == "permission_request":
-                rid = event.data["request"]
+            if event.kind in self.PENDING_KINDS:
+                _, pending, fail_safe = self.PENDING_KINDS[event.kind]
+                key = (event.kind, event.data["request"])
 
-                def expire(rid=rid):
-                    if rid in session.pending_permissions():
-                        session.fail_safe_reject(rid)
-                timers[rid] = loop.call_later(self.permission_timeout,
-                                              expire)
-            elif event.kind == "permission_resolved":
-                t = timers.pop(event.data["request"], None)
+                def expire(key=key, pending=pending, fail_safe=fail_safe):
+                    if key[1] in getattr(session, pending)():
+                        getattr(session, fail_safe)(key[1])
+                timers[key] = loop.call_later(self.permission_timeout, expire)
+            elif event.kind in asked_by:
+                t = timers.pop((asked_by[event.kind],
+                                event.data["request"]), None)
                 if t:
                     loop.remove_timeout(t)
         sink.emit = emit
