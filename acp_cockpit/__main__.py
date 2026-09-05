@@ -15,13 +15,25 @@ from .server.app import make_app
 from .server.auth import TokenAuth
 
 
+def default_records() -> Path:
+    """`~/.acp-cockpit/records`, unless a `~/.claudiu` from before the
+    rename is still there and holds records — in which case keep using it.
+    A project changing its name is no reason to strand somebody's
+    transcripts, and silently starting an empty directory beside a full one
+    is the worst of both."""
+    new = Path.home() / ".acp-cockpit" / "records"
+    old = Path.home() / ".claudiu" / "records"
+    if not new.exists() and old.is_dir() and any(old.glob("*.jsonl")):
+        return old
+    return new
+
+
 def main():
     ap = argparse.ArgumentParser(prog="acp-cockpit")
     ap.add_argument("--port", type=int, default=0,
                     help="port (default 0 = OS-assigned)")
     ap.add_argument("--profiles", default="agents")
-    ap.add_argument("--records",
-                    default=str(Path.home() / ".claudiu" / "records"))
+    ap.add_argument("--records", default=str(default_records()))
     ap.add_argument("--records-keep-days", type=int, default=0,
                     help="delete records older than N days at startup "
                          "(default 0 = keep every record for ever)")

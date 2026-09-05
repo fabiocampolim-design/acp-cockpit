@@ -52,3 +52,32 @@ def test_newlines_never_reach_a_title():
 def test_the_repository_ships_the_file_the_docs_describe():
     shipped = Path("uiname.toml").read_text(encoding="utf-8")
     assert f'{KEY} = "ClaudIU"' in shipped
+
+
+def test_the_records_default_moves_but_never_strands_the_old_one(tmp_path,
+                                                                 monkeypatch):
+    # A project changing its name is no reason to lose somebody's
+    # transcripts, and starting an empty directory beside a full one is the
+    # worst of both (the ~/.claudiu -> ~/.acp-cockpit rename, 2026-09-05).
+    from acp_cockpit.__main__ import default_records
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+
+    # nothing anywhere: the new location
+    assert default_records() == tmp_path / ".acp-cockpit" / "records"
+
+    # an old directory with records in it, and no new one: keep using it
+    old = tmp_path / ".claudiu" / "records"
+    old.mkdir(parents=True)
+    (old / "abc.jsonl").write_text("{}\n", encoding="utf-8")
+    assert default_records() == old
+
+    # once the new one exists, it wins
+    (tmp_path / ".acp-cockpit" / "records").mkdir(parents=True)
+    assert default_records() == tmp_path / ".acp-cockpit" / "records"
+
+
+def test_an_empty_old_directory_does_not_win(tmp_path, monkeypatch):
+    from acp_cockpit.__main__ import default_records
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    (tmp_path / ".claudiu" / "records").mkdir(parents=True)
+    assert default_records() == tmp_path / ".acp-cockpit" / "records"

@@ -81,7 +81,7 @@ the agent in a terminal — to whatever service that agent talks to, under
 your own credentials — and ClaudIU adds no destination of its own. It sends
 your conversation nowhere, stores it nowhere but your disk, and has no
 account, no telemetry and no analytics. The transcripts in
-`~/.claudiu/records` never leave the machine unless you move them.
+`~/.acp-cockpit/records` never leave the machine unless you move them.
 
 The one exception is deliberate and switchable: `/api/drift` asks
 `api.github.com` and `registry.npmjs.org` whether the pinned ACP schema and
@@ -125,7 +125,7 @@ run unless you pass `--port`. If a `claude` CLI is installed, the adapter is
 pointed at it instead of the older copy it bundles (the launcher shows which
 runtime resolved; `agents/PROFILE-SCHEMA.md` → `env_resolve`). For a stable
 address, pin the port and keep the token:
-`python -m acp_cockpit --port 8642 --token-file ~/.claudiu/token` — bookmark the
+`python -m acp_cockpit --port 8642 --token-file ~/.acp-cockpit/token` — bookmark the
 printed URL once (the token file is owner-only; treat it like a password).
 
 `docs/USER_MANUAL.md` is the full manual.
@@ -206,7 +206,7 @@ python -m pyflakes claudiu tools tests
 python tools/check_schema_drift.py
 ```
 
-Verified by 215 checks (plus the opt-in real-adapter contract test), on
+Verified by 217 checks (plus the opt-in real-adapter contract test), on
 Linux, Windows and macOS. See `AGENTS.md` for the working rules,
 `docs/DESIGN.md` for the reasoning and `docs/superpowers/specs/` for the
 design history — the research notes and the approved specifications the

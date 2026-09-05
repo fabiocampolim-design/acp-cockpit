@@ -13,7 +13,7 @@ Open an issue in this repository. The most useful reports carry: what you
 did (the prompt, the button, the command), what you expected, what
 happened, your platform, the agent adapter and its version (`npm ls -g`),
 and — this is the one that makes a ClaudIU bug reproducible — the relevant
-part of the **session record** (`~/.claudiu/records/<session>.jsonl`; the
+part of the **session record** (`~/.acp-cockpit/records/<session>.jsonl`; the
 `{}` button on a row shows the frame number). Records contain your
 conversation: trim them before pasting. A protocol frame that ClaudIU
 rendered wrongly, dropped, or failed to flag as unrecognized is a bug here;

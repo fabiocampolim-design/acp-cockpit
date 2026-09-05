@@ -13,7 +13,7 @@ archive/
 # design history the repo publishes (Fabio, 2026-09-04).
 docs/superpowers/plans/
 .githubify-scrub-allow
-.claudiu-server.log*
+.acp-cockpit-server.log*
 .playwright-mcp/
 
 # Profiles you add for yourself: a local adapter build, a private agent, an

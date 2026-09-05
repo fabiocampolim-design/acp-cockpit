@@ -78,16 +78,17 @@ data, and every byte that crosses the wire is recorded.</p>
 <pre><code>python -m acp_cockpit</code></pre>
 <p>Options: <code>--port N</code> (default 0 = OS-assigned),
 <code>--profiles DIR</code> (default <code>agents/</code>),
-<code>--records DIR</code> (default <code>~/.claudiu/records</code>),
-<code>--records-keep-days N</code> (delete records older than N days at
-startup; default 0 = keep them all), <code>--no-drift-online</code>
-(skip the update check), <code>--token-file FILE</code> (keep the auth
-token across launches). The server prints a URL with a token — open it;
-the token becomes a cookie and the address bar cleans itself. By default
-each launch gets a fresh token and old URLs die with the server; with
-<code>--port</code> and <code>--token-file</code> together the URL is
-stable and can be bookmarked (the file is created owner-only where the
-OS supports it — treat it like a password).</p>
+<code>--records DIR</code> (default
+<code>~/.acp-cockpit/records</code>), <code>--records-keep-days N</code>
+(delete records older than N days at startup; default 0 = keep them
+all), <code>--no-drift-online</code> (skip the update check),
+<code>--token-file FILE</code> (keep the auth token across launches).
+The server prints a URL with a token — open it; the token becomes a
+cookie and the address bar cleans itself. By default each launch gets a
+fresh token and old URLs die with the server; with <code>--port</code>
+and <code>--token-file</code> together the URL is stable and can be
+bookmarked (the file is created owner-only where the OS supports it —
+treat it like a password).</p>
 <h2 id="tabs">Tabs</h2>
 <p>The tabs scroll; the account chips, help and settings stay pinned to
 the right whatever happens. As tabs multiply their labels shrink, the

@@ -12,7 +12,7 @@ from pathlib import Path
 from acp_cockpit.core.profiles import ProfileError, load_profile
 from tests.helpers import make_session
 
-REAL_MODELS = [                      # captured from ~/.claudiu/records
+REAL_MODELS = [                      # captured from a real session
     {"value": "default", "name": "Default (recommended)"},
     {"value": "sonnet", "name": "Sonnet"},
     {"value": "claude-fable-5-1[1m]", "name": "Fable"},

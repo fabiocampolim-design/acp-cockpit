@@ -15,7 +15,7 @@ python -m acp_cockpit
 ```
 
 Options: `--port N` (default 0 = OS-assigned), `--profiles DIR` (default
-`agents/`), `--records DIR` (default `~/.claudiu/records`),
+`agents/`), `--records DIR` (default `~/.acp-cockpit/records`),
 `--records-keep-days N` (delete records older than N days at startup;
 default 0 = keep them all),
 `--no-drift-online` (skip the update check), `--token-file FILE` (keep the

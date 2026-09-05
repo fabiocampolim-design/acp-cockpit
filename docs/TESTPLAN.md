@@ -17,7 +17,7 @@ Three sources, checked against each other:
    the authority for the conversation.
 2. **The raw terminal** — the **▤ Terminal** toggle shows exactly what
    Claude Code drew. Use it to confirm a permission prompt's real options.
-3. **The audit log** — `~/.claudiu/logs/claudiu-*.log`, logger
+3. **The audit log** — `~/.acp-cockpit/logs/*.log`, logger
    `claudiu.audit`: one `stdin session=… len=… ctrl=… data=…` line per
    keystroke/text ever sent. This is the record of **what was issued**.
 

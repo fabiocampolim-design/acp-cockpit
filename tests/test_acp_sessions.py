@@ -170,7 +170,7 @@ def test_usage_without_rate_limit_meta_emits_no_rate_limit_event(tmp_path):
 def test_the_canonical_model_id_travels_with_usage(tmp_path):
     # `_meta.quota.model_usage` is the ONLY place the API's real model id
     # appears; a config option carries the adapter's short value ("opus")
-    # and its label ("Opus"). Shape captured from ~/.claudiu/records.
+    # and its label ("Opus"). Shape captured from a real session's records.
     session, proc, sink = make_session(tmp_path)
     do_handshake(session, proc)
     feed(session, update(

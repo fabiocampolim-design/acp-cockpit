@@ -14,8 +14,11 @@ All notable changes to CLAUDIU are documented in this file.
   interface nameless. The server substitutes it into the page rather than
   letting the browser fetch it, so nobody watches the name change one
   request after the page arrives.
-- The data directory is unchanged (`~/.claudiu`): renaming a project should
-  not strand anyone's records or their pinned token.
+- The data directory follows the name: `~/.acp-cockpit`. **An existing
+  `~/.claudiu` with records in it keeps being used** — a project changing
+  its name is no reason to strand somebody's transcripts, and quietly
+  starting an empty directory beside a full one is the worst of both. Once
+  the new directory exists it wins; an empty old one never does.
 - **One upgrade note**: the session cookie is now `acp_cockpit_token`, so a
   browser holding the old one is signed out once. Opening the printed
   `?token=` URL again fixes it — a bookmarked pinned-port URL does this by
