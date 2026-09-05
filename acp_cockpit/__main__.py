@@ -16,6 +16,15 @@ from .server.app import make_app
 from .server.auth import TokenAuth
 
 
+def default_profiles_dirs() -> list[Path]:
+    """The profiles shipped inside the package, then the user's own
+    `~/.acp-cockpit/agents/` on top (a later directory wins by id). The
+    default used to be the cwd-relative `agents`, which exists only in a
+    source checkout (review 2026-09-05)."""
+    return [Path(__file__).resolve().parent / "agents",
+            Path.home() / ".acp-cockpit" / "agents"]
+
+
 def default_records() -> Path:
     """`~/.acp-cockpit/records`, unless a `~/.claudiu` from before the
     rename is still there and holds records — in which case keep using it.
@@ -33,7 +42,10 @@ def main():
     ap = argparse.ArgumentParser(prog="acp-cockpit")
     ap.add_argument("--port", type=int, default=0,
                     help="port (default 0 = OS-assigned)")
-    ap.add_argument("--profiles", default="agents")
+    ap.add_argument("--profiles", default=None,
+                    help="directory of agent profiles (default: the ones "
+                         "shipped in the package, then ~/.acp-cockpit/agents/ "
+                         "on top)")
     ap.add_argument("--records", default=str(default_records()))
     ap.add_argument("--records-keep-days", type=int, default=0,
                     help="delete records older than N days at startup "
@@ -46,8 +58,8 @@ def main():
     ap.add_argument("--ui-name-file", default=None,
                     help="TOML file holding ACP_COCKPIT_UINAME, the name "
                          "this client shows in its own interface (default: "
-                         "uiname.toml beside the package, then "
-                         "~/.acp-cockpit/uiname.toml; the environment "
+                         "~/.acp-cockpit/uiname.toml, then the uiname.toml "
+                         "shipped in the package; the environment "
                          "variable of the same name wins over both)")
     ap.add_argument("--token-file", default=None,
                     help="keep the auth token in this file across launches "
@@ -68,7 +80,9 @@ def main():
 
     auth = (TokenAuth.from_file(args.token_file) if args.token_file
             else TokenAuth())
-    app = make_app(Path(args.profiles), records, auth,
+    profiles = ([Path(args.profiles)] if args.profiles
+                else default_profiles_dirs())
+    app = make_app(profiles, records, auth,
                    drift_online=not args.no_drift_online,
                    archiver=args.archiver, ui_name_file=args.ui_name_file)
     sockets = tornado.netutil.bind_sockets(args.port, address="127.0.0.1")

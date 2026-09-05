@@ -47,7 +47,7 @@ def make_session(tmp_path, **kw):
     proc, sink = FakeProc(), SinkList()
     session = AcpSession(
         sid="s1",
-        profile=kw.pop("profile", load_profile(Path("agents/claude.toml"))),
+        profile=kw.pop("profile", load_profile(Path("acp_cockpit/agents/claude.toml"))),
         proc=proc, sink=sink,
         recorder=Recorder(tmp_path / "s1.jsonl"),
         sentinel=Sentinel.load_default(),

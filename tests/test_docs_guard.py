@@ -49,7 +49,7 @@ def test_profile_schema_documents_every_field():
     # doc is the contract for adding an agent without touching core/.
     import dataclasses
     from acp_cockpit.core.profiles import AgentProfile
-    schema = Path("agents/PROFILE-SCHEMA.md").read_text(encoding="utf-8")
+    schema = Path("acp_cockpit/agents/PROFILE-SCHEMA.md").read_text(encoding="utf-8")
     for f in dataclasses.fields(AgentProfile):
         assert f"`{f.name}`" in schema, \
             f"profile field {f.name} missing from agents/PROFILE-SCHEMA.md"

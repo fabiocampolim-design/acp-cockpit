@@ -50,7 +50,7 @@ def test_newlines_never_reach_a_title():
 
 
 def test_the_repository_ships_the_file_the_docs_describe():
-    shipped = Path("uiname.toml").read_text(encoding="utf-8")
+    shipped = Path("acp_cockpit/uiname.toml").read_text(encoding="utf-8")
     assert f'{KEY} = "ClaudIU"' in shipped
 
 

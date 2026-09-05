@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 from acp_cockpit.core.sentinel import Sentinel
 
-REG = json.loads(Path("vendor/acp/registry.json").read_text())
+REG = json.loads(Path("acp_cockpit/vendor/acp/registry.json").read_text())
 
 
 def test_known_traffic_is_clean():

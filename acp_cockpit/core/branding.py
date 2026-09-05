@@ -10,7 +10,8 @@ Resolution order, first hit wins:
 
 1. `ACP_COCKPIT_UINAME` in the environment;
 2. `ACP_COCKPIT_UINAME` in the config file (`--ui-name-file`, else
-   `uiname.toml` beside the package, else `~/.acp-cockpit/uiname.toml`);
+   `~/.acp-cockpit/uiname.toml`, else the `uiname.toml` shipped inside
+   the package);
 3. the built-in default.
 
 The result is trimmed to `MAX_LEN` characters, because it goes in a browser
@@ -27,15 +28,15 @@ DEFAULT = "ClaudIU"
 MAX_LEN = 15
 ELLIPSIS = "…"
 
-_PACKAGE_ROOT = Path(__file__).resolve().parents[2]
+_PACKAGE_ROOT = Path(__file__).resolve().parents[1]   # the package itself
 
 
 def _candidates(explicit=None):
     if explicit:
         yield Path(explicit)
         return
-    yield _PACKAGE_ROOT / "uiname.toml"
     yield Path.home() / ".acp-cockpit" / "uiname.toml"
+    yield _PACKAGE_ROOT / "uiname.toml"
 
 
 def _from_file(explicit=None) -> str | None:

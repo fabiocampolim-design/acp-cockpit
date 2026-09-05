@@ -90,9 +90,18 @@ def load_profile(path: Path) -> AgentProfile:
     )
 
 
-def load_profiles(directory: Path) -> dict[str, AgentProfile]:
+def load_profiles(*directories) -> dict[str, AgentProfile]:
+    """Profiles from each directory in turn; a later directory overrides
+    an earlier one by `id`, and a directory that does not exist is simply
+    empty. The server reads the profiles shipped inside the package and
+    then the user's own `~/.acp-cockpit/agents/`, so an installed copy
+    can be given a local adapter build without touching site-packages."""
     out: dict[str, AgentProfile] = {}
-    for p in sorted(Path(directory).glob("*.toml")):
-        prof = load_profile(p)
-        out[prof.id] = prof
+    for directory in directories:
+        directory = Path(directory)
+        if not directory.is_dir():
+            continue
+        for p in sorted(directory.glob("*.toml")):
+            prof = load_profile(p)
+            out[prof.id] = prof
     return out

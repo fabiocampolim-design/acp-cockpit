@@ -8,8 +8,9 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-schema = json.loads((ROOT / "vendor/acp/schema.json").read_text(encoding="utf-8"))
-reg = json.loads((ROOT / "vendor/acp/registry.json").read_text(encoding="utf-8"))
+VENDOR = ROOT / "acp_cockpit" / "vendor" / "acp"
+schema = json.loads((VENDOR / "schema.json").read_text(encoding="utf-8"))
+reg = json.loads((VENDOR / "registry.json").read_text(encoding="utf-8"))
 
 known = set()
 for key in ("to_agent_requests", "to_agent_notifications",

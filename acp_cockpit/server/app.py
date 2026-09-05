@@ -27,7 +27,7 @@ from .procs import SubprocessAgentProcess, resolve_env
 from .ws import BufferedSink, SessionWS
 
 UI_DIR = Path(__file__).resolve().parents[1] / "ui" / "web"
-VENDOR = Path(__file__).resolve().parents[2] / "vendor" / "acp"
+VENDOR = Path(__file__).resolve().parents[1] / "vendor" / "acp"
 
 CSP = ("default-src 'self'; img-src 'self' data:; "
        "style-src 'self'; script-src 'self'")
@@ -95,7 +95,9 @@ class SessionManager:
     def __init__(self, profiles_dir: Path, records_dir: Path,
                  permission_timeout: float = 3600.0,
                  dead_ttl: float = 600.0):
-        self.profiles = load_profiles(profiles_dir)
+        dirs = ([profiles_dir] if isinstance(profiles_dir, (str, Path))
+                else list(profiles_dir))
+        self.profiles = load_profiles(*dirs)
         self.records_dir = Path(records_dir)
         self.permission_timeout = permission_timeout
         # A failed or closed session stays listed this long — enough for a

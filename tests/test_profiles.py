@@ -5,7 +5,7 @@ from acp_cockpit.core.profiles import AgentProfile, ProfileError, load_profile, 
 
 
 def test_claude_profile_loads():
-    p = load_profile(Path("agents/claude.toml"))
+    p = load_profile(Path("acp_cockpit/agents/claude.toml"))
     assert p.id == "claude"
     assert p.command[0] == "claude-agent-acp"
     assert p.npm_package == "@agentclientprotocol/claude-agent-acp"
@@ -36,7 +36,7 @@ def test_claude_profile_resolves_the_installed_claude_cli():
     # The adapter bundles its own Claude CLI; the API refused it for a new
     # model on 2026-09-01 ("version 2.1.251 or newer is required"). The
     # profile points the adapter at the user's `claude` when one is on PATH.
-    p = load_profile(Path("agents/claude.toml"))
+    p = load_profile(Path("acp_cockpit/agents/claude.toml"))
     assert p.env_resolve == {"CLAUDE_CODE_EXECUTABLE": "claude"}
 
 
@@ -58,7 +58,7 @@ def test_env_resolve_values_must_be_command_names(tmp_path):
 
 
 def test_claude_profile_declares_plan_exit_followups():
-    p = load_profile(Path("agents/claude.toml"))
+    p = load_profile(Path("acp_cockpit/agents/claude.toml"))
     by_option = {f["option_id"]: f["mode"] for f in p.permission_mode_followups}
     assert by_option["exit-plan-default"] == "default"
     assert by_option["exit-plan-auto"] == "auto"
@@ -77,7 +77,7 @@ def test_claude_profile_asks_for_summarized_thinking():
     # The API offers "summarized" or "omitted" for recent models, never raw
     # thinking text. The adapter merges `client_options` into the SDK call
     # (`_meta.claudeCode.options`), so the profile is where the ask lives.
-    p = load_profile(Path("agents/claude.toml"))
+    p = load_profile(Path("acp_cockpit/agents/claude.toml"))
     assert p.client_options["thinking"] == {"type": "adaptive",
                                             "display": "summarized"}
 
@@ -100,7 +100,7 @@ def test_client_options_must_be_a_table(tmp_path):
 def test_thinking_caveat_describes_summaries_not_redaction():
     # The client now asks for summarized thinking; the old caveat promised
     # empty markers, which would be a lie in the launcher.
-    p = load_profile(Path("agents/claude.toml"))
+    p = load_profile(Path("acp_cockpit/agents/claude.toml"))
     ids = [c["id"] for c in p.caveats]
     assert "thinking-redacted" not in ids
     text = next(c["text"] for c in p.caveats if c["id"] == "thinking-summary")
@@ -111,7 +111,7 @@ def test_ask_user_question_caveat_is_retired():
     # The tool works now (the client advertises form elicitation), so the
     # "not loaded" caveat would be a lie. What remains true is that an
     # option's `preview` has no slot in ACP's EnumOption and is not shown.
-    p = load_profile(Path("agents/claude.toml"))
+    p = load_profile(Path("acp_cockpit/agents/claude.toml"))
     ids = [c["id"] for c in p.caveats]
     assert "no-ask-user-question" not in ids
     text = next(c["text"] for c in p.caveats

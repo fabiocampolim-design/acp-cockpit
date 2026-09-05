@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-_REGISTRY_PATH = Path(__file__).resolve().parents[2] / "vendor" / "acp" / "registry.json"
+# Inside the package, so an installed wheel finds it (review 2026-09-05:
+# parents[2] pointed at the checkout root and at nothing in site-packages).
+_REGISTRY_PATH = Path(__file__).resolve().parents[1] / "vendor" / "acp" / "registry.json"
 
 
 class Sentinel:

@@ -118,6 +118,6 @@ def test_a_malformed_order_is_refused_at_load(tmp_path):
 
 
 def test_the_shipped_claude_profile_declares_the_order():
-    prof = load_profile(Path("agents/claude.toml"))
+    prof = load_profile(Path("acp_cockpit/agents/claude.toml"))
     assert prof.config_option_order["model"] == [
         "default", "fable", "opus", "sonnet", "haiku"]

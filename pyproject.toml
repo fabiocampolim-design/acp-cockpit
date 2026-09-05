@@ -2,18 +2,54 @@
 name = "acp-cockpit"
 version = "0.4.0"
 description = "Browser client for AI coding agents over the Agent Client Protocol"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
 requires-python = ">=3.11"
 dependencies = ["tornado>=6.4"]
+keywords = ["agent-client-protocol", "acp", "coding-agents", "claude-code",
+            "tornado", "developer-tools"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Web Environment",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development",
+]
+
+[project.urls]
+Homepage = "https://github.com/fabiocampolim-design/acp-cockpit"
+Changelog = "https://github.com/fabiocampolim-design/acp-cockpit/blob/master/CHANGELOG.md"
+Issues = "https://github.com/fabiocampolim-design/acp-cockpit/issues"
+
+[project.scripts]
+acp-cockpit = "acp_cockpit.__main__:main"
 
 [project.optional-dependencies]
 dev = ["pytest", "pyflakes", "playwright"]
 
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["acp_cockpit*"]
+
+# Everything the server serves or reads at run time lives INSIDE the package
+# so an installed wheel is the same program as a checkout. On 2026-09-05 the
+# wheel held 24 Python files and none of these; only `pip install -e .` worked.
+[tool.setuptools.package-data]
+acp_cockpit = [
+  "ui/web/*",
+  "vendor/acp/*",
+  "agents/*.toml",
+  "agents/PROFILE-SCHEMA.md",
+  "uiname.toml",
+]
 
 [tool.pytest.ini_options]
 # archive/claudiu-v0.1 is a separate, gitignored repo with its own suite;

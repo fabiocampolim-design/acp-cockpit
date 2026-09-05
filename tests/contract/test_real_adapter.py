@@ -20,7 +20,7 @@ from acp_cockpit.server.procs import SubprocessAgentProcess
 # The adapter to look for is the one the PROFILE names: the package was
 # renamed (claude-code-acp -> claude-agent-acp) and a hardcoded old name
 # silently skipped this whole tier instead of running it.
-_ADAPTER = load_profile(Path("agents/claude.toml")).command[0]
+_ADAPTER = load_profile(Path("acp_cockpit/agents/claude.toml")).command[0]
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("ACP_COCKPIT_CONTRACT") != "1"
@@ -37,7 +37,7 @@ class QueueSink:
 
 
 def test_real_handshake_prompt_and_drift_silence(tmp_path):
-    profile = load_profile(Path("agents/claude.toml"))
+    profile = load_profile(Path("acp_cockpit/agents/claude.toml"))
     sink = QueueSink()
     holder = {}
     proc = SubprocessAgentProcess(
