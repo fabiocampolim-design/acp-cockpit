@@ -12,12 +12,14 @@ adapter.
 > Working name only. This project is not affiliated with, endorsed by, or
 > sponsored by Anthropic or Zed Industries.
 
-![ClaudIU rendering a session: tabs and account limits pinned top right,
-the conversation with tool rows, the predicted next prompt over the
-composer, and the session controls beneath it](docs/screenshot.png)
+![A real session: the model's thinking in italics above its answer, with the
+tools, events and harness lanes switched off so only the conversation
+remains](docs/screenshot.png)
 
-*(The conversation above is the repository's own scripted test agent, not a
-real session.)*
+*The model's own thinking, then its answer — with the tool, event and
+harness lanes switched off (struck through, bottom left) so that only the
+conversation is left. Nothing is hidden by default; you decide what is on
+the page.*
 
 ## What you get
 
@@ -57,6 +59,55 @@ transcript written from the record when it is not), a
 drift sentinel that tells you when the protocol has moved, per-session
 thinking settings, light and dark themes, and a keyboard that works the way
 a terminal's does — `Esc` interrupts, everything else types.
+
+![The same client with everything on: account rate-limit windows top right,
+tool calls in the conversation, the agent's predicted next prompt over the
+composer, and the session controls below](docs/screenshot-controls.png)
+
+*Everything switched on: your account's rate-limit windows top right, tool
+calls in the flow, the agent's predicted next prompt offered over the
+composer, and every session control in one panel. (This one runs against the
+repository's own scripted test agent, so the prose is deliberately dull.)*
+
+## Questions people ask
+
+**Can Anthropic — or anyone else — see my conversation?**
+Nothing about ClaudIU changes who sees what. It is a local program: it binds
+`127.0.0.1`, serves one browser, and spawns the agent adapter as a child
+process on your machine. Your prompts go exactly where they would if you ran
+the agent in a terminal — to whatever service that agent talks to, under
+your own credentials — and ClaudIU adds no destination of its own. It sends
+your conversation nowhere, stores it nowhere but your disk, and has no
+account, no telemetry and no analytics. The transcripts in
+`~/.claudiu/records` never leave the machine unless you move them.
+
+The one exception is deliberate and switchable: `/api/drift` asks
+`api.github.com` and `registry.npmjs.org` whether the pinned ACP schema and
+the installed adapter are behind the latest published versions. It sends
+nothing but the request. `--no-drift-online` turns it off.
+
+**How is the agent doing right now — am I about to hit a limit?**
+The status strip carries the context gauge (tokens used against the window,
+as a percentage, with the session's cost when the agent reports it) and the
+canonical model id the API actually billed. Your account's rate-limit
+windows sit top right, one chip each — 5 h, 7 d, per-model — with how much
+of each is used, when it resets, and whether extra credits may be spent.
+Those chips appear when the agent reports them, which it does as an account
+approaches a window; a quiet panel means nothing has been reported yet, not
+that nothing is known. The agent reports the *state* of extra credits and
+never a balance, so no figure in money is shown — there is none in the
+protocol to show.
+
+**What actually runs on my machine when I install this?**
+One Python process. `python -m claudiu` starts a Tornado server bound to
+`127.0.0.1` on an OS-assigned port (or `--port`), prints a URL with a
+one-time token, and waits. Nothing is installed as a service, nothing starts
+at boot, and nothing listens on a public interface. When you start a session
+it spawns the agent's adapter — for Claude Code, the `claude-agent-acp` node
+process — as a child, talks to it over stdin/stdout, and kills it when the
+session ends. Sessions live in that server process, which is why closing the
+browser costs nothing and reopening it reattaches; stopping the server ends
+them. It is a program you run, not a daemon you host.
 
 ## Quickstart
 
