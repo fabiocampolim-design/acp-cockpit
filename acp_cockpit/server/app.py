@@ -93,13 +93,20 @@ class SessionManager:
     }
 
     def __init__(self, profiles_dir: Path, records_dir: Path,
-                 permission_timeout: float = 3600.0):
+                 permission_timeout: float = 3600.0,
+                 dead_ttl: float = 600.0):
         self.profiles = load_profiles(profiles_dir)
         self.records_dir = Path(records_dir)
         self.permission_timeout = permission_timeout
+        # A failed or closed session stays listed this long — enough for a
+        # reader to see why — then leaves the list. Before this they were
+        # kept for the life of the process and every reload re-created a
+        # dead tab for each (audit 2026-09-04 R2, review 2026-09-05).
+        self.dead_ttl = dead_ttl
         self._entries: dict[str, Entry] = {}
 
-    def _spawn(self, profile, cwd, sid, sink, client_options=None):
+    def _spawn(self, profile, cwd, sid, sink, client_options=None,
+               ephemeral=False):
         loop = tornado.ioloop.IOLoop.current()
         holder = {}
 
@@ -113,7 +120,8 @@ class SessionManager:
             on_line=marshal(lambda ln: holder["s"].on_line(ln)),
             on_stderr=marshal(lambda ln: holder["s"].on_stderr(ln)),
             on_exit=marshal(lambda code: holder["s"].on_exit(code)))
-        recorder = Recorder(self.records_dir / f"{sid}.jsonl")
+        recorder = Recorder(self.records_dir / f"{sid}.jsonl",
+                            ephemeral=ephemeral)
         # First record of every session: what was launched and which
         # runtime it was pointed at — the answer to "which CLI ran this?".
         recorder.append({"dir": "client", "action": "spawn",
@@ -149,8 +157,8 @@ class SessionManager:
         session, loop = self._spawn(profile, cwd, sid, sink,
                                     client_options=client_options)
         entry = Entry(session, sink, profile_id, cwd, resume_of=resume)
-        self._watch_events(entry, loop)
         self._entries[sid] = entry
+        self._watch_events(entry, loop)
         if resume:
             session.load(resume, cwd)
         else:
@@ -163,7 +171,7 @@ class SessionManager:
         profile = self.profiles[profile_id]
         sid = "probe-" + uuid.uuid4().hex[:8]
         sink = BufferedSink(sid)
-        session, loop = self._spawn(profile, cwd, sid, sink)
+        session, loop = self._spawn(profile, cwd, sid, sink, ephemeral=True)
         future = tornado.concurrent.Future()
 
         def done(sessions, error):
@@ -184,10 +192,20 @@ class SessionManager:
                     for asked, (resolved, _, _) in self.PENDING_KINDS.items()}
         original_emit = sink.emit
 
+        def evict():
+            if not entry.live and self._entries.get(entry_sid) is entry:
+                del self._entries[entry_sid]
+
+        entry_sid = next((s for s, e in self._entries.items() if e is entry),
+                         None)
+
         def emit(event):
             original_emit(event)
             if event.kind == "session_info" and event.data.get("title"):
                 entry.title = event.data["title"]
+            if event.kind == "session_state" and \
+                    event.data.get("state") in ("failed", "closed"):
+                loop.call_later(self.dead_ttl, evict)
             if event.kind in self.PENDING_KINDS:
                 _, pending, fail_safe = self.PENDING_KINDS[event.kind]
                 key = (event.kind, event.data["request"])
@@ -666,8 +684,10 @@ def _latest_versions(npm_package: str | None = None) -> dict:
 
 def make_app(profiles_dir, records_dir, auth,
              permission_timeout: float = 3600.0, drift_online: bool = False,
-             archiver: str | None = None, ui_name_file=None):
-    manager = SessionManager(profiles_dir, records_dir, permission_timeout)
+             archiver: str | None = None, ui_name_file=None,
+             dead_ttl: float = 600.0):
+    manager = SessionManager(profiles_dir, records_dir, permission_timeout,
+                             dead_ttl=dead_ttl)
     common = {"manager": manager, "auth": auth}
     app = tornado.web.Application([
         (r"/", RootHandler, common),

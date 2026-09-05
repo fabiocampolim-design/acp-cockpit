@@ -2,6 +2,7 @@
 """CLI: python -m acp_cockpit [--port N] [--profiles DIR] [--records DIR]
                           [--records-keep-days N] [--token-file F]"""
 import argparse
+import atexit
 import os
 import signal
 from pathlib import Path
@@ -82,7 +83,14 @@ def main():
     def shutdown(*_):
         app.manager.close_all()
         loop.add_callback_from_signal(loop.stop)
+    # Ctrl+C, a polite SIGTERM (POSIX) and an ordinary interpreter exit all
+    # end the adapters; a hard kill on Windows is covered by the job object
+    # each adapter runs in (server/procs.py). Ten orphaned adapter CLIs from
+    # the week before were still resident on 2026-09-05.
     signal.signal(signal.SIGINT, shutdown)
+    if hasattr(signal, "SIGTERM") and os.name != "nt":
+        signal.signal(signal.SIGTERM, shutdown)
+    atexit.register(app.manager.close_all)
     loop.start()
 
 

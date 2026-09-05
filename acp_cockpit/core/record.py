@@ -35,8 +35,13 @@ def prune(directory, keep_days: int) -> list[str]:
 
 
 class Recorder:
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, ephemeral: bool = False):
+        """`ephemeral`: the file is removed on close. For the throwaway
+        adapter that answers `session/list` — nine probe records out of fifty
+        files in the records directory said nothing anyone would read
+        (review 2026-09-05). A real session is never ephemeral."""
         self._path = Path(path)
+        self._ephemeral = ephemeral
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._lineno = 0
         if self._path.exists():
@@ -60,6 +65,11 @@ class Recorder:
 
     def close(self) -> None:
         self._fh.close()
+        if self._ephemeral:
+            try:
+                self._path.unlink()
+            except OSError:
+                pass
 
     def __enter__(self):
         return self

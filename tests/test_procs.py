@@ -104,3 +104,80 @@ def test_env_resolve_reaches_the_child_and_is_reported(tmp_path):
     assert done.wait(timeout=15)
     assert json.loads(lines[0])["env_extra"] == expected
     assert proc.resolved_env == {"EXTRA_VAR": expected}
+
+
+# ---- the whole process TREE dies with the adapter (review 2026-09-05) ----
+import os          # noqa: E402
+import subprocess  # noqa: E402
+import time        # noqa: E402
+
+TREE = str(Path("tests/child_tree.py").resolve())
+PARENT_DIES = str(Path("tests/parent_dies.py").resolve())
+
+
+def alive(pid: int) -> bool:
+    if os.name == "nt":
+        out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV",
+                              "/NH"], capture_output=True, text=True).stdout
+        return f'"{pid}"' in out
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    return True
+
+
+def wait_dead(pid: int, timeout=15) -> bool:
+    end = time.time() + timeout
+    while time.time() < end:
+        if not alive(pid):
+            return True
+        time.sleep(0.2)
+    return False
+
+
+def test_kill_takes_the_grandchildren_too(tmp_path):
+    # The adapter is a node process that starts the CLI as ITS child; killing
+    # the adapter alone left the CLI running for days.
+    lines, errs, exits, done = collectors()
+    proc = SubprocessAgentProcess(
+        command=[sys.executable, TREE], cwd=str(tmp_path),
+        env_scrub=[], env_set={},
+        on_line=lines.append, on_stderr=errs.append,
+        on_exit=lambda code: (exits.append(code), done.set()))
+    end = time.time() + 15
+    while not lines and time.time() < end:
+        time.sleep(0.1)
+    grandchild = json.loads(lines[0])["grandchild"]
+    assert alive(grandchild)
+    proc.kill()
+    assert done.wait(timeout=15)
+    assert wait_dead(grandchild), "the grandchild survived kill()"
+
+
+def test_kill_does_not_block_the_caller_even_when_the_child_resists(tmp_path):
+    # kill() used to wait up to five seconds per session ON THE IOLOOP for a
+    # child that ignored terminate. Escalation happens off the caller's thread.
+    lines, errs, exits, done = collectors()
+    proc = spawn(tmp_path, lines, errs, exits, done,
+                 env_set={"IGNORE_TERM": "1"})
+    end = time.time() + 15
+    while not lines and time.time() < end:
+        time.sleep(0.1)
+    t0 = time.time()
+    proc.kill()
+    assert time.time() - t0 < 1.0, "kill() blocked the caller"
+    assert done.wait(timeout=20), "the resisting child was never killed"
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows job object semantics")
+def test_children_die_with_a_hard_killed_parent(tmp_path):
+    # `Stop-Process` on the pinned server is TerminateProcess: no handler
+    # runs. Only a job object with kill-on-close reaps the adapters then.
+    helper = subprocess.Popen([sys.executable, PARENT_DIES],
+                              stdout=subprocess.PIPE, text=True)
+    child = json.loads(helper.stdout.readline())["child"]
+    assert alive(child)
+    helper.kill()
+    helper.wait(timeout=15)
+    assert wait_dead(child), "the adapter outlived its hard-killed server"

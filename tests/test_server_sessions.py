@@ -122,3 +122,69 @@ class SessionsTest(tornado.testing.AsyncHTTPTestCase):
         live = json.loads(self.fetch("/api/sessions",
                                      headers=self._headers()).body)
         assert live["sessions"][0]["cwd"] == str(self.tmpdir.resolve())
+
+
+class HousekeepingTest(tornado.testing.AsyncHTTPTestCase):
+    """Sessions that are over leave nothing behind (review 2026-09-05)."""
+
+    DEAD_TTL = 0.3
+
+    def get_app(self):
+        self.tmpdir = Path(tempfile.mkdtemp())
+        profs = self.tmpdir / "agents"
+        profs.mkdir()
+        (profs / "cmds.toml").write_text(
+            PROFILE.replace("{python}", json.dumps(sys.executable)),
+            encoding="utf-8")
+        # an "adapter" that dies at once: the session fails
+        (profs / "dies.toml").write_text(
+            f'id = "dies"\nname = "Dies"\ncommand = [{json.dumps(sys.executable)}, '
+            f'"-c", "import sys; sys.exit(3)"]\ninstall_hint = "n/a"\n'
+            f'env_scrub = []\n', encoding="utf-8")
+        self.auth = TokenAuth()
+        return make_app(profiles_dir=profs,
+                        records_dir=self.tmpdir / "records", auth=self.auth,
+                        dead_ttl=self.DEAD_TTL)
+
+    def _headers(self):
+        return {"Cookie": f"acp_cockpit_token={self.auth.token}"}
+
+    def _pump(self, seconds):
+        """Let the IOLoop run: exit callbacks and timers are delivered on it,
+        and a blocking sleep on the test thread would starve them."""
+        import asyncio
+        self.io_loop.run_sync(lambda: asyncio.sleep(seconds))
+
+    def test_a_probe_leaves_no_record_behind(self):
+        resp = self.fetch(f"/api/profiles/cmds/sessions?cwd={self.tmpdir}",
+                          headers=self._headers(), request_timeout=40)
+        assert resp.code == 200, resp.body
+        # the probe's record is deleted once its adapter has exited
+        for _ in range(50):
+            if not list((self.tmpdir / "records").glob("probe-*.jsonl")):
+                break
+            self._pump(0.2)
+        assert not list((self.tmpdir / "records").glob("probe-*.jsonl"))
+
+    def test_a_failed_session_is_evicted_after_its_ttl(self):
+        resp = self.fetch("/api/sessions", method="POST",
+                          headers=self._headers(),
+                          body=json.dumps({"profile": "dies",
+                                           "cwd": str(self.tmpdir)}))
+        assert resp.code == 200
+        sid = json.loads(resp.body)["id"]
+        for _ in range(100):
+            live = json.loads(self.fetch("/api/sessions",
+                                         headers=self._headers()).body)
+            mine = [x for x in live["sessions"] if x["id"] == sid]
+            if mine and mine[0]["state"] == "failed":
+                break
+            self._pump(0.1)
+        else:
+            raise AssertionError("session never failed")
+        self._pump(self.DEAD_TTL * 3)
+        live = json.loads(self.fetch("/api/sessions",
+                                     headers=self._headers()).body)
+        assert sid not in [x["id"] for x in live["sessions"]]
+        # the record of WHY it failed stays on disk
+        assert (self.tmpdir / "records" / f"{sid}.jsonl").exists()
