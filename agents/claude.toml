@@ -67,6 +67,10 @@ id = "bundled-cli"
 text = "The adapter bundles its own Claude CLI, which the API may refuse for newer models. When `claude` is installed on PATH this client points the adapter at it instead (CLAUDE_CODE_EXECUTABLE, shown below as runtime)."
 
 [[caveats]]
+id = "terminal-only-prompts"
+text = "Two things the Claude Code terminal shows you never cross ACP, because they are drawn by the CLI itself and are not protocol messages at all: the occasional session-quality survey (\"How is Claude doing in this session?\" - a `feedbackSurveyRate` setting, with no message type behind it) and its data-usage notices. No ACP client can relay them; the 40 SDK message types include nothing for either. Help (?) answers the privacy one directly."
+
+[[caveats]]
 id = "no-prompt-suggestions"
 text = "Claude Code's predicted next-prompt suggestions do not cross ACP yet: the adapter neither enables the SDK's promptSuggestions option nor forwards the prompt_suggestion message (claude-agent-acp 0.73)."
 

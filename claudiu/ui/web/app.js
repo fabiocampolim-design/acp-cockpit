@@ -1861,6 +1861,24 @@ const HELP = [
    "your next prompt, above the composer. Clicking it fills the box — it " +
    "is never sent for you. Most adapters forward none, so the strip is " +
    "usually absent."],
+  ["Who can see this conversation",
+   "ClaudIU is a local program: it binds 127.0.0.1, serves this browser, " +
+   "and runs the agent's adapter as a child process on your machine. Your " +
+   "prompts go exactly where they would if you ran the agent in a " +
+   "terminal — no further. It has no account, no telemetry and no " +
+   "analytics, and the transcripts in the records directory never leave " +
+   "the machine. The one outbound call it makes is the drift check " +
+   "(api.github.com and registry.npmjs.org, versions only); " +
+   "--no-drift-online turns it off. What the AGENT does with your " +
+   "conversation is between you and whoever you authenticated to, exactly " +
+   "as in the terminal."],
+  ["Two things the terminal asks and this does not",
+   "The Claude Code terminal occasionally shows a session-quality survey " +
+   "(\"How is Claude doing in this session?\") and its own data-usage " +
+   "notices. Both are drawn by the CLI itself and are not protocol " +
+   "messages — there is no message type for either — so no ACP client can " +
+   "relay them. Nothing is being hidden from you here; the wire simply " +
+   "does not carry them."],
   ["Sessions", "They live in the server: reloading the page reattaches to " +
    "everything still running. Only one attachment per agent session."],
 ];
