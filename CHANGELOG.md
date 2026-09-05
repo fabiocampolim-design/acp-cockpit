@@ -2,7 +2,41 @@
 
 All notable changes to CLAUDIU are documented in this file.
 
-## Unreleased (2026-09-04)
+## 0.4.0 - 2026-09-05 - the audit, and a client that holds still
+
+A full-scope audit of the project (eleven findings, all closed) and six
+rounds of daily use. The headline is that the two things you notice most —
+that nothing jumps under your eyes, and that a dropped connection is not the
+end of a session — are now true by construction rather than by luck.
+
+- **Security.** The host/origin guard accepted every
+  `http://127.0.0.1:<any port>` origin, and cookies are not scoped by port,
+  so any other local web page arrived authenticated. Origin must now equal
+  this server's own address *and port*, on the WebSocket too. `/ui/*` was
+  served with no token and no CSP at all; it is behind the same guard now,
+  and revalidates rather than being cached, because "reload the page" is
+  this client's documented recovery and it has to actually refetch.
+- **The view holds still.** Following ran only when a row was *added*, so a
+  streamed answer — one row that grows — scrolled off the bottom while it
+  was written. Settled text is now rendered once and never touched again,
+  which also means an answer can be selected and copied while it arrives.
+  The control panel waits until the session has settled instead of shuffling
+  for its first seconds.
+- **Sessions survive.** A dropped socket reconnects on its own with a cursor
+  and asks only for what it missed; the replay buffer is bounded and names
+  any range it had to drop instead of leaving a silent gap.
+- **Archiving works without claude-session-publisher**, writing a plain
+  Markdown transcript from the session's own record, in a side panel that
+  never covers the conversation.
+- **The account panel was reading a field the agent never sends** — every
+  window now shows its real percentage, and extra credits are one badge.
+- Prompt suggestions, a canonical model id in the strip, models ordered by
+  capability, a launcher that remembers, a dated resume list, `Esc` to
+  interrupt, records retention, and a good deal of layout work.
+
+Full detail in the rounds below.
+
+## Unreleased
 
 ### audit fixes
 
