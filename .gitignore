@@ -16,13 +16,11 @@ docs/superpowers/plans/
 .acp-cockpit-server.log*
 .playwright-mcp/
 
-# Profiles you add for yourself: a local adapter build, a private agent, an
-# experiment. `acp_cockpit/agents/local-*.toml
-# (an installed copy uses ~/.acp-cockpit/agents/ instead)
-build/
-dist/` is loaded exactly like the shipped ones
-# and never tracked, so a machine-specific path never reaches the repo.
+# Profiles you add for yourself in a checkout: a local adapter build, a
+# private agent, an experiment. `acp_cockpit/agents/local-*.toml` is loaded
+# exactly like the shipped ones and never tracked, so a machine-specific path
+# never reaches the repo (an installed copy uses ~/.acp-cockpit/agents/).
 acp_cockpit/agents/local-*.toml
-# (an installed copy uses ~/.acp-cockpit/agents/ instead)
+# wheel builds
 build/
 dist/
