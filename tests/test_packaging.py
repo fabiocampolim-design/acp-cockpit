@@ -31,11 +31,14 @@ MUST_SHIP = (
                                    capture_output=True).returncode != 0,
                     reason="pip not available")
 def test_the_wheel_ships_the_ui_the_schema_the_profiles_and_the_name(tmp_path):
-    pytest.importorskip("setuptools")
+    # Built the way pip builds it: in an isolated environment with the
+    # setuptools the pyproject asks for. `--no-build-isolation` used the
+    # runner's preinstalled setuptools, which on the Python 3.11 cells was
+    # too old for the PEP 639 `license = "Apache-2.0"` string (CI 2026-09-05).
     run = subprocess.run(
         [sys.executable, "-m", "pip", "wheel", ".", "--no-deps",
-         "--no-build-isolation", "-q", "-w", str(tmp_path)],
-        capture_output=True, text=True, timeout=600)
+         "-q", "-w", str(tmp_path)],
+        capture_output=True, text=True, timeout=900)
     assert run.returncode == 0, run.stderr[-2000:]
     wheel = next(tmp_path.glob("acp_cockpit-*.whl"))
     names = set(zipfile.ZipFile(wheel).namelist())
