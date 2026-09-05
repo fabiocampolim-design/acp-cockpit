@@ -165,8 +165,11 @@ def test_folder_picker_navigates_and_fills_the_directory(server):
         page.wait_for_selector("#dirpick[open]")
         # the dialog opens before the listing arrives: wait for the listing,
         # not for the dialog (the assert raced the fetch on CI, 2026-09-05)
+        # a FUNCTION, not an expression: Playwright evals a bare expression
+        # string in the page, which the CSP (script-src 'self') forbids —
+        # flaky on CI, since the block depends on timing (2026-09-05)
         page.wait_for_function(
-            "document.querySelector('#dirpick-path').textContent !== ''")
+            "() => document.querySelector('#dirpick-path').textContent !== ''")
         assert page.inner_text("#dirpick-path") == str(tmp.resolve())
         page.click('#dirpick-list button[data-name="proj-a"]')
         page.wait_for_selector('#dirpick-list button[data-name="inner"]')
@@ -799,7 +802,7 @@ def test_each_tab_keeps_its_own_scroll_position(server):
         page.wait_for_selector("#send:not([disabled])")
         page.keyboard.press("Alt+1")
         page.wait_for_function(
-            "document.querySelector('.pane:not([hidden])') !== null")
+            "() => document.querySelector('.pane:not([hidden])') !== null")
         assert pane.evaluate("el => el.scrollTop") == 0, \
             "switching tabs lost the first tab's reading position"
         assert page.locator("#jump-bottom:visible").count() == 1
