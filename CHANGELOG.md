@@ -42,6 +42,26 @@ plane) found eleven things; these are the ones fixed here.
   two files that no longer exist; three lines mangled by an earlier patch
   were reflowed; and this file had two `## Unreleased` sections.
 
+### daily-use round 13 (2026-09-04)
+
+- **The launcher remembers what you last started** — agent, directory,
+  thinking — in this browser *and* on the server, so a new browser or a
+  cleared profile opens on the right project instead of an empty form
+  (`/api/settings`). Preferences, not state: a corrupt store costs three
+  dropdowns and nothing else.
+- **Resumable sessions are dated and newest first**: "2 h ago", "yesterday
+  14:02", with the session id in the tooltip. One the agent never dated says
+  so and sorts last instead of pretending to be recent.
+- **The control panel waits instead of shuffling.** A session announces
+  itself in pieces, and rendering each as it landed made the panel rearrange
+  itself for a couple of seconds at every start. It shows one quiet line
+  until the agent is ready and has said what it offers.
+- **Extra credits are a word and a colour**: `EC` green when the account may
+  spend them, red when it may not, with the reported state in the tooltip.
+  The overage window's label is `7d+EC` rather than `7d +credits`.
+- **The launcher's two columns start level**: the caveats now begin at the
+  height of the name rather than the first field.
+
 ### daily-use round 12 (2026-09-04)
 
 - **Prompt suggestions, when an adapter forwards them.** After a turn the

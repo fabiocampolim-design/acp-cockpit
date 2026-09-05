@@ -50,15 +50,46 @@ async function initLauncher() {
   $("#start").onclick = () => startSession(null);
   $("#refresh-recent").onclick = loadRecent;
   $("#tab-add").onclick = showLauncher;
-  // the last directory a session was started in (this browser only)
-  try {
-    const last = localStorage.getItem(CWD_KEY);
-    if (last && !$("#cwd").value) $("#cwd").value = last;
-    const think = localStorage.getItem(THINK_KEY);
-    if (think) $("#thinking").value = think;
-  } catch (e) {}
+  await restoreLauncherSettings();
   initPicker();
   await restoreSessions();
+}
+
+/* What the launcher was last started with. This browser's own memory wins
+   — it is the most recent thing this person did here — and the server's
+   copy is the fallback that makes a fresh browser, a cleared profile or a
+   second machine open on the right project instead of an empty form. */
+async function restoreLauncherSettings() {
+  const local = {};
+  try {
+    local.profile = localStorage.getItem(PROFILE_KEY);
+    local.cwd = localStorage.getItem(CWD_KEY);
+    local.thinking = localStorage.getItem(THINK_KEY);
+  } catch (e) {}
+  let remote = {};
+  try { remote = await api("/api/settings"); } catch (e) {}
+  const pick = (k) => local[k] || remote[k] || "";
+  const sel = $("#profile");
+  const wanted = pick("profile");
+  if (wanted && [...sel.options].some(o => o.value === wanted && !o.disabled)) {
+    sel.value = wanted;
+    sel.onchange();
+  }
+  if (!$("#cwd").value) $("#cwd").value = pick("cwd");
+  const think = pick("thinking");
+  if (think) $("#thinking").value = think;
+}
+
+function rememberLauncherSettings(profile, cwd, thinking) {
+  try {
+    localStorage.setItem(PROFILE_KEY, profile);
+    localStorage.setItem(CWD_KEY, cwd);
+    localStorage.setItem(THINK_KEY, thinking);
+  } catch (e) {}
+  // and on the server, for the next browser that has never been here
+  api("/api/settings", {method: "POST",
+                        body: JSON.stringify({profile, cwd, thinking})})
+    .catch(() => {});
 }
 
 /* The sessions live in the SERVER, not the page: a reload (or a second
@@ -89,6 +120,7 @@ async function restoreSessions() {
    A page cannot learn an absolute path from the OS folder dialog, so the
    server lists directories (GET /api/dirs) and the dialog walks them. */
 
+const PROFILE_KEY = "claudiu.profile";
 const THINK_KEY = "claudiu.thinking";
 const CWD_KEY = "claudiu.cwd";
 
@@ -164,9 +196,9 @@ async function loadRecent() {
                            encodeURIComponent(cwd));
     if (data.error) list.replaceChildren(li(`not available: ${data.error}`));
     else if (!data.sessions.length) list.replaceChildren(li("none found"));
-    else list.replaceChildren(...data.sessions.map(s => {
-      const item = li(`${s.title || "(untitled)"} — ${s.sessionId}` +
-                      (s.updatedAt ? ` · ${s.updatedAt}` : ""));
+    else list.replaceChildren(...[...data.sessions].sort(byRecency).map(s => {
+      const item = li(`${s.title || "(untitled)"} — ${when(s.updatedAt)}`);
+      item.title = `${s.sessionId}\n${s.updatedAt || "no timestamp reported"}`;
       const b = document.createElement("button");
       b.textContent = "Resume";
       b.dataset.resume = s.sessionId;
@@ -180,6 +212,35 @@ async function loadRecent() {
   }
 }
 
+/* Newest first — the one you want is almost always the last one you left.
+   A session the agent dated with nothing sorts to the bottom rather than
+   pretending to be new. */
+function byRecency(a, b) {
+  const at = Date.parse(a.updatedAt || "") || 0;
+  const bt = Date.parse(b.updatedAt || "") || 0;
+  return bt - at;
+}
+
+/* "3 min ago", "yesterday 14:02", "12 Aug 09:31" — the timestamp the agent
+   reported, in a shape a reader can use. */
+function when(iso) {
+  if (!iso) return "no date reported";
+  const t = Date.parse(iso);
+  if (!t) return iso;
+  const mins = Math.round((Date.now() - t) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const when = new Date(t);
+  const hhmm = when.toTimeString().slice(0, 5);
+  const days = Math.floor((new Date().setHours(0, 0, 0, 0) -
+                           new Date(t).setHours(0, 0, 0, 0)) / 86400000);
+  if (days === 0) return `today ${hhmm}`;
+  if (days === 1) return `yesterday ${hhmm}`;
+  if (days < 7) return `${days} days ago, ${hhmm}`;
+  return when.toLocaleDateString(undefined, {day: "numeric", month: "short"}) +
+    " " + hhmm;
+}
+
 function li(text) {
   const el = document.createElement("li"); el.textContent = text; return el;
 }
@@ -190,7 +251,6 @@ async function startSession(resume, resumeCwd) {
   if (resume && resumeCwd) $("#cwd").value = resumeCwd;
   if (!cwd) { alertBanner("pick a project directory first"); return; }
   const thinking = $("#thinking").value;
-  try { localStorage.setItem(THINK_KEY, thinking); } catch (e) {}
   // Session-CREATION options: thinking cannot be changed later over ACP.
   const client_options = {
     summarized: {thinking: {type: "adaptive", display: "summarized"}},
@@ -205,7 +265,7 @@ async function startSession(resume, resumeCwd) {
     alertBanner(e.message);
     return;
   }
-  try { localStorage.setItem(CWD_KEY, cwd); } catch (e) {}
+  rememberLauncherSettings(profile, cwd, thinking);
   const S = new Session(id, profile, cwd);
   sessions.set(id, S);
   activate(S);
@@ -496,8 +556,17 @@ class Session {
             name: hit ? (hit.name || String(hit.value)) : String(opt.currentValue)};
   }
 
+  /* Ready, and the agent has said what it offers. Until then the panel
+     shows one line instead of shuffling its contents into place. */
+  get settled() {
+    return this.state !== "starting" &&
+      (this.config.length > 0 || this.mode.available.length > 0 ||
+       this.state === "failed" || this.state === "closed");
+  }
+
   renderControls() {
     if (!this.isActive) return;
+    $("#workspace").dataset.settling = this.settled ? "" : "1";
     // Newer agents offer mode/model as config options too: the config option
     // wins and the legacy select hides — never two controls for one thing.
     const cfgIds = new Set(this.config.map(o => o.id));
@@ -507,6 +576,14 @@ class Session {
     fillSelect($("#model"), cfgIds.has("model") ? [] :
                this.model.available.map(m => [m.modelId, m.name || m.modelId, m.description]),
                this.model.current);
+    let settling = $("#toolbar .controls .settling");
+    if (!settling) {
+      settling = document.createElement("span");
+      settling.className = "settling";
+      $("#toolbar .controls").prepend(settling);
+    }
+    settling.textContent = this.state === "starting"
+      ? "starting the agent…" : "waiting for the agent's options…";
     const box = $("#config-options");
     box.replaceChildren(...this.config.map(opt => {
       const wrap = document.createElement("label");
@@ -550,6 +627,7 @@ class Session {
 
   setState(s) {
     this.state = s;
+    if (this.isActive) this.renderControls();
     // a suggestion is for the gap between turns, not for the middle of one
     if (s === "turn") this.suggestion = null;
     this.renderSuggestion();
@@ -1069,8 +1147,8 @@ function windowLabel(type) {
     if (!type.startsWith(prefix + "_")) continue;
     const words = type.slice(prefix.length + 1).split("_")
       .filter(w => w !== "included");
-    return short + " " + words.map(w => w === "overage" ? "+credits"
-      : w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+    return short + words.map(w => w === "overage" ? "+EC"
+      : " " + w.charAt(0).toUpperCase() + w.slice(1)).join("");
   }
   return type.replace(/_/g, " ");
 }
@@ -1119,12 +1197,24 @@ function fmtReset(epochSeconds) {
    EC = extra credits. The agent reports the STATE of the credits and never
    a balance — there is no amount, in any currency, anywhere in the
    rate-limit payload — so none is shown. */
+/* Extra credits: one word and a colour. Green means the account may spend
+   them, red means it may not; the state the agent actually reported is in
+   the chip's tooltip, because "allowed" and "in use" are both green and a
+   reader who wants the difference should be able to find it. */
 function creditsNote(d) {
-  if (d.isUsingOverage || d.overageInUse) return "EC in use";
-  if (d.overageDisabledReason === "out_of_credits") return "EC out";
-  if (d.canUserPurchaseCredits) return "EC available";
-  if (d.overageStatus) return `EC ${d.overageStatus}`;
-  return "";
+  if (!d.overageStatus && !d.isUsingOverage && !d.overageInUse &&
+      d.overageDisabledReason === undefined &&
+      d.canUserPurchaseCredits === undefined) return null;
+  const ok = d.isUsingOverage || d.overageInUse ||
+    d.overageStatus === "allowed" || d.canUserPurchaseCredits === true;
+  return {
+    ok,
+    detail: d.isUsingOverage || d.overageInUse ? "extra credits in use"
+      : d.overageDisabledReason === "out_of_credits" ? "out of extra credits"
+      : d.overageStatus ? `extra credits: ${d.overageStatus}`
+      : d.canUserPurchaseCredits ? "extra credits available"
+      : "extra credits unavailable",
+  };
 }
 
 function renderAccount() {
@@ -1143,14 +1233,20 @@ function renderAccount() {
     const b = document.createElement("b");
     b.textContent = pct;
     span.append(label + " ", b);
-    if (w.credits) span.append(" · " + w.credits);
+    if (w.credits) {
+      const ec = document.createElement("i");
+      ec.className = "ec";
+      ec.dataset.ok = w.credits.ok ? "1" : "0";
+      ec.textContent = "EC";
+      span.append(" ", ec);
+    }
     span.title = [`${label}: ${pct} used`, `status: ${w.status || "?"}`,
                   fmtReset(w.resetsAt),
-                  w.credits && `${w.credits}  (EC = extra credits; the agent `
-                    + `reports their state, never a balance)`,
+                  w.credits && `EC — ${w.credits.detail} (the agent reports `
+                    + `their state, never a balance)`,
                   "", "as the agent reported it:",
                   JSON.stringify(w.raw, null, 1)]
-      .filter(v => v === "" || Boolean(v)).join("\n");
+      .filter(v => v === "" || (v && typeof v === "string")).join("\n");
     return span;
   }));
 }

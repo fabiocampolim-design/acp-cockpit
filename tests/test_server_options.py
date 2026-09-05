@@ -114,6 +114,38 @@ class OptionsTest(tornado.testing.AsyncHTTPTestCase):
             assert resp.code == 400, (path, resp.code, resp.body)
             assert b"json" in resp.body.lower(), (path, resp.body)
 
+    # ---- launcher settings, kept across restarts --------------------------
+    def test_settings_start_empty_and_round_trip(self):
+        empty = json.loads(self.fetch("/api/settings",
+                                      headers=self._headers()).body)
+        assert empty == {"profile": None, "cwd": None, "thinking": None}
+        saved = json.loads(self.fetch(
+            "/api/settings", method="POST", headers=self._headers(),
+            body=json.dumps({"profile": "fake", "cwd": str(self.tmpdir),
+                             "thinking": "omitted"})).body)
+        assert saved["profile"] == "fake"
+        again = json.loads(self.fetch("/api/settings",
+                                      headers=self._headers()).body)
+        assert again == {"profile": "fake", "cwd": str(self.tmpdir),
+                         "thinking": "omitted"}
+
+    def test_settings_ignore_what_they_do_not_understand(self):
+        self.fetch("/api/settings", method="POST", headers=self._headers(),
+                   body=json.dumps({"profile": "fake", "nonsense": 1,
+                                    "cwd": 42}))
+        kept = json.loads(self.fetch("/api/settings",
+                                     headers=self._headers()).body)
+        assert kept == {"profile": "fake", "cwd": None, "thinking": None}
+
+    def test_a_settings_file_that_is_not_json_is_not_fatal(self):
+        # preferences, not state: a corrupt file costs three dropdowns
+        (self.tmpdir / "records").mkdir(parents=True, exist_ok=True)
+        (self.tmpdir / "records" / "launcher.json").write_text(
+            "{not json", encoding="utf-8")
+        assert json.loads(self.fetch("/api/settings",
+                                     headers=self._headers()).body) == \
+            {"profile": None, "cwd": None, "thinking": None}
+
     # ---- archiving --------------------------------------------------------
     def test_archive_hands_the_agent_session_id_to_the_archiver(self):
         sid = self._post({"profile": "fake", "cwd": str(self.tmpdir)})["id"]

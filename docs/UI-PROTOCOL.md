@@ -65,6 +65,14 @@ spawned for `session/list` and closed. `{"sessions": [{"sessionId",
 
 ### `DELETE /api/sessions/<sid>` — closes the session. `{"ok": true}`.
 
+### `GET /api/settings` · `POST /api/settings`
+
+The launcher's last-used choices — `{"profile", "cwd", "thinking"}`, any of
+them null — kept beside the records so a browser that has never been here
+opens on the right project instead of an empty form. Preferences, not state:
+a View should prefer its own memory when it has one, and treat a corrupt or
+missing store as empty. POST keeps only those three keys, and only strings.
+
 ### `GET /api/dirs?path=<dir>`
 The launcher's folder picker (a page cannot learn an absolute path from
 the OS folder dialog, so the server walks the tree). Empty `path` = the

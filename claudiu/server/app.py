@@ -560,6 +560,44 @@ def _run_archiver(archiver: str, session_id: str, fmt: str,
             "detail": out[-2000:]}
 
 
+class SettingsHandler(BaseHandler):
+    """What the launcher was last started with, kept on the SERVER.
+
+    The browser remembers these too, but a browser is disposable here — a
+    new one, a cleared profile or another machine used to arrive at an empty
+    launcher and have to be told the project directory again. The server
+    keeps the last-used choices beside the records and hands them to whoever
+    asks (Fabio, 2026-09-04: "must remember session settings between
+    restarts"). Preferences, not state: losing this file costs three
+    dropdowns.
+    """
+
+    FIELDS = ("profile", "cwd", "thinking")
+
+    def _path(self) -> Path:
+        return self.manager.records_dir / "launcher.json"
+
+    def get(self):
+        try:
+            saved = json.loads(self._path().read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            saved = {}
+        self.write_json({k: saved.get(k) for k in self.FIELDS})
+
+    def post(self):
+        body = self.json_body()
+        keep = {k: body[k] for k in self.FIELDS
+                if isinstance(body.get(k), str) and body[k]}
+        path = self._path()
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(keep, indent=1), encoding="utf-8")
+        except OSError as exc:
+            self.set_status(500)
+            return self.write_json({"error": f"could not save: {exc}"})
+        self.write_json(keep)
+
+
 class DriftHandler(BaseHandler):
     """Spec §6: report the pinned schema and, when online checks are
     enabled, whether the pin or the installed adapter is behind."""
@@ -633,6 +671,7 @@ def make_app(profiles_dir, records_dir, auth,
         (r"/api/profiles/([A-Za-z0-9_-]+)/sessions", ProfileSessionsHandler,
          common),
         (r"/api/dirs", DirsHandler, common),
+        (r"/api/settings", SettingsHandler, common),
         (r"/api/drift", DriftHandler, common),
         (r"/ws/sessions/([0-9a-f]+)", SessionWS, common),
         (r"/ui/(.*)", GuardedStaticFileHandler,

@@ -212,6 +212,20 @@ adapter that forwards them puts the prediction on
 `_meta._claude/promptSuggestion` of an otherwise empty message chunk, and
 this client renders that.
 
+## What the launcher remembers
+
+The agent, the project directory and the thinking choice are remembered from
+the last session you started — in this browser, and on the server. The
+browser's memory wins, because it is the most recent thing *you* did here;
+the server's copy is what a new browser, a cleared profile or a second
+machine falls back on, so you do not have to find the directory again. They
+are preferences: losing them costs three dropdowns.
+
+**Find resumable sessions** lists what the agent itself remembers for that
+directory, newest first, each with when it was last touched ("2 h ago",
+"yesterday 14:02"). A session the agent never dated says so and sorts last
+rather than pretending to be recent; the session id is in the tooltip.
+
 ## Adding your own agent profile
 
 Every file in `agents/*.toml` is an agent this client can start
@@ -251,10 +265,11 @@ terminal shows on focus) is not displayed here; its description is.
 Top right, one chip per rate-limit window the agent has reported, with how
 much of it is used: `5h`, `7d`, and any per-model window your account has
 (`7d Fable`, `7d Opus`) as soon as the agent reports it — the names are read
-from what arrives, not from a list this client keeps. `7d +credits` is the
-seven-day window with extra credits included. `EC` on a chip means extra
-credits (`EC in use`, `EC available`, `EC out`); the tooltip spells it out,
-along with the reset time and the agent's own payload.
+from what arrives, not from a list this client keeps. `7d+EC` is the
+seven-day window with extra credits included. **EC** is extra credits:
+green when the account may spend them, red when it may not — the state the
+agent actually reported ("in use", "out of extra credits") is in the
+tooltip, along with the reset time and the agent's own payload.
 
 The chips appear only once the agent sends a rate-limit update, which it
 does as your account approaches a window — a quiet panel means nothing has
@@ -263,6 +278,13 @@ because the agent never sends it**: the rate-limit payload carries the
 *state* of extra credits and never a balance or a currency.
 
 ## Status strip and warnings
+
+For the first seconds of a session the panel under the prompt shows a
+single line — *starting the agent…* — instead of its controls. A session
+announces itself in pieces (state, then the options it offers, then usage,
+then the account's limits) and putting each on screen as it landed made the
+panel shuffle for a couple of seconds. It now waits until there is something
+settled to show.
 
 The strip shows the session state, the current permission mode, a
 **context gauge** (tokens used / window size, percentage, and cost when

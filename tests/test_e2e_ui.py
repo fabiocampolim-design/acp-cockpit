@@ -25,6 +25,11 @@ def server():
             'id = "fake"', 'id = "resolving"')
         + "[env_resolve]" + chr(10) + "EXTRA_VAR = " + json.dumps(PY_NAME)
         + chr(10), encoding="utf-8")
+    # an agent that can list its own sessions, for the resume list
+    (profs / "sessions.toml").write_text(
+        FIXTURE_PROFILE.format(python=sys.executable)
+        .replace('id = "fake"', 'id = "sessions"')
+        .replace("basic_turn.json", "commands_turn.json"), encoding="utf-8")
     proc = subprocess.Popen(
         [sys.executable, "-m", "claudiu", "--profiles", str(profs),
          "--records", str(tmp / "rec"), "--no-drift-online"],
@@ -469,15 +474,16 @@ def test_account_usage_panel_shows_the_windows_the_agent_reported(server):
         # only the top level showed one window with no number (2026-09-04).
         assert "5h" in text and "42%" in text
         assert "7d" in text and "88%" in text
-        assert "7d +credits" in text and "45%" in text
+        assert "7d+EC" in text and "45%" in text
         assert page.locator("#account .window").count() == 3
         assert "—" not in text, f"a window reported no number: {text}"
         # the warning windows are marked, and credits state is legible
         assert page.locator('#account [data-status="allowed_warning"]').count() == 2
-        # the credits state is abbreviated on the chip (it lives in a corner)
-        # and spelled out in the tooltip
-        assert "EC in use" in text, text
-        assert "extra credits" in page.get_attribute(
+        # extra credits are one word and a colour; the state is in the
+        # tooltip (Fabio, 2026-09-04)
+        assert page.locator('#account .ec[data-ok="1"]').count() >= 1
+        assert "EC" in text, text
+        assert "extra credits in use" in page.get_attribute(
             '#account [data-window="seven_day"]', "title")
 
 
@@ -517,6 +523,43 @@ def test_a_suggestion_can_be_dismissed(server):
         page.click("#suggestion .drop")
         assert page.locator("#suggestion:not([hidden])").count() == 0
         assert page.input_value("#prompt-input") == ""
+
+
+def test_the_control_panel_waits_instead_of_shuffling(server):
+    # A session announces itself in pieces; rendering each as it lands made
+    # the panel shuffle for a couple of seconds (Fabio, 2026-09-04).
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = start_fake_session(pw, url, tmp)
+        # by the time the session is ready and has its options, the
+        # placeholder is gone and the real controls are there
+        page.wait_for_selector("#workspace:not([data-settling='1'])")
+        assert page.locator("#toolbar .controls .settling").count() == 1
+        assert not page.is_visible("#toolbar .controls .settling")
+        assert page.is_visible("#lanes")
+
+
+def test_resumable_sessions_are_dated_and_newest_first(server):
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = pw.chromium.launch().new_page()
+        open_launcher(page, url)
+        page.select_option("#profile", "sessions")
+        page.fill("#cwd", str(tmp))
+        page.click("#refresh-recent")
+        page.wait_for_selector("#recent-list li button[data-resume]")
+        rows = page.locator("#recent-list li").all_inner_texts()
+        assert len(rows) == 3, rows
+        # newest first, and the one the agent never dated goes last rather
+        # than pretending to be new
+        assert "Newest work" in rows[0], rows
+        assert "Old work" in rows[1], rows
+        assert "No date" in rows[2] and "no date reported" in rows[2], rows
+        # a date a reader can use, with the id kept in the tooltip
+        assert "2026" not in rows[0], f"raw timestamp shown: {rows[0]}"
+        assert "new-1" in page.get_attribute("#recent-list li", "title")
 
 
 def test_many_tabs_never_push_the_account_block_off_the_screen(server):
@@ -570,7 +613,7 @@ def test_a_window_label_is_derived_from_whatever_the_agent_reports(server):
             "() => ['five_hour', 'seven_day', 'seven_day_fable',"
             " 'seven_day_opus', 'seven_day_overage_included',"
             " 'something_new'].map(windowLabel)")
-        assert labels == ["5h", "7d", "7d Fable", "7d Opus", "7d +credits",
+        assert labels == ["5h", "7d", "7d Fable", "7d Opus", "7d+EC",
                           "something new"], labels
 
 
