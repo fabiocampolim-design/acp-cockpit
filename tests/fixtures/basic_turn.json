@@ -23,7 +23,24 @@
      }
     ]
    }
-  }
+  },
+  "notify": [
+   {
+    "jsonrpc": "2.0",
+    "method": "_auth/status_update",
+    "params": {
+     "authStatus": {
+      "kind": "account",
+      "label": "Fake Plan",
+      "account": {
+       "plan": "fake",
+       "email": "someone@example.com",
+       "organization": "Someone's Organization"
+      }
+     }
+    }
+   }
+  ]
  },
  {
   "on_method": "session/prompt",

@@ -117,3 +117,9 @@ def test_ask_user_question_caveat_is_retired():
     text = next(c["text"] for c in p.caveats
                 if c["id"] == "ask-question-preview")
     assert "preview" in text.lower()
+
+
+def test_the_claude_profile_names_its_upstream_repository():
+    # the daily watch reads WHAT to watch from the profile, never from code
+    p = load_profile(Path("acp_cockpit/agents/claude.toml"))
+    assert p.upstream_repo == "agentclientprotocol/claude-agent-acp"

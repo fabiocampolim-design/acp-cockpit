@@ -183,3 +183,24 @@ def test_a_truly_unknown_update_kind_is_still_unrecognized(tmp_path):
     do_handshake(session, proc)
     feed(session, update("hologram_chunk"))
     assert "unrecognized" in sink.kinds()
+
+
+# ---- `_auth/status_update`: the adapter says which account it runs as -----
+# Shape captured from claude-agent-acp 0.75.1 on 2026-09-05 (values redacted:
+# the real frame carried the account e-mail).
+AUTH_STATUS = {"authStatus": {"kind": "account", "label": "Claude Pro",
+                              "account": {"plan": "pro",
+                                          "email": "someone@example.com",
+                                          "organization": "Someone's Organization"}}}
+
+
+def test_auth_status_update_is_its_own_event_not_drift(tmp_path):
+    session, proc, sink = make_session(tmp_path)
+    do_handshake(session, proc)
+    feed(session, {"jsonrpc": "2.0", "method": "_auth/status_update",
+                   "params": AUTH_STATUS})
+    kinds = sink.kinds()
+    assert "drift" not in kinds and "unrecognized" not in kinds
+    ev = [e for e in sink.events if e.kind == "auth_status"][0]
+    assert ev.data["label"] == "Claude Pro"
+    assert ev.data["account"]["email"] == "someone@example.com"

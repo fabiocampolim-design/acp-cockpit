@@ -1,26 +1,85 @@
 {
   "protocol_version": 1,
-  "root_keys": ["jsonrpc", "id", "method", "params", "result", "error", "_meta"],
-  "to_agent_requests": ["initialize", "authenticate", "logout", "session/new",
-    "session/load", "session/prompt", "session/set_mode",
-    "session/set_config_option", "session/resume", "session/list",
-    "session/close", "session/delete"],
-  "vendor_to_agent_requests": ["session/set_model"],
-  "to_agent_notifications": ["session/cancel", "$/cancel_request"],
-  "from_agent_requests": ["session/request_permission", "fs/read_text_file",
-    "fs/write_text_file", "terminal/create", "terminal/output",
-    "terminal/release", "terminal/wait_for_exit", "terminal/kill",
-    "elicitation/create"],
-  "from_agent_notifications": ["session/update", "elicitation/complete",
-    "$/cancel_request"],
-  "update_kinds": ["user_message_chunk", "agent_message_chunk",
-    "agent_thought_chunk", "tool_call", "tool_call_update", "plan",
-    "available_commands_update", "current_mode_update",
-    "config_option_update", "session_info_update", "usage_update"],
-  "vendor_update_kinds": ["subagent_spawned", "subagent_state_update",
-    "async_task_spawned", "async_task_state_update", "async_task_progress"],
-  "stop_reasons": ["end_turn", "max_tokens", "max_turn_requests",
-    "refusal", "cancelled"],
-  "permission_kinds": ["allow_once", "allow_always", "reject_once",
-    "reject_always"]
+  "root_keys": [
+    "jsonrpc",
+    "id",
+    "method",
+    "params",
+    "result",
+    "error",
+    "_meta"
+  ],
+  "to_agent_requests": [
+    "initialize",
+    "authenticate",
+    "logout",
+    "session/new",
+    "session/load",
+    "session/prompt",
+    "session/set_mode",
+    "session/set_config_option",
+    "session/resume",
+    "session/list",
+    "session/close",
+    "session/delete"
+  ],
+  "vendor_to_agent_requests": [
+    "session/set_model"
+  ],
+  "to_agent_notifications": [
+    "session/cancel",
+    "$/cancel_request"
+  ],
+  "from_agent_requests": [
+    "session/request_permission",
+    "fs/read_text_file",
+    "fs/write_text_file",
+    "terminal/create",
+    "terminal/output",
+    "terminal/release",
+    "terminal/wait_for_exit",
+    "terminal/kill",
+    "elicitation/create"
+  ],
+  "from_agent_notifications": [
+    "session/update",
+    "elicitation/complete",
+    "$/cancel_request"
+  ],
+  "update_kinds": [
+    "user_message_chunk",
+    "agent_message_chunk",
+    "agent_thought_chunk",
+    "tool_call",
+    "tool_call_update",
+    "plan",
+    "available_commands_update",
+    "current_mode_update",
+    "config_option_update",
+    "session_info_update",
+    "usage_update"
+  ],
+  "vendor_update_kinds": [
+    "subagent_spawned",
+    "subagent_state_update",
+    "async_task_spawned",
+    "async_task_state_update",
+    "async_task_progress"
+  ],
+  "stop_reasons": [
+    "end_turn",
+    "max_tokens",
+    "max_turn_requests",
+    "refusal",
+    "cancelled"
+  ],
+  "permission_kinds": [
+    "allow_once",
+    "allow_always",
+    "reject_once",
+    "reject_always"
+  ],
+  "vendor_from_agent_notifications": [
+    "_auth/status_update"
+  ]
 }

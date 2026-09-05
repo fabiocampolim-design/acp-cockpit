@@ -299,6 +299,13 @@ class AcpSession:
     def _on_notify(self, method, params):
         if method == "$/cancel_request":
             return self._agent_cancelled(params.get("requestId"))
+        if method == "_auth/status_update":
+            # Which account the agent is authenticated as (vendor extension
+            # of claude-agent-acp 0.75.1): passed through whole.
+            status = params.get("authStatus")
+            self._emit("auth_status", dict(status) if isinstance(status, dict)
+                       else {"raw": params}, self._last_raw_ref)
+            return
         if method != "session/update":
             # Known to the registry or not, a notification this client does
             # not act on is shown, never swallowed (`elicitation/complete`

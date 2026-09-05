@@ -200,7 +200,7 @@ a guess at what you might ask next. It appears as a dashed strip over
 the composer: click it to put the text in the box — <strong>it is never
 sent for you</strong> — or dismiss it with the ×. It disappears when a
 turn starts, and when you send anything. Most adapters never send one:
-<code>claude-agent-acp</code> (0.73 through 0.75) neither asks the SDK
+<code>claude-agent-acp</code> (0.73 through 0.75.1) neither asks the SDK
 for suggestions nor forwards the message, so with the stock adapter the
 strip simply never appears. A patched adapter that forwards them puts
 the prediction on <code>_meta._claude/promptSuggestion</code> of an
@@ -316,6 +316,10 @@ approaches a window. <strong>How many credits are left, in money, is not
 shown because the agent never sends it</strong>: the rate-limit payload
 carries the <em>state</em> of extra credits and never a balance or a
 currency.</p>
+<p>When the adapter announces the account it is running as (the Claude
+adapter does, from 0.75.1), a chip shows the plan’s label — <em>Claude
+Pro</em> — with the e-mail, organisation and plan in its tooltip, so a
+screenshot of the page carries no address unless you hover.</p>
 <p><strong>update</strong> appears only when the pinned protocol schema
 or the installed adapter is behind the latest published release; it
 opens Help, whose <strong>Versions</strong> entry names the pinned

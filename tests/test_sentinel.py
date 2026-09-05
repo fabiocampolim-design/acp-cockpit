@@ -61,3 +61,9 @@ def test_protocol_level_and_auth_methods_are_known():
     for method in ("authenticate", "logout", "$/cancel_request"):
         assert s.check_frame("out", {"jsonrpc": "2.0", "id": 2,
                                      "method": method, "params": {}}) == []
+
+
+def test_vendor_notifications_the_adapter_is_known_to_send_are_not_drift():
+    s = Sentinel(REG)
+    assert s.check_frame("in", {"jsonrpc": "2.0", "method": "_auth/status_update",
+                                "params": {"authStatus": {}}}) == []

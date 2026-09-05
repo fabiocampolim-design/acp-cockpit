@@ -2,7 +2,7 @@
 
 All notable changes to acp-cockpit are documented in this file.
 
-## Unreleased
+## 0.5.0 - 2026-09-05 - the review: the wheel, the protocol, the process tree, the watch
 
 ### review 2026-09-05 — a senior review of the whole project, all findings fixed
 
@@ -38,6 +38,11 @@ machine. What changed, for a reader of this client:
   the IOLoop, SIGTERM and exit handlers. Failed or closed sessions leave the
   list after ten minutes (their record stays); the probe that lists
   resumable sessions leaves no record.
+- **The contract tier caught real drift the same afternoon.** Adapter 0.75.1
+  announces the account it runs as (`_auth/status_update`, a vendor
+  notification); it is registered, shown as a chip at the top right with
+  the plan, e-mail and organisation in the tooltip (never on the chip: a
+  screenshot should not carry an address), and the tier is green again.
 - **The version check is visible.** `/api/drift` existed and nothing called
   it; the page now asks it once per load, an **update** chip appears when the
   schema or the adapter is behind, and Help → Versions lists what was found
@@ -56,7 +61,7 @@ machine. What changed, for a reader of this client:
   adapter and the pinned schema with the latest releases once a day from a
   scheduler and writes `docs/watch/YYYY-MM-DD.md`. The adapter moved 0.73 →
   0.75 in the four days before this release; all seven ACPUPSTREAM findings
-  were re-checked against 0.75.0 and hold unchanged.
+  were re-checked against 0.75.1 and hold unchanged.
 - **Upgrade notes.** Browser preferences (theme, lanes, last directory,
   archive destination) reset once with the rename: their storage keys moved
   to `acpcockpit.*`. A local profile that lived in the checkout's `agents/`

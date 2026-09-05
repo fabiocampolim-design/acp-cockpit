@@ -7,6 +7,9 @@ name = "Claude Code"
 command = ["claude-agent-acp"]
 install_hint = "npm install -g @agentclientprotocol/claude-agent-acp"
 npm_package = "@agentclientprotocol/claude-agent-acp"
+# GitHub "owner/repo" of the adapter: the daily watch (scripts/watch_upstream.py)
+# reads its releases and open issues.
+upstream_repo = "agentclientprotocol/claude-agent-acp"
 
 # Nested-session guard: the Claude SDK refuses to start when these are set.
 env_scrub = ["CLAUDECODE", "CLAUDE_CODE_*"]
@@ -72,7 +75,7 @@ text = "Two things the Claude Code terminal shows you never cross ACP, because t
 
 [[caveats]]
 id = "no-prompt-suggestions"
-text = "Claude Code's predicted next-prompt suggestions do not cross ACP yet: the adapter neither enables the SDK's promptSuggestions option nor forwards the prompt_suggestion message (claude-agent-acp 0.73 through 0.75, re-checked 2026-09-05)."
+text = "Claude Code's predicted next-prompt suggestions do not cross ACP yet: the adapter neither enables the SDK's promptSuggestions option nor forwards the prompt_suggestion message (claude-agent-acp 0.73 through 0.75.1, re-checked 2026-09-05)."
 
 [[caveats]]
 id = "ask-question-preview"

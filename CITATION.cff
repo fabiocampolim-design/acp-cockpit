@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 type: software
 title: "acp-cockpit: a browser client for coding agents over the Agent Client Protocol"
-version: "0.4.0"
+version: "0.5.0"
 date-released: 2026-09-05
 license: Apache-2.0
 authors:

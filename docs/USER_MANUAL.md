@@ -144,7 +144,7 @@ agent's response to a command is always rendered.
 might ask next. It appears as a dashed strip over the composer: click it to
 put the text in the box — **it is never sent for you** — or dismiss it with
 the ×. It disappears when a turn starts, and when you send anything. Most
-adapters never send one: `claude-agent-acp` (0.73 through 0.75) neither asks
+adapters never send one: `claude-agent-acp` (0.73 through 0.75.1) neither asks
 the SDK for suggestions nor forwards the message, so with the stock adapter
 the strip simply never appears. A patched adapter that forwards them puts
 the prediction on `_meta._claude/promptSuggestion` of an otherwise empty
@@ -257,6 +257,11 @@ update, which it does as your account approaches a window. **How many
 credits are left, in money, is not shown because the agent never sends
 it**: the rate-limit payload carries the *state* of extra credits and never
 a balance or a currency.
+
+When the adapter announces the account it is running as (the Claude
+adapter does, from 0.75.1), a chip shows the plan's label — *Claude Pro* —
+with the e-mail, organisation and plan in its tooltip, so a screenshot of
+the page carries no address unless you hover.
 
 **update** appears only when the pinned protocol schema or the installed
 adapter is behind the latest published release; it opens Help, whose

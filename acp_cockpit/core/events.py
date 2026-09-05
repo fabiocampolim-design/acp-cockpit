@@ -38,6 +38,10 @@ KINDS = frozenset({
     "fs_request",          # {"op": "read"|"write", "path": str, "allowed": bool}
     "turn_ended",          # {"stop_reason": str}; "error" adds
                            #  {"error": {"code": int|None, "message": str}}
+    "auth_status",         # the account the agent runs as, as the adapter
+                           #  announced it (`_auth/status_update`):
+                           #  {"kind", "label", "account": {plan, email,
+                           #  organization}} passed through
     "vendor_update",       # {"kind": str, "update": dict} — a session/update
                            #  kind outside the ACP schema that the agent's
                            #  adapter is KNOWN to send (registry

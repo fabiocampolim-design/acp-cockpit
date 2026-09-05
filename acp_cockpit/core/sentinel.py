@@ -15,6 +15,12 @@ class Sentinel:
         self._r = registry
         self._known_in = set(registry["from_agent_requests"]) | \
             set(registry["from_agent_notifications"])
+        # Vendor (`_`-prefixed) notifications a known adapter sends: the
+        # Claude adapter announces the account it runs as (0.75.1, caught
+        # by the contract tier 2026-09-05). Known is not drift.
+        self.vendor_notifications = frozenset(
+            registry.get("vendor_from_agent_notifications", []))
+        self._known_in |= self.vendor_notifications
         self._known_out = set(registry["to_agent_requests"]) | \
             set(registry["to_agent_notifications"])
         self._root = set(registry["root_keys"])

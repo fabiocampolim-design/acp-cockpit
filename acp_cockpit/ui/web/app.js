@@ -835,6 +835,7 @@ class Session {
           this.modelsUsed = d.models_used;
         this.renderStatus(); break;
       case "rate_limit": recordRateLimit(d); break;
+      case "auth_status": recordAuthStatus(d); break;
       case "prompt_suggestion":
         this.suggestion = d.text;
         this.renderSuggestion();
@@ -1319,6 +1320,23 @@ function creditsNote(d) {
       : d.canUserPurchaseCredits ? "extra credits available"
       : "extra credits unavailable",
   };
+}
+
+/* The account the agent runs as (`_auth/status_update`): the label on a
+   chip, the e-mail and organisation only in the tooltip — a screenshot of
+   the page should not carry an address by default. Account-wide; the
+   latest report wins. */
+function recordAuthStatus(d) {
+  const chip = $("#auth-chip");
+  const acct = (d && d.account) || {};
+  const label = (d && d.label) || acct.plan || (d && d.kind) || "";
+  chip.hidden = !label;
+  if (!label) return;
+  chip.textContent = label;
+  chip.title = ["the account the agent is running as:",
+                acct.email && `  ${acct.email}`,
+                acct.organization && `  ${acct.organization}`,
+                acct.plan && `  plan: ${acct.plan}`].filter(Boolean).join("\n");
 }
 
 function renderAccount() {

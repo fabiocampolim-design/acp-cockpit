@@ -849,3 +849,16 @@ def test_an_approval_withdrawn_by_the_agent_closes_and_says_so(server):
         page.wait_for_selector('.pane:not([hidden]) [data-kind="turn_ended"]')
         convo = page.inner_text(".pane:not([hidden])").lower()
         assert "withdrawn by the agent" in convo
+
+
+def test_the_account_the_agent_runs_as_is_shown_top_right(server):
+    # claude-agent-acp 0.75.1 announces the account (`_auth/status_update`);
+    # the label sits with the account chips, the details in the tooltip.
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = start_fake_session(pw, url, tmp)
+        page.wait_for_selector("#auth-chip:visible")
+        assert page.inner_text("#auth-chip") == "Fake Plan"
+        assert "someone@example.com" in page.get_attribute("#auth-chip", "title")
+        assert page.locator(".drift-chip:visible").count() == 0
