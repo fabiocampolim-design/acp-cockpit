@@ -16,6 +16,10 @@ All notable changes to CLAUDIU are documented in this file.
   request after the page arrives.
 - The data directory is unchanged (`~/.claudiu`): renaming a project should
   not strand anyone's records or their pinned token.
+- **One upgrade note**: the session cookie is now `acp_cockpit_token`, so a
+  browser holding the old one is signed out once. Opening the printed
+  `?token=` URL again fixes it — a bookmarked pinned-port URL does this by
+  itself.
 
 ## 0.4.0 - 2026-09-05 - the audit, and a client that holds still
 
