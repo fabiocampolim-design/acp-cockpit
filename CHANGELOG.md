@@ -59,6 +59,10 @@ plane) found eleven things; these are the ones fixed here.
 - **Extra credits are a word and a colour**: `EC` green when the account may
   spend them, red when it may not, with the reported state in the tooltip.
   The overage window's label is `7d+EC` rather than `7d +credits`.
+- **Extra credits are one badge, not three.** They belong to the account,
+  not to a window, and repeating `EC` on every chip was noise (seen live on
+  a three-window account). One badge beside the windows, the most recent
+  report wins.
 - **The launcher's two columns start level**: the caveats now begin at the
   height of the name rather than the first field.
 

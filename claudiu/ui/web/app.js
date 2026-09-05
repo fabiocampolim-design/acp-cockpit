@@ -1153,6 +1153,9 @@ function windowLabel(type) {
   return type.replace(/_/g, " ");
 }
 const limitWindows = new Map();     // window name -> latest reading
+// Extra credits belong to the ACCOUNT, not to a window: one state, and the
+// most recent report wins.
+let limitCredits = null;
 
 /* The agent reports its windows in `unifiedWindows`
    ({utilization: 0..1, resetsAt}) and keeps the account-wide status and the
@@ -1170,13 +1173,13 @@ function recordRateLimit(d) {
   const entries = windows && Object.keys(windows).length
     ? Object.entries(windows).map(([type, w]) => [type, w || {}])
     : [[d.rateLimitType || "unknown", d]];
-  const credits = creditsNote(d);
+  limitCredits = creditsNote(d) || limitCredits;
   for (const [type, w] of entries) {
     limitWindows.set(type, {
       utilization: typeof w.utilization === "number" ? w.utilization
                                                      : d.utilization,
       resetsAt: w.resetsAt || d.resetsAt,
-      status: d.status, credits, raw: d,
+      status: d.status, raw: d,
     });
   }
   renderAccount();
@@ -1221,6 +1224,20 @@ function renderAccount() {
   const el = $("#account");
   const entries = [...limitWindows.entries()];
   el.hidden = entries.length === 0;
+  // Extra credits are ACCOUNT-wide, so they are one badge beside the
+  // windows, not a repeat on each of them (three "EC"s in a row, seen
+  // live 2026-09-04).
+  const credits = limitCredits;
+  const badge = [];
+  if (credits) {
+    const ec = document.createElement("i");
+    ec.className = "ec";
+    ec.dataset.ok = credits.ok ? "1" : "0";
+    ec.textContent = "EC";
+    ec.title = `${credits.detail} — the agent reports the state of extra `
+      + "credits, never a balance";
+    badge.push(ec);
+  }
   el.replaceChildren(...entries.map(([type, w]) => {
     const span = document.createElement("span");
     span.className = "window";
@@ -1233,22 +1250,14 @@ function renderAccount() {
     const b = document.createElement("b");
     b.textContent = pct;
     span.append(label + " ", b);
-    if (w.credits) {
-      const ec = document.createElement("i");
-      ec.className = "ec";
-      ec.dataset.ok = w.credits.ok ? "1" : "0";
-      ec.textContent = "EC";
-      span.append(" ", ec);
-    }
     span.title = [`${label}: ${pct} used`, `status: ${w.status || "?"}`,
                   fmtReset(w.resetsAt),
-                  w.credits && `EC — ${w.credits.detail} (the agent reports `
-                    + `their state, never a balance)`,
+
                   "", "as the agent reported it:",
                   JSON.stringify(w.raw, null, 1)]
       .filter(v => v === "" || (v && typeof v === "string")).join("\n");
     return span;
-  }));
+  }), ...badge);
 }
 
 /* ---------------- following the bottom ----------------

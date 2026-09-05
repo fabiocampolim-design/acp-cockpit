@@ -481,10 +481,11 @@ def test_account_usage_panel_shows_the_windows_the_agent_reported(server):
         assert page.locator('#account [data-status="allowed_warning"]').count() == 2
         # extra credits are one word and a colour; the state is in the
         # tooltip (Fabio, 2026-09-04)
-        assert page.locator('#account .ec[data-ok="1"]').count() >= 1
-        assert "EC" in text, text
+        # extra credits are ACCOUNT-wide: one badge, not one per window
+        assert page.locator("#account .ec").count() == 1
+        assert page.get_attribute("#account .ec", "data-ok") == "1"
         assert "extra credits in use" in page.get_attribute(
-            '#account [data-window="seven_day"]', "title")
+            "#account .ec", "title")
 
 
 def test_a_prompt_suggestion_is_offered_and_never_sent(server):
