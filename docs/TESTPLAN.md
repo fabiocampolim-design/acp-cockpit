@@ -1,109 +1,161 @@
-# ClaudIU — manual & fidelity test plan
+# acp-cockpit — manual test plan
 
-The conversation view **displays** a session and, unlike a passive
-transcript viewer, **sends input** to a live agent. A dropped or
-mis-rendered turn misleads a decision; a wrongly-issued keystroke can
-**approve a destructive action**. So accuracy here matters more than in a
-read-only tool. This plan pairs automated coverage with hands-on cases —
-some need a human (interactive prompts, menus). Record pass/fail and the
-date/version next to each.
+The automated suite (`python -m pytest tests/ -q`, plus the opt-in contract
+tier against the real adapter) proves the engine, the server and the web
+View against a scripted agent. What it cannot prove is the product against
+a **real agent on a real account**: whether the adapter installed today
+still says what the fixtures say, whether the account panel reads what this
+account's rate limits look like, whether a long session still feels right.
+This plan is the human half. Run it before a release and after any adapter
+upgrade; record the date, the adapter version (`npm ls -g
+@agentclientprotocol/claude-agent-acp`) and pass/fail next to each item.
 
-## Ground truth & how to check
+A permission dialog here grants a real agent the right to change real
+files. Every "nothing dropped" claim below is checked against the session
+record, which is the ground truth.
+
+## Ground truth and how to read it
 
 Three sources, checked against each other:
 
-1. **The transcript** — `~/.claude/projects/<slug>/<session-id>.jsonl`
-   (the session id is in the tab's `/api/conversation` payload). This is
-   the authority for the conversation.
-2. **The raw terminal** — the **▤ Terminal** toggle shows exactly what
-   Claude Code drew. Use it to confirm a permission prompt's real options.
-3. **The audit log** — `~/.acp-cockpit/logs/*.log`, logger
-   `claudiu.audit`: one `stdin session=… len=… ctrl=… data=…` line per
-   keystroke/text ever sent. This is the record of **what was issued**.
+1. **The session record** — `~/.acp-cockpit/records/<session>.jsonl`. Every
+   protocol frame verbatim (`dir: in|out`), the adapter's stderr (`dir:
+   err`) and every client action (`dir: client`: `spawn`, `prompt`,
+   `permission`, `elicitation`, `fs_decision`, `set_mode`,
+   `set_config_option`, `cancel`). The `{}` button on a special row shows
+   the frame number (`raw_ref`) that indexes into it.
+2. **The page** — what the View rendered. The five lane switches decide what
+   is on it; the record decides what is true.
+3. **The agent's own transcript** — for Claude Code,
+   `~/.claude/projects/<slug>/<agent session id>.jsonl`. The agent session id
+   is in the tab tooltip and in `GET /api/sessions`.
 
-Automated backing (run `python -m pytest -q`): `test_conversation.py`
-(parsing, tool pairing, ordering, no-empty-turns, **fidelity accounting**),
-`test_audit.py` (every stdin logged), `test_status.py` (state, title,
-permission-text detection), `test_app.py` (endpoints).
+## A. Nothing lost (the core guarantee)
 
-## A. Conversation accuracy (nothing dropped, nothing invented)
+Run a session of several turns with at least one tool call, one edit, one
+approval and one `/context`. Then:
 
-Run a normal session for a few turns, then verify:
+- [ ] Every `session/update` frame in the record with a `sessionUpdate` kind
+      the client knows (`agent_message_chunk`, `agent_thought_chunk`,
+      `tool_call`, `tool_call_update`, `plan`, `available_commands_update`,
+      `current_mode_update`, `config_option_update`, `session_info_update`,
+      `usage_update`, `user_message_chunk`) has a visible counterpart: a row,
+      a tool row update, the plan panel, the palette, the strip.
+- [ ] Every frame with a kind the client does NOT know is on the page as an
+      `unrecognized` row (harness lane) **and** the drift chip counts it.
+      Adapter kinds outside the schema that the registry names
+      (`subagent_spawned`, `subagent_state_update`, `async_task_*`) are
+      `vendor_update` rows in their lane, not drift.
+- [ ] The **drift** chip is empty for a whole session against the pinned
+      adapter version. If it is not, the registry is behind: that is the
+      sentinel working, and a release task.
+- [ ] Adapter stderr lines in the record (`dir: err`) equal the count in
+      the **log** chip.
+- [ ] No frame arrives after the tab is closed without landing in the record
+      (`session/update` after `closed` is still written; the record closes
+      when the adapter process has exited).
 
-- [ ] Every prompt **you** typed appears once as a `you` turn, verbatim.
-- [ ] Every assistant reply matches the transcript's `text` blocks.
-- [ ] Every tool call shows with its target, and its result is paired
-      under it (expand it) — count tool calls in the view vs `tool_use`
-      records in the transcript; they must match.
-- [ ] Thinking blocks present (collapsed) when the transcript has them.
-- [ ] **Fidelity chip**: the header shows **no** "⚠ N unrecognized
-      record(s)". If it does, a Claude Code version introduced a record
-      type the parser doesn't know — note the types (hover the chip) and
-      report; the view may be incomplete until `_KNOWN_IGNORED` /
-      rendering is updated.
-- [ ] Nothing from the raw terminal (▤ Terminal) is **missing** from the
-      conversation view except the live input line, menus, and spinners
-      (those are intentionally terminal-only).
+## B. Approvals and questions (the safety surface)
 
-## B. Permission prompts — the safety-critical path
+- [ ] A tool that needs permission opens the dialog with the agent's **own**
+      options, one-shot first, standing grants last and dashed; the digits
+      1–9 answer; `Esc` does nothing; clicking outside does nothing.
+- [ ] Answer **Allow once**: the record has `action: permission, source:
+      user, option: <id>`; the tool runs; the file changes.
+- [ ] Answer **Reject**: the agent reports the refusal; nothing changed.
+- [ ] A tool call naming a path **outside** the project directory shows the
+      red boundary warning with that path; a tool call naming only a URL
+      (WebFetch, curl) shows **no** warning.
+- [ ] Let a permission sit unanswered past the timeout (start the server with
+      a short one for this: `make_app(permission_timeout=...)` in a scratch
+      script, or wait the hour): the dialog closes by itself, the record says
+      `source: failsafe`, the events lane says *auto-rejected*.
+- [ ] Cancel a turn (`Esc` or Stop) while the agent has asked a question:
+      whatever the agent does, the dialog is either answered or withdrawn —
+      never left open with the turn ended.
+- [ ] AskUserQuestion: a form with radios / checkboxes / an **Other** box per
+      question; **Answer** writes *you answered: …* into the events lane and
+      the agent continues with that answer; **Skip** writes *question
+      skipped* and the agent continues without one.
+- [ ] Plan mode: `ExitPlanMode` arrives as an approval with the agent's
+      options; after *manually approve edits* the strip says the new mode
+      (the profile re-asserts it — `permission_mode_followups`).
 
-Trigger each and, **before clicking**, compare the buttons to the real
-prompt in ▤ Terminal. The button labels and numbers must match exactly.
+## C. File access through the client
 
-- [ ] **Write** a file (default/manual mode → "Do you want to create …?"):
-      3 options. Buttons match. Click **No** → not created. Repeat, click
-      **Yes** → created. Confirm the audit log shows the digit you clicked.
-- [ ] **Edit** an existing file ("Do you want to make this edit?").
-- [ ] **Bash** command prompt ("Do you want to proceed?").
-- [ ] A prompt with a **very long** option (the "…accept edits… for this
-      session (shift+tab)" one): the long option still renders and maps to
-      the right key.
-- [ ] **Mid-prompt redraw**: while the prompt is up, resize the window or
-      let a spinner tick. The buttons must **not** change key→label
-      mapping. (Stability: buttons only appear once the parse repeats.)
-- [ ] **Fail-safe**: if the buttons ever don't appear while the tab light
-      is on "waiting" (accent pulse), the view must show **"⚠ Claude is
-      asking for confirmation. Open the terminal to answer"** with an
-      Open-terminal button — never a guessed option.
-- [ ] **Re-verify on click**: (hard to force) clicking an option must send
-      that option's number only when it still maps to the same label.
-- [ ] After answering via a button, the session proceeds exactly as if you
-      had pressed the number in the terminal.
+- [ ] The agent reads a file inside the project: an `fs_request … ✓` row;
+      the content the agent quotes matches the file.
+- [ ] The agent reads a **range** (a large file with an offset): the record's
+      `fs/read_text_file` has `line`/`limit` and the reply holds only that
+      slice.
+- [ ] The agent asks for a file **outside** the project: `✗ blocked` row, the
+      agent reports the refusal, nothing read.
+- [ ] The agent asks to read a binary file: the reply is a JSON-RPC error,
+      the agent reports it, the turn ends (nothing hangs).
 
-> Report any case where a button's label/number disagrees with the
-> terminal, or where a click sent the wrong answer. That is a stop-ship bug.
+## D. Sessions, tabs, reconnect
 
-## C. Input integrity
+- [ ] Reload the page mid-turn: the tab comes back, the conversation is
+      replayed once (no duplicate rows), the turn finishes.
+- [ ] Put the laptop to sleep for a few minutes, wake it: the strip says
+      *reconnecting*, then the state it was in; nothing duplicated.
+- [ ] Stop the server while a tab is open: the tab says the server refused
+      or the session is gone, and asks for a reload; no retry storm.
+- [ ] Two tabs: each keeps its own scroll position and follow state when you
+      switch; approvals from the inactive tab pop up labelled with that tab.
+- [ ] **Find resumable sessions** lists what the agent knows for that
+      directory, newest first and dated; **Resume** replays the history and
+      lands on *ready*; resuming a session already open in another tab is
+      refused with a message naming the tab.
+- [ ] Close a tab: the adapter process **and its CLI child** are gone
+      (`tasklist`/`ps` shows neither); nothing from this session is left
+      when the server exits (Ctrl+C) or is killed (`Stop-Process` — the
+      Windows job object reaps the tree).
 
-- [ ] Composer: type a multi-line message (Shift+Enter for newlines),
-      send. It arrives verbatim (check the transcript / terminal). No
-      dropped or doubled characters.
-- [ ] Composer **Enter** sends; **Shift+Enter** inserts a newline.
-- [ ] **Esc** button interrupts a running turn (audit log shows `\e`).
-- [ ] Snippets bar still sends its text.
-- [ ] Every send appears in the audit log with the right length.
+## E. Status, account, versions
 
-## D. Escape hatch & menus (terminal-only surfaces)
+- [ ] The context gauge moves during a turn; the cost appears when the agent
+      reports one; the strip shows the API's canonical model id once the
+      first usage update carries it.
+- [ ] Rate-limit chips appear top right as the account approaches a window,
+      one per window the agent reported, percentages as fractions × 100;
+      hovering shows the reset time and the raw payload. No chip is invented.
+- [ ] **Help → Versions** names the pinned schema, the installed adapter
+      version and the latest published one; with the server started
+      `--no-drift-online` it says the online check is off. When the adapter
+      is behind, the **update** chip is present at the top right and opens
+      Help.
+- [ ] The tab tooltip names the agent and version the adapter reported at
+      initialize.
 
-- [ ] `/` then a command name → autocomplete menu shows in ▤ Terminal.
-- [ ] `/model` selector works in the terminal; toggle back to conversation.
-- [ ] Plan mode (shift+tab cycle) and `@`-file picker work in the terminal.
-- [ ] The **▤ Terminal / ▤ Conversation** toggle works from **both**
-      views (regression: it used to vanish in terminal mode).
+## F. Archiving
 
-## E. Stability, view controls, resilience
+- [ ] With `--archiver` (claude-session-publisher): the panel offers html,
+      markdown, text, latex, pdf; the chosen formats are written to the
+      chosen directory; the paths are listed in the panel and once in the
+      harness lane.
+- [ ] Without it: the panel says so and offers markdown only; the written
+      transcript's header says it is the built-in fallback; prompts,
+      answers, thinking and tool-call titles are in it.
 
-- [ ] Resize the browser: the conversation does **not** reflow or jump;
-      only the frames flex.
-- [ ] Lane checkboxes hide/show thinking / tools / events / subagents.
-- [ ] Search filters turns; PageUp/PageDown scroll; **↓ latest** appears
-      only when scrolled up and returns to the bottom.
-- [ ] Theme button cycles system / light / dark; remembered on reload.
-- [ ] Reload the page mid-session: the conversation re-renders complete and
-      the session keeps running.
+## G. Long-session behaviour (the reasons this exists)
 
-## F. Concurrency / multiple tabs
+- [ ] A long streamed answer stays in view as it arrives; scrolled up, the
+      view stays put and **↓ jump to latest** appears; selecting text inside
+      a streaming answer survives the next chunk.
+- [ ] Switching lanes off removes those rows entirely; switching back
+      restores them; the choice survives a reload.
+- [ ] After an hour of use the page has not grown sluggish (open the
+      browser's task manager: memory stable between turns) and the server
+      process has not grown beyond the records it holds.
 
-- [ ] Two sessions: switching tabs shows each one's own conversation; a
-      background tab's light/gauge still update; only the visible tab's
-      conversation is polled.
+## H. Before a release, in addition
+
+- [ ] `ACP_COCKPIT_CONTRACT=1 python -m pytest tests/contract/ -q` against the
+      installed adapter: PASS, zero drift.
+- [ ] `python -m pip wheel . --no-deps -w /tmp/w` and start
+      `python -m acp_cockpit` from a **fresh venv with only that wheel**
+      installed, in a directory that is not the checkout: the page loads,
+      the profiles are listed, a session starts.
+- [ ] `docs/watch/` has today's report and the scheduled task's last result
+      is 0 (`Get-ScheduledTaskInfo`).

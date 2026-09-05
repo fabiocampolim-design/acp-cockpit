@@ -7,15 +7,25 @@
 
 The Markdown is the source of truth; the built HTML (and PDF, when the
 tools are present) are committed so readers need no tooling of their own.
-Uses pandoc for the HTML and pandoc + xelatex for the PDF when both are on
-PATH; otherwise falls back to a small stdlib-only Markdown-to-HTML renderer
+Uses pandoc for the HTML and pandoc + a TeX engine for the PDF when they are
+on PATH; otherwise falls back to a small stdlib-only Markdown-to-HTML renderer
 for the HTML and says plainly that the PDF was skipped. Never raises just
 because a tool is missing -- always exits 0.
+
+The PDF is byte-reproducible: a rebuild of an unchanged manual leaves the
+tree clean. `SOURCE_DATE_EPOCH` is derived from CITATION.cff's
+`date-released` and handed to pandoc and the engine; lualatex is preferred
+because xdvipdfmx draws its font subset tags at random on every run (TeX
+Live 2026, measured), so a xelatex PDF can never be identical. On
+2026-09-05 a rebuild dirtied docs/USER_MANUAL.pdf, which is how this
+paragraph came to be written.
 """
 from __future__ import annotations
 
 import argparse
+import datetime
 import html
+import os
 import re
 import shutil
 import subprocess
@@ -37,10 +47,26 @@ pre{background:#eeebe2;padding:.6rem;overflow-x:auto}
 a{color:#8ab4f8}}"""
 
 
-def _run(cmd, cwd) -> bool:
+def source_date_epoch(root: Path) -> str:
+    """Seconds since the epoch of CITATION.cff's `date-released` (UTC
+    midnight), so every build of one release stamps the same date. Falls
+    back to a fixed epoch rather than to the clock."""
+    try:
+        text = (root / "CITATION.cff").read_text(encoding="utf-8")
+        m = re.search(r"^date-released:\s*(\d{4})-(\d{2})-(\d{2})", text, re.M)
+        if m:
+            d = datetime.datetime(int(m.group(1)), int(m.group(2)),
+                                  int(m.group(3)), tzinfo=datetime.timezone.utc)
+            return str(int(d.timestamp()))
+    except OSError:
+        pass
+    return "0"
+
+
+def _run(cmd, cwd, env=None) -> bool:
     try:
         return subprocess.run(cmd, cwd=str(cwd), capture_output=True,
-                               timeout=600).returncode == 0
+                               timeout=600, env=env).returncode == 0
     except (OSError, subprocess.SubprocessError):
         return False
 
@@ -162,7 +188,7 @@ def build(src: Path, outdir: Path) -> None:
         css_path = outdir / "_manual.css"
         css_path.write_text(CSS, encoding="utf-8")
         ok = _run([pandoc, str(src), "-s", "--toc", "--css", css_path.name,
-                   "--metadata", "pagetitle=CLAUDIU User Manual",
+                   "--metadata", "pagetitle=acp-cockpit User Manual",
                    "--embed-resources", "-o", str(out_html)], outdir)
         if not ok:  # older pandoc without --embed-resources
             ok = _run([pandoc, str(src), "-s", "--toc", "--css", css_path.name,
@@ -177,21 +203,25 @@ def build(src: Path, outdir: Path) -> None:
         out_html.write_text(_fallback_html(text), encoding="utf-8")
         print(f"wrote {out_html} via fallback (no pandoc)")
 
-    if pandoc and shutil.which("xelatex"):
-        ok = _run([pandoc, str(src), "--toc", "--pdf-engine=xelatex",
-                   "-V", "geometry:margin=22mm", "-V", "mainfont=DejaVu Serif",
-                   "-V", "monofont=DejaVu Sans Mono", "-V", "colorlinks=true",
-                   "-o", str(out_pdf)], outdir)
+    engine = next((e for e in ("lualatex", "xelatex") if shutil.which(e)), None)
+    if pandoc and engine:
+        env = dict(os.environ)
+        env["SOURCE_DATE_EPOCH"] = source_date_epoch(src.resolve().parents[1])
+        common = [pandoc, str(src), "--toc", f"--pdf-engine={engine}",
+                  "-V", "geometry:margin=22mm", "-V", "colorlinks=true",
+                  "-o", str(out_pdf)]
+        ok = _run(common[:-2] + ["-V", "mainfont=DejaVu Serif",
+                                 "-V", "monofont=DejaVu Sans Mono"] + common[-2:],
+                  outdir, env)
         if not ok:  # fonts by family name may be unknown to fontconfig: retry plain
-            ok = _run([pandoc, str(src), "--toc", "--pdf-engine=xelatex",
-                       "-V", "geometry:margin=22mm", "-V", "colorlinks=true",
-                       "-o", str(out_pdf)], outdir)
+            ok = _run(common, outdir, env)
         if ok:
-            print(f"wrote {out_pdf}")
+            print(f"wrote {out_pdf} via {engine} (SOURCE_DATE_EPOCH="
+                  f"{env['SOURCE_DATE_EPOCH']})")
         else:
-            print("PDF build failed (pandoc + xelatex); the HTML and Markdown are complete")
+            print(f"PDF build failed (pandoc + {engine}); the HTML and Markdown are complete")
     else:
-        print("PDF skipped: pandoc/xelatex not found")
+        print("PDF skipped: pandoc or a TeX engine (lualatex/xelatex) not found")
 
 
 def main(argv=None) -> int:

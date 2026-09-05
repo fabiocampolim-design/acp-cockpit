@@ -1,7 +1,10 @@
-# Agent profile schema (`agents/*.toml`)
+# Agent profile schema (`*.toml` profiles)
 
 The engine consumes any conforming profile; adding an agent means adding a
-file here, never touching `core/`.
+file, never touching `core/`. The shipped profiles live here, inside the
+package (`acp_cockpit/agents/`); a user's own go in `~/.acp-cockpit/agents/`
+and are loaded on top (same `id` = replaces the shipped one). In a checkout,
+`acp_cockpit/agents/local-*.toml` is never tracked.
 
 ## Required fields
 

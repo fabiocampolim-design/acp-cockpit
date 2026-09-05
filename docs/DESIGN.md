@@ -1,4 +1,4 @@
-# Design notes — ClaudIU
+# Design notes — acp-cockpit
 
 What this program is trying to be, the decisions that shaped it, what each
 one cost, and what was rejected. `README.md` is the product page and
@@ -13,7 +13,7 @@ The author wanted to run AI coding agents (Claude Code first) from a
 browser instead of a terminal — for eye strain, for stability, and because
 a browser page can hold several long sessions side by side without a
 terminal multiplexer. The first version (0.1, archived in
-`archive/claudiu-v0.1`) mirrored the real terminal UI into the browser
+outside this repository, with its own history) mirrored the real terminal UI into the browser
 through a pseudo-terminal and *read the screen back* to offer buttons for
 permission prompts. It worked, and it was fragile by construction: a
 full-screen terminal application repaints with escape codes, its prompt
@@ -24,7 +24,7 @@ can never be a safety boundary.
 The Agent Client Protocol (ACP) removes the guesswork: the same
 conversation arrives as structured JSON-RPC over stdio — messages, thoughts,
 tool calls with diffs, permission requests with typed options, config
-options, usage. ClaudIU 0.3 is a browser client for that protocol, with
+options, usage. acp-cockpit is a browser client for that protocol, with
 one guarantee: **nothing that crosses the wire is lost or silently
 misread.**
 
@@ -36,9 +36,9 @@ misread.**
 | **Every frame is recorded verbatim before interpretation** (`core/record.py`, one JSONL per session); the View gets typed events with a `raw_ref` back into the record. | The record is the ground truth and the audit trail; a rendering bug can be diagnosed from it after the fact (every fix in the first live-test rounds was root-caused from a record). | Records contain the conversation; disk use grows with use; the user must treat the directory as private. |
 | **Unknown protocol data is a visible event**, never a dropped one: `unrecognized` rows with raw access, `drift` and `anomaly` chips; a dev-time registry diff against the pinned ACP schema and an online pin-vs-latest check. | A protocol change must announce itself in the UI, not corrupt the rendering quietly. The sentinel caught three new update kinds on day one. | Noise when the protocol moves; the answer is to widen the registry, never to filter. |
 | **Four layers with one-way knowledge**: TOML agent profiles → pure-stdlib core (sans-I/O JSON-RPC, ACP state machine, recorder, sentinel, path policy) → Tornado server (auth, subprocesses, WebSocket bridge) → vanilla-JS View speaking a documented protocol (`docs/UI-PROTOCOL.md`, enforced by tests). | Each seam is swappable: another agent is a profile, another server implements three small ports, another front-end implements the UI protocol. | Some duplication between the engine's event vocabulary and the View; the UI protocol must be maintained as a contract. |
-| **The engine never names an agent.** Everything Claude-specific is data in `agents/claude.toml`: command, environment scrub (the nested-session guard), runtime resolution, known vendor `_meta` extensions, caveats shown in the launcher. | Keeps the core honest and testable against scripted fixtures; adding an agent needs no code. | Profile-level knobs accumulate (`env_scrub`, `env_set`, `env_resolve`, `npm_package`, caveats); each is documented in `agents/PROFILE-SCHEMA.md`. |
+| **The engine never names an agent.** Everything Claude-specific is data in `acp_cockpit/agents/claude.toml`: command, environment scrub (the nested-session guard), runtime resolution, known vendor `_meta` extensions, caveats shown in the launcher. | Keeps the core honest and testable against scripted fixtures; adding an agent needs no code. | Profile-level knobs accumulate (`env_scrub`, `env_set`, `env_resolve`, `npm_package`, caveats); each is documented in `acp_cockpit/agents/PROFILE-SCHEMA.md`. |
 | **Prefer the user's installed CLI over the copy the adapter bundles** (`env_resolve`: `CLAUDE_CODE_EXECUTABLE` → the `claude` on PATH). | The adapter pins an Agent SDK that pins a CLI; the API refused that bundled copy for a new model on 2026-09-01 with zero local changes. The user's CLI auto-updates. The choice is shown in the launcher and written as the first record of every session. | Two CLIs coexist on the machine; an SDK older than the CLI it drives may log unknown message types. |
-| **Adapter as a runtime dependency the user installs, never vendored.** | Licensing clarity, independent upgrades, no stale copy inside this repo. | Upstream renames and deprecations must be watched (the adapter was renamed once already; `GET /api/drift` reports installed vs latest for the profile's `npm_package`). |
+| **Adapter as a runtime dependency the user installs, never vendored.** | Licensing clarity, independent upgrades, no stale copy inside this repo. | Upstream renames and deprecations must be watched: the adapter was renamed once already and ships several times a week (0.72 → 0.75 in the first days of September 2026). `GET /api/drift` reports installed vs latest for the profile's `npm_package` and the View asks it on every page load; `scripts/watch_upstream.py` runs daily on a scheduler and writes `docs/watch/`. |
 | **Security model: 127.0.0.1 only, a random bearer token per launch (cookie, constant-time compare), foreign Host/Origin refused, strict CSP, no external resources.** Optional `--token-file` keeps the token across launches for a stable URL. | Localhost is not a trust boundary; other local processes and DNS-rebinding pages must not reach the session. | No multi-user, no remote access by design; the persistent token file must be treated like a password. |
 | **Agent file access is confined to the project directory** (symlink-resolved) for `fs/*` requests; **the `terminal` capability is deliberately not advertised.** | The client can only fence what it is asked to do; advertising a terminal would hand the agent a shell through the client's own hands. | Shell commands the agent runs *itself* are not confined by the client — the approval dialog flags out-of-boundary paths it can see and the user's answer is the control; the caveat says so in the launcher, the README and the manual. |
 | **Approval dialog: one-shot options first, standing grants last and visibly distinct; digits 1–9; no Escape-to-dismiss; fail-safe reject after a timeout.** | Standing grants ("always allow") are the dangerous answer; the adapter lists them first, the user pressed it under time pressure once. | The order differs from the terminal's; the number of buttons is the agent's (two or three per tool). |
@@ -66,8 +66,11 @@ misread.**
   the SDK's `prompt_suggestion` (the terminal's predicted next prompt) and
   `tool_use_summary`, and ignores `system` notifications other than
   init/compacting/compact boundary (hooks, tasks, persisted files — its
-  issue #1030). ClaudIU cannot show what never reaches it; the options are
-  upstream requests or a patched fork of the adapter (Apache-2.0).
+  issue #1030). This client cannot show what never reaches it; the options are
+  upstream requests or a patched fork of the adapter (Apache-2.0). The
+  sibling project ACPUPSTREAM holds seven graded findings against the
+  adapter (re-checked against 0.75.0 on 2026-09-05: all unchanged), the
+  reproduction, and the issues drafted for upstream.
 - **Thinking text — answered (2026-09-04).** The empty chunks were not
   redaction by the adapter: recent models return *summarized* thinking or
   none, and the summaries are only produced when the SDK is asked for them.
@@ -75,15 +78,18 @@ misread.**
   `_meta.claudeCode.options` on session creation), so thoughts arrive as
   the model's own summary. Raw thinking text is not on offer from the API
   for these models and no client can show it.
-- **Publication.** Name and collision check, first CI run on Linux/macOS
-  (the README check-count test assumes Playwright is installed), and a
-  release cadence are the author's calls.
+- **Publication — answered (2026-09-05).** The project is `acp-cockpit`
+  (the name settles the Claude-trademark exposure; ClaudIU survives as
+  the configurable on-screen name); the repo is
+  `fabiocampolim-design/acp-cockpit`; PyPI is the intended distribution,
+  which is why everything the server needs lives inside the package. The
+  README check count is a static count, the same on every machine.
 
 ## 5. Roadmap pins (2026-09-01, after the first day of live use)
 
 Recorded decisions, not open questions — each waits for the stated trigger.
 
-- **A ClaudIU-owned fork of the adapter is parked** (the author: "pin").
+- **A fork of the adapter owned by this project is parked** (the author: "pin").
   The facts stay on record (§4); the trigger is a dropped message that
   blocks daily work, or upstream declining the patches.
 - **Prompt suggestions** wait for upstream (`prompt_suggestion` is dropped

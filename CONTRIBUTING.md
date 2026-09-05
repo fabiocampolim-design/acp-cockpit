@@ -1,4 +1,4 @@
-# Contributing to ClaudIU
+# Contributing to acp-cockpit
 
 Thank you for considering a contribution. This file says how to report a
 problem, how to propose a change, and the rules a change has to meet to be
@@ -12,10 +12,10 @@ trade-offs are in `docs/DESIGN.md`; the View/engine contract is
 Open an issue in this repository. The most useful reports carry: what you
 did (the prompt, the button, the command), what you expected, what
 happened, your platform, the agent adapter and its version (`npm ls -g`),
-and — this is the one that makes a ClaudIU bug reproducible — the relevant
+and — this is the one that makes a bug here reproducible — the relevant
 part of the **session record** (`~/.acp-cockpit/records/<session>.jsonl`; the
 `{}` button on a row shows the frame number). Records contain your
-conversation: trim them before pasting. A protocol frame that ClaudIU
+conversation: trim them before pasting. A protocol frame that this client
 rendered wrongly, dropped, or failed to flag as unrecognized is a bug here;
 an agent that behaves oddly while every frame was shown is a report for the
 agent's adapter.
@@ -32,7 +32,7 @@ agent's adapter.
 
    ```
    pip install -e .[dev]
-   python -m pyflakes claudiu tools tests
+   python -m pyflakes acp_cockpit tools scripts tests docs
    python -m pytest tests -q                      # engine, server, security, e2e (needs playwright)
    ACP_COCKPIT_CONTRACT=1 python -m pytest tests/contract/ -q   # against the real adapter; costs tokens
    python tools/check_schema_drift.py             # registry vs the pinned ACP schema
@@ -49,8 +49,8 @@ agent's adapter.
    a frame "because it is noise" will not be merged; move it out of the
    way (a chip, a drawer, a collapsed row) instead.
 7. **The engine never names an agent.** Everything Claude-specific lives in
-   `agents/claude.toml`; adding an agent is a new TOML profile
-   (`agents/PROFILE-SCHEMA.md`), never a branch in `core/`.
+   `acp_cockpit/agents/claude.toml`; adding an agent is a new TOML profile
+   (`acp_cockpit/agents/PROFILE-SCHEMA.md`), never a branch in `core/`.
 8. Every new source file carries the SPDX header
    (`# SPDX-License-Identifier: Apache-2.0`).
 9. Do not bump the version, `CITATION.cff` or tag a release in a pull

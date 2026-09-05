@@ -1,8 +1,8 @@
 # UI Protocol — the View seam
 
-Any UI (web, desktop, mobile) implementing this document is a full ClaudIU
-front-end. The bundled `acp_cockpit/ui/web/` consumes exactly this protocol and
-nothing else. `tests/test_docs_sync.py` enforces that this document stays in
+Any UI (web, desktop, mobile) implementing this document is a full
+acp-cockpit front-end. The bundled `acp_cockpit/ui/web/` ("the bundled View"
+below) consumes exactly this protocol and nothing else. `tests/test_docs_sync.py` enforces that this document stays in
 lockstep with the code.
 
 ## 1. Authentication
@@ -96,7 +96,7 @@ would fail: `{"publisher": bool, "formats": [...], "default_formats": [...],
 "default_dest": "<path>", "agent_session": "<id>|null", "warning": null or a
 sentence saying the full publisher is not configured}`. With
 claude-session-publisher: html, markdown, text, latex, pdf. Without it:
-markdown, written by ClaudIU itself.
+markdown, written by the server itself.
 
 ### `POST /api/sessions/<sid>/archive` — body `{"formats": ["html", "markdown"], "dest": "<directory>"}`
 
@@ -119,7 +119,11 @@ the writer itself fails.
             "adapter_installed": "x.y.z"}}
 ```
 `flags` non-empty means the pinned protocol schema or the installed adapter
-is behind the latest published version — surface it. `adapter_package` is
+is behind the latest published version — surface it. A View asks this route
+once per page load (the bundled View: an `update` chip at the top right when
+`flags` is non-empty, and a *Versions* entry in Help either way; with
+`online: false` it says the check is off). A route nobody calls is not a
+feature (2026-09-05). `adapter_package` is
 the checked profile's `npm_package` (`?profile=<id>` picks the profile;
 default: the first profile that declares one; `null` = no adapter check).
 
@@ -177,7 +181,7 @@ Every server → client message is one event:
 
 | Kind | `data` payload | Rendering intent |
 |---|---|---|
-| `session_state` | `state` (`starting`/`ready`/`turn`/`failed`/`closed`), `detail`; the `ready` that follows initialize also carries `agent_info` (`{name, version, title}` from the agent's `initialize` response, or null) | Status strip; disable composer unless `ready`. Show `agent_info` where a reader would look for "which agent, which version" (ClaudIU: the tab tooltip and the status strip's tooltip). |
+| `session_state` | `state` (`starting`/`ready`/`turn`/`failed`/`closed`), `detail`; the `ready` that follows initialize also carries `agent_info` (`{name, version, title}` from the agent's `initialize` response, or null) | Status strip; disable composer unless `ready`. Show `agent_info` where a reader would look for "which agent, which version" (the bundled View: the tab tooltip). |
 | `message_chunk` | `role` (`agent`/`user`/`thought`), `text`, `parent_tool_call_id` (the tool call that owns it, or null) | Append to the conversation; aggregate consecutive chunks of one role; `thought` dimmed/collapsible. A non-null `parent_tool_call_id` means a **subagent** said it — file it under that tool call, not the main agent. |
 | `tool_call` | ACP toolCall passthrough (`toolCallId`, `title`, `kind`, `status`, `content`, `locations`, …) | Collapsible tool row; render diff content when present. |
 | `tool_call_update` | same shape, partial | Update the matching row by `toolCallId`. |
@@ -187,8 +191,9 @@ Every server → client message is one event:
 | `model` | `current`, `available` (list of `{modelId, name, description}`) | Model selector (from `session/new`'s `models`; empty `available` = current changed only). |
 | `stderr` | `line` | Adapter stderr: count it in a chip, show it in a drawer on demand — out of the conversation flow, never dropped (the engine records it). |
 | `usage` | `used`, `size` (tokens), `cost` (`{amount, currency}` or null), `models_used` (the canonical model ids the agent has billed this session to, e.g. `["claude-opus-5"]`, from its own per-model tally; empty until it reports one) | Context gauge in the status strip. `models_used` is the only place the API's real model id appears — a config option carries the adapter's short value and label — so show it where a reader would quote it. |
-| `rate_limit` | the agent's ACCOUNT rate-limit state, passed through whole. Claude reports the windows in `unifiedWindows` — a map of window name (`five_hour`, `seven_day`, `seven_day_overage_included`, ...) to `{utilization, resetsAt}` — and keeps `status`, `rateLimitType`, `resetsAt` and the overage/credits fields at the top level; a simpler payload has a single window as top-level `rateLimitType` + `utilization`. **`utilization` is a fraction (0.55 = 55 %).** | Account-wide, not session state: show the latest state of EVERY window reported, somewhere permanent (ClaudIU: top right, one chip each). Never invent a window that was not reported, and do not read only the top level — the usual payload carries no `utilization` there at all. |
-| `prompt_suggestion` | `text` | The agent's guess at your next prompt, offered after a turn. Offer it, never send it: the reader accepts or ignores it (ClaudIU: a chip over the composer that fills the box). Most adapters do not forward these — claude-agent-acp 0.73 discards the SDK message — so a View must work perfectly without ever seeing one. |\n| `session_info` | `title`, `updatedAt` (either may be null) | Session/tab title set by the agent. |
+| `rate_limit` | the agent's ACCOUNT rate-limit state, passed through whole. Claude reports the windows in `unifiedWindows` — a map of window name (`five_hour`, `seven_day`, `seven_day_overage_included`, ...) to `{utilization, resetsAt}` — and keeps `status`, `rateLimitType`, `resetsAt` and the overage/credits fields at the top level; a simpler payload has a single window as top-level `rateLimitType` + `utilization`. **`utilization` is a fraction (0.55 = 55 %).** | Account-wide, not session state: show the latest state of EVERY window reported, somewhere permanent (the bundled View: top right, one chip each). Never invent a window that was not reported, and do not read only the top level — the usual payload carries no `utilization` there at all. |
+| `prompt_suggestion` | `text` | The agent's guess at your next prompt, offered after a turn. Offer it, never send it: the reader accepts or ignores it (the bundled View: a chip over the composer that fills the box). Most adapters do not forward these — claude-agent-acp 0.73–0.75 discards the SDK message — so a View must work perfectly without ever seeing one. |
+| `session_info` | `title`, `updatedAt` (either may be null) | Session/tab title set by the agent. |
 | `config_option` | `options` — the FULL current set of `SessionConfigOption` (`id`, `name`, `type` `select`/`boolean`, `currentValue`, `options` for selects) | Generic selectors; changing one sends `set_config_option`. |
 | `permission_request` | `request` (id), `tool_call`, `options` (list of `{optionId, name, kind}`), `outside_boundary` (absolute paths mentioned by the tool call that fall outside the session boundary) | Modal approval dialog; explicit choice required. Non-empty `outside_boundary` MUST be shown prominently: shell execution is agent-side and the user's answer is the only control. Present one-shot options before standing grants. |
 | `permission_resolved` | `request`, `option`, `source` (`user`/`failsafe`/`agent`) | Close the dialog; show fail-safe rejections distinctly. `agent` means the agent withdrew the request (`$/cancel_request`) — the answer was `cancelled`, nobody chose. |
@@ -198,7 +203,7 @@ Every server → client message is one event:
 | `turn_ended` | `stop_reason`; when `"error"` also `error` `{code, message}` | Turn separator; re-enable composer. A failed `session/prompt` still ends the turn (the same message arrives first as a `turn-error` anomaly). |
 | `vendor_update` | `kind` (the `sessionUpdate` value), `update` (the whole update object) | A `session/update` kind outside the ACP schema that this agent's adapter is KNOWN to send (`vendor_update_kinds` in the registry — claude-agent-acp's `subagent_spawned`, `subagent_state_update`, `async_task_*`). Known is not drift, so no chip; render it as a collapsible row naming the kind, with raw access. `subagent_*` belongs to the `subagents` lane, the rest to `events`. |
 | `replay_truncated` | `from_seq`, `to_seq` | The server's replay buffer no longer holds that range (it keeps the most recent events, not the whole session; the JSONL record keeps everything). Say so where the reader can see it — silently skipping a gap is the one thing this protocol does not do. Transport, not agent traffic. |
-| `anomaly` | `category`, `detail` | MUST be surfaced (chip + inline row); never dropped. Reading them MUST NOT destroy them: ClaudIU's chip opened and *cleared* the list in one click until 2026-09-04 — dismissal is a separate, explicit act. |
+| `anomaly` | `category`, `detail` | MUST be surfaced (chip + inline row); never dropped. Reading them MUST NOT destroy them: the bundled View's chip opened and *cleared* the list in one click until 2026-09-04 — dismissal is a separate, explicit act. |
 | `drift` | `flags` (list of strings) | MUST be surfaced (chip with details); protocol has outgrown the client. |
 | `unrecognized` | `why`, `frame` | MUST be surfaced; render as an explicit unknown with raw access. Also used for a message content block that is not text (an image, a resource) and for any notification this client does not act on (`elicitation/complete`): recognised by name, not rendered, so shown. |
 

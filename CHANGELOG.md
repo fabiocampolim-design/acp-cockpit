@@ -1,8 +1,68 @@
 # Changelog
 
-All notable changes to CLAUDIU are documented in this file.
+All notable changes to acp-cockpit are documented in this file.
 
 ## Unreleased
+
+### review 2026-09-05 — a senior review of the whole project, all findings fixed
+
+The report is `KEEP/audits/2026-09-05-acp-cockpit-review.md` on the dev
+machine. What changed, for a reader of this client:
+
+- **The wheel is the product.** `pip install acp-cockpit` used to install
+  24 Python files and nothing else — no page, no schema, no profiles; only an
+  editable install from a checkout worked. Everything the server needs now
+  lives inside the package, a test builds the wheel and checks it, and
+  `acp-cockpit` is a console script. Your own profiles go in
+  `~/.acp-cockpit/agents/` (loaded on top of the shipped ones); your own
+  `uiname.toml` in `~/.acp-cockpit/`.
+- **Protocol coverage.** A ranged file read (`line`, `limit`) returns only
+  its range; a file that is not text is answered with an error instead of
+  hanging the agent's tool call; an image or resource block in a message is
+  an `unrecognized` row with the frame, not an empty line; notifications the
+  client does not act on are shown, not swallowed; the agent withdrawing its
+  own permission request or question (`$/cancel_request`) closes the dialog
+  and says so; an unadvertised request (a terminal) is refused and shown; the
+  agent's name and version ride on the ready state and into the tab tooltip;
+  an agent that wants an authentication this client does not implement is
+  said so at start-up. Update kinds the Claude adapter emits outside the ACP
+  schema (`subagent_spawned`, `subagent_state_update`, `async_task_*`) are
+  registered and rendered as rows in their lane, not flagged as drift.
+- **The boundary warning stopped crying wolf.** It fired on every URL and on
+  `/api/...`-style tokens; URLs are not paths, and a POSIX-looking token
+  counts only when its top-level directory exists on this machine.
+- **Adapters die with their session — the whole tree.** Terminating the
+  adapter left the CLI it had spawned running; ten of them from the week
+  before were still resident. Windows job object with kill-on-close (even a
+  hard kill of the server reaps them), POSIX process group, escalation off
+  the IOLoop, SIGTERM and exit handlers. Failed or closed sessions leave the
+  list after ten minutes (their record stays); the probe that lists
+  resumable sessions leaves no record.
+- **The version check is visible.** `/api/drift` existed and nothing called
+  it; the page now asks it once per load, an **update** chip appears when the
+  schema or the adapter is behind, and Help → Versions lists what was found
+  (or that the online check is off).
+- **Keyboard and tabs.** Space on a focused button presses the button
+  instead of typing; each tab keeps its own scroll position and follow state.
+  Approvals resolved by anything but you (auto-rejected, withdrawn) leave a
+  line in the events lane.
+- **Docs.** The manual is rewritten (one Archiving section, the lane switches
+  where they actually are, every option listed) and its PDF is byte-
+  reproducible; `docs/TESTPLAN.md` describes this product instead of the
+  archived one; the project is called `acp-cockpit` everywhere a document
+  means the repository, and *ClaudIU* only where it means the name on
+  screen; the README check count is a static count that CI can verify.
+- **Upstream watch.** `scripts/watch_upstream.py` compares the installed
+  adapter and the pinned schema with the latest releases once a day from a
+  scheduler and writes `docs/watch/YYYY-MM-DD.md`. The adapter moved 0.73 →
+  0.75 in the four days before this release; all seven ACPUPSTREAM findings
+  were re-checked against 0.75.0 and hold unchanged.
+- **Upgrade notes.** Browser preferences (theme, lanes, last directory,
+  archive destination) reset once with the rename: their storage keys moved
+  to `acpcockpit.*`. A local profile that lived in the checkout's `agents/`
+  belongs in `~/.acp-cockpit/agents/` now.
+
+### the rename (2026-09-05)
 
 - **Renamed to `acp-cockpit`** — the project, the Python package
   (`python -m acp_cockpit`), the distribution and the documentation. The
@@ -57,8 +117,6 @@ end of a session — are now true by construction rather than by luck.
   interrupt, records retention, and a good deal of layout work.
 
 Full detail in the rounds below.
-
-## Unreleased
 
 ### audit fixes
 

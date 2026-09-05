@@ -72,7 +72,7 @@ text = "Two things the Claude Code terminal shows you never cross ACP, because t
 
 [[caveats]]
 id = "no-prompt-suggestions"
-text = "Claude Code's predicted next-prompt suggestions do not cross ACP yet: the adapter neither enables the SDK's promptSuggestions option nor forwards the prompt_suggestion message (claude-agent-acp 0.73)."
+text = "Claude Code's predicted next-prompt suggestions do not cross ACP yet: the adapter neither enables the SDK's promptSuggestions option nor forwards the prompt_suggestion message (claude-agent-acp 0.73 through 0.75, re-checked 2026-09-05)."
 
 [[caveats]]
 id = "ask-question-preview"

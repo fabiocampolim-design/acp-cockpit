@@ -27,7 +27,7 @@ the page.*
 
 **Nothing is left out, because nothing is redrawn.** A terminal client shows
 you a screen; whatever is not on the screen is gone, and a client that
-scrapes one is guessing. ClaudIU is an ACP client: the conversation arrives
+scrapes one is guessing. acp-cockpit is an ACP client: the conversation arrives
 as structured JSON-RPC, is written to a per-session record *before* it is
 interpreted, and is then rendered as itself. The model's **thinking**, tool
 calls with their **diffs**, **permission requests** with the agent's own
@@ -74,19 +74,20 @@ repository's own scripted test agent, so the prose is deliberately dull.)*
 ## Questions people ask
 
 **Can Anthropic — or anyone else — see my conversation?**
-Nothing about ClaudIU changes who sees what. It is a local program: it binds
+Nothing about acp-cockpit changes who sees what. It is a local program: it binds
 `127.0.0.1`, serves one browser, and spawns the agent adapter as a child
 process on your machine. Your prompts go exactly where they would if you ran
 the agent in a terminal — to whatever service that agent talks to, under
-your own credentials — and ClaudIU adds no destination of its own. It sends
+your own credentials — and acp-cockpit adds no destination of its own. It sends
 your conversation nowhere, stores it nowhere but your disk, and has no
 account, no telemetry and no analytics. The transcripts in
 `~/.acp-cockpit/records` never leave the machine unless you move them.
 
-The one exception is deliberate and switchable: `/api/drift` asks
-`api.github.com` and `registry.npmjs.org` whether the pinned ACP schema and
-the installed adapter are behind the latest published versions. It sends
-nothing but the request. `--no-drift-online` turns it off.
+The one exception is deliberate and switchable: once per page load the
+client asks `api.github.com` and `registry.npmjs.org` whether the pinned ACP
+schema and the installed adapter are behind the latest published versions
+(an **update** chip appears when they are; Help lists the versions). It
+sends nothing but the request. `--no-drift-online` turns it off.
 
 **How is the agent doing right now — am I about to hit a limit?**
 The status strip carries the context gauge (tokens used against the window,
@@ -115,15 +116,15 @@ them. It is a program you run, not a daemon you host.
 
 ```
 npm install -g @agentclientprotocol/claude-agent-acp   # the Claude adapter
-pip install -e .                                       # Python >= 3.11
-python -m acp_cockpit
+pip install acp-cockpit                                # Python >= 3.11 (or `pip install -e .` from a checkout)
+acp-cockpit                                            # or: python -m acp_cockpit
 ```
 
 Open the printed `http://127.0.0.1:<port>/?token=...` URL, pick an agent,
 pick a project directory, start the session. The port is OS-assigned each
 run unless you pass `--port`. If a `claude` CLI is installed, the adapter is
 pointed at it instead of the older copy it bundles (the launcher shows which
-runtime resolved; `agents/PROFILE-SCHEMA.md` → `env_resolve`). For a stable
+runtime resolved; `acp_cockpit/agents/PROFILE-SCHEMA.md` → `env_resolve`). For a stable
 address, pin the port and keep the token:
 `python -m acp_cockpit --port 8642 --token-file ~/.acp-cockpit/token` — bookmark the
 printed URL once (the token file is owner-only; treat it like a password).
@@ -135,20 +136,22 @@ printed URL once (the token file is owner-only; treat it like a password).
 Four layers, one-way knowledge, swappable at each seam:
 
 ```
-ui/web        View        vanilla JS, no build; speaks docs/UI-PROTOCOL.md
-server/       Controller  Tornado; auth, process spawn, WS bridge
-core/         Model       pure stdlib; JSON-RPC, ACP state machine,
-                          flight recorder, drift sentinel, path policy
-agents/*.toml Data        everything agent-specific (see PROFILE-SCHEMA.md)
+acp_cockpit/ui/web        View        vanilla JS, no build; speaks docs/UI-PROTOCOL.md
+acp_cockpit/server/       Controller  Tornado; auth, process trees, WS bridge
+acp_cockpit/core/         Model       pure stdlib; JSON-RPC, ACP state machine,
+                                      flight recorder, drift sentinel, path policy
+acp_cockpit/agents/*.toml Data        everything agent-specific (PROFILE-SCHEMA.md);
+                                      yours go in ~/.acp-cockpit/agents/
 ```
 
 - **Swap the UI**: implement `docs/UI-PROTOCOL.md` (enforced in tests).
 - **Swap the server**: implement the three ports in `acp_cockpit/core/ports.py`.
 - **Add an agent**: write one TOML profile; the engine never changes.
-  `agents/local-*.toml` is yours and is never tracked.
+  `~/.acp-cockpit/agents/*.toml` is yours (in a checkout,
+  `acp_cockpit/agents/local-*.toml`, never tracked).
 - **Rename it**: the name in the tab, the launcher heading and the help
   dialog comes from `ACP_COCKPIT_UINAME` — the environment variable, else
-  `uiname.toml`, else the shipped default. Over 15 characters is cut with an
+  `~/.acp-cockpit/uiname.toml`, else the shipped default. Over 15 characters is cut with an
   ellipsis, because it has to fit a browser tab. Nothing else in the program
   depends on it.
 
@@ -161,18 +164,23 @@ agents/*.toml Data        everything agent-specific (see PROFILE-SCHEMA.md)
   unless you ask otherwise (`--records-keep-days N`); they hold the whole
   conversation, and the server says how much it is holding at startup.
 - Unknown methods, update kinds, fields or enum values are checked against a
-  registry pinned to a vendored ACP schema release (`vendor/acp/VERSION`) —
+  registry pinned to a vendored ACP schema release
+  (`acp_cockpit/vendor/acp/VERSION`) —
   mismatches surface as `drift` events in the UI and the log, with the
   offending frame. `tools/check_schema_drift.py` diffs the registry against
   the schema at dev time; `/api/drift` compares the pin and the installed
-  adapter against the latest published versions (disable with
-  `--no-drift-online`).
+  adapter against the latest published versions, the page asks it on every
+  load, and `scripts/watch_upstream.py` does the same once a day from a
+  scheduler into `docs/watch/` (disable the page's check with
+  `--no-drift-online`). Update kinds the adapter is known to send outside
+  the schema are registered as `vendor_update_kinds` and rendered as
+  themselves, not flagged.
 - Anything the renderer does not understand becomes an explicit
   `unrecognized` element — visible, expandable to the raw frame, never
   dropped.
 
-**Where the limit actually is.** ClaudIU can only render what the *adapter*
-forwards, and `claude-agent-acp` 0.73 discards some of what the Agent SDK
+**Where the limit actually is.** acp-cockpit can only render what the *adapter*
+forwards, and `claude-agent-acp` (0.73 through 0.75) discards some of what the Agent SDK
 produces — prompt suggestions, among others. That is not hidden: each agent
 profile carries `caveats` which the launcher shows before you start a
 session, so you know what this client cannot see and why.
@@ -187,14 +195,17 @@ session, so you know what this client cannot see and why.
   CSP; no external resources.
 - ACP lets the agent ask the client to read and write files: every such
   request is checked against the session's path boundary (the project
-  directory, symlink-resolved) and refused outside it. **Shell commands the
+  directory, symlink-resolved) and refused outside it; a ranged read
+  returns only its range, and a file that is not text is answered with an
+  error rather than left hanging. **Shell commands the
   agent runs itself are not confined by this** — they execute agent-side;
   the approval dialog flags any out-of-boundary paths it can see and your
   answer is the control ("Always Allow" is a standing grant for the
   session). The `terminal` capability is deliberately not advertised in v1.
 - Adapter subprocesses run with a scrubbed environment (profile `env_scrub`,
   then the profile's own `env_resolve`/`env_set` additions — recorded as the
-  session's first record) and are terminated with their session. Records
+  session's first record) and die **as a process tree** with their session:
+  a Windows job object with kill-on-close, a POSIX process group. Records
   never contain the auth token.
 
 ## Development
@@ -202,11 +213,11 @@ session, so you know what this client cannot see and why.
 ```
 python -m pytest tests/ -q          # full suite (e2e needs playwright)
 ACP_COCKPIT_CONTRACT=1 python -m pytest tests/contract/ -q   # real adapter
-python -m pyflakes claudiu tools tests
+python -m pyflakes acp_cockpit tools scripts tests docs
 python tools/check_schema_drift.py
 ```
 
-Verified by 217 checks (plus the opt-in real-adapter contract test), on
+Verified by 255 checks (plus the opt-in real-adapter contract test), on
 Linux, Windows and macOS. See `AGENTS.md` for the working rules,
 `docs/DESIGN.md` for the reasoning and `docs/superpowers/specs/` for the
 design history — the research notes and the approved specifications the
@@ -216,7 +227,7 @@ pivot is kept out of this repository, with its own history.
 ## License
 
 Apache-2.0 (see `LICENSE`, `NOTICE`). Vendored data: the ACP schema
-(Apache-2.0), pinned in `vendor/acp/`.
+(Apache-2.0), pinned in `acp_cockpit/vendor/acp/`.
 
 ### Disclaimer
 
