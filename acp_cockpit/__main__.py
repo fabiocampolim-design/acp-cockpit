@@ -95,7 +95,7 @@ def main():
     loop = tornado.ioloop.IOLoop.current()
 
     def shutdown(*_):
-        app.manager.close_all()
+        app.manager.close_all(wait=True)
         loop.add_callback_from_signal(loop.stop)
     # Ctrl+C, a polite SIGTERM (POSIX) and an ordinary interpreter exit all
     # end the adapters; a hard kill on Windows is covered by the job object
@@ -104,7 +104,7 @@ def main():
     signal.signal(signal.SIGINT, shutdown)
     if hasattr(signal, "SIGTERM") and os.name != "nt":
         signal.signal(signal.SIGTERM, shutdown)
-    atexit.register(app.manager.close_all)
+    atexit.register(app.manager.close_all, True)
     loop.start()
 
 

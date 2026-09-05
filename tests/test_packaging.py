@@ -39,6 +39,10 @@ def test_the_wheel_ships_the_ui_the_schema_the_profiles_and_the_name(tmp_path):
         [sys.executable, "-m", "pip", "wheel", ".", "--no-deps",
          "-q", "-w", str(tmp_path)],
         capture_output=True, text=True, timeout=900)
+    if run.returncode != 0 and any(s in run.stderr for s in (
+            "Could not fetch", "No matching distribution", "Retrying",
+            "Failed to establish", "ProxyError", "Temporary failure")):
+        pytest.skip("no network for the isolated build backend")
     assert run.returncode == 0, run.stderr[-2000:]
     wheel = next(tmp_path.glob("acp_cockpit-*.whl"))
     names = set(zipfile.ZipFile(wheel).namelist())

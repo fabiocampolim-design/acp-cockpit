@@ -188,3 +188,20 @@ class HousekeepingTest(tornado.testing.AsyncHTTPTestCase):
         assert sid not in [x["id"] for x in live["sessions"]]
         # the record of WHY it failed stays on disk
         assert (self.tmpdir / "records" / f"{sid}.jsonl").exists()
+
+    def test_eviction_closes_the_session_and_its_record(self):
+        resp = self.fetch("/api/sessions", method="POST",
+                          headers=self._headers(),
+                          body=json.dumps({"profile": "dies",
+                                           "cwd": str(self.tmpdir)}))
+        sid = json.loads(resp.body)["id"]
+        entry = self._app.manager.get(sid)
+        for _ in range(100):
+            if entry.session.state == "failed":
+                break
+            self._pump(0.1)
+        assert entry.session.state == "failed"
+        self._pump(self.DEAD_TTL * 3)
+        assert self._app.manager.get(sid) is None
+        # evicted THROUGH close(): the record handle is not left open until GC
+        assert entry.session.recorder._fh.closed

@@ -62,6 +62,17 @@ machine. What changed, for a reader of this client:
   scheduler and writes `docs/watch/YYYY-MM-DD.md`. The adapter moved 0.73 →
   0.75 in the four days before this release; all seven ACPUPSTREAM findings
   were re-checked against 0.75.1 and hold unchanged.
+- **The independent review of this release found nine more, all fixed before
+  the tag**: the new boundary heuristic had silently dropped Git Bash paths
+  (`/c/Users/...`, the shell Claude Code uses on Windows) and did filesystem
+  I/O inside `core/`; a hard-killed server could still leave a SIGTERM-
+  resistant tree on POSIX (a synchronous `finish()` on the shutdown paths,
+  `PR_SET_PDEATHSIG` on Linux, a lock around the job handle, and the guard's
+  state recorded with the spawn as `tree_guard`); letters typed after clicking
+  a button went nowhere; an evicted session left its record open; ranged
+  reads counted form feeds as lines; `/api/drift` re-ran its lookups on every
+  page load (cached per hour now); the wheel test failed offline instead of
+  skipping; the scheduler wrapper could report a stale run as verified.
 - **Upgrade notes.** Browser preferences (theme, lanes, last directory,
   archive destination) reset once with the rename: their storage keys moved
   to `acpcockpit.*`. A local profile that lived in the checkout's `agents/`

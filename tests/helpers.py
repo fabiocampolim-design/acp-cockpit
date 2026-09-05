@@ -33,6 +33,13 @@ class SinkList:
 class FakeFiles:
     def __init__(self):
         self.store: dict[str, str] = {}
+        self.dirs = None          # a set of directories, or None = the real fs
+
+    def is_dir(self, path: str) -> bool:
+        if self.dirs is not None:
+            return path in self.dirs
+        import os
+        return os.path.isdir(path)
 
     def read_text(self, path: str) -> str:
         return self.store[path]

@@ -865,3 +865,16 @@ def test_the_account_the_agent_runs_as_is_shown_top_right(server):
         assert page.inner_text("#auth-chip") == "Fake Plan"
         assert "someone@example.com" in page.get_attribute("#auth-chip", "title")
         assert page.locator(".drift-chip:visible").count() == 0
+
+
+def test_typing_after_clicking_a_button_still_lands_in_the_composer(server):
+    # A mouse click leaves the button focused; letters typed next must go to
+    # the prompt (only Space and Enter belong to the button) — review 2026-09-05.
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = start_fake_session(pw, url, tmp)
+        page.click('#lanes button[data-lane-toggle="events"]')
+        page.keyboard.type("hello")
+        assert page.input_value("#prompt-input") == "hello"
+        page.click('#lanes button[data-lane-toggle="events"]')   # restore

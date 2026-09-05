@@ -39,9 +39,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 sys.path.insert(0, str(ROOT))
 
-from acp_cockpit import __version__                       # noqa: E402
-from acp_cockpit.__main__ import default_profiles_dirs    # noqa: E402
-from acp_cockpit.core.profiles import load_profiles       # noqa: E402
+from acp_cockpit import __version__                       # noqa: E402  (no deps)
 
 USER_AGENT = f"acp-cockpit-watch/{__version__} (+https://github.com/fabiocampolim-design/acp-cockpit)"
 SCHEMA_REPO = "agentclientprotocol/agent-client-protocol"
@@ -67,7 +65,11 @@ def installed_version(npm_package: str) -> str | None:
 
 
 def watch_target(profile_id: str | None = None) -> dict:
-    """What to watch, read from the shipped profile and the pinned schema."""
+    """What to watch, read from the shipped profile and the pinned schema.
+    The imports live here so a missing dependency (tornado, via __main__)
+    fails inside main()'s try and still writes the audit log."""
+    from acp_cockpit.__main__ import default_profiles_dirs
+    from acp_cockpit.core.profiles import load_profiles
     profiles = load_profiles(*default_profiles_dirs())
     prof = (profiles.get(profile_id) if profile_id else
             next((p for p in profiles.values() if p.npm_package), None))

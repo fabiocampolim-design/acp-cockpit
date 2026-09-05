@@ -181,3 +181,48 @@ def test_children_die_with_a_hard_killed_parent(tmp_path):
     helper.kill()
     helper.wait(timeout=15)
     assert wait_dead(child), "the adapter outlived its hard-killed server"
+
+
+# ---- review 2026-09-05 (independent /code-review of the release range) ----
+
+def test_finish_waits_for_the_tree_and_hard_kills_what_resists(tmp_path):
+    # kill() escalates on a daemon thread; at interpreter exit that thread is
+    # torn down before the grace period ends and a SIGTERM-resistant tree
+    # survived. finish() is the synchronous end used on the shutdown paths.
+    lines, errs, exits, done = collectors()
+    proc = spawn(tmp_path, lines, errs, exits, done,
+                 env_set={"IGNORE_TERM": "1"})
+    end = time.time() + 15
+    while not lines and time.time() < end:
+        time.sleep(0.1)
+    proc.kill()
+    t0 = time.time()
+    assert proc.finish(timeout=8) is not None, "finish() did not return an exit code"
+    assert time.time() - t0 < 9
+    assert done.wait(timeout=5)
+
+
+def test_the_tree_guard_is_reported(tmp_path):
+    # Whether the tree is protected is recorded, never assumed: a job object
+    # that could not be created or attached leaves `tree_guard` False and the
+    # spawn record says so.
+    lines, errs, exits, done = collectors()
+    proc = spawn(tmp_path, lines, errs, exits, done)
+    try:
+        assert isinstance(proc.tree_guard, bool)
+        if os.name == "nt":
+            assert proc.tree_guard is True
+    finally:
+        proc.kill()
+        proc.finish(timeout=10)
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="PR_SET_PDEATHSIG is Linux")
+def test_children_die_with_a_hard_killed_parent_on_linux(tmp_path):
+    helper = subprocess.Popen([sys.executable, PARENT_DIES],
+                              stdout=subprocess.PIPE, text=True)
+    child = json.loads(helper.stdout.readline())["child"]
+    assert alive(child)
+    helper.kill()                                   # SIGKILL: no handler runs
+    helper.wait(timeout=15)
+    assert wait_dead(child), "the adapter outlived its SIGKILLed server"

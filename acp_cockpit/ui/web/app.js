@@ -1913,11 +1913,12 @@ document.addEventListener("keydown", (e) => {
   if (e.ctrlKey || e.altKey || e.metaKey || e.key.length !== 1) return;
   if (document.querySelector("dialog[open]")) return;
   const t = e.target;
-  // A focused control keeps its keys: Space presses a button or opens a
-  // <details>, it does not type a space (2026-09-05: keyboard users could
-  // not press a lane switch).
   if (t && (t.isContentEditable ||
-            /^(INPUT|TEXTAREA|SELECT|BUTTON|SUMMARY|A)$/.test(t.tagName || ""))) return;
+            /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || ""))) return;
+  // A focused button keeps Space (it presses it) — but only Space: a mouse
+  // click leaves the button focused, and the letters typed next still
+  // belong to the composer (review 2026-09-05).
+  if (t && /^(BUTTON|SUMMARY|A)$/.test(t.tagName || "") && e.key === " ") return;
   const box = $("#prompt-input");
   if (box && !box.disabled) box.focus();
 });

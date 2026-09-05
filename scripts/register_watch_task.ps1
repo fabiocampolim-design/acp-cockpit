@@ -67,12 +67,16 @@ Write-Output "registered '$name' daily $At -> $Python $script --daily"
 if ($NoRun) { exit 0 }
 # The scheduler is not verified by registering it (rule 23, QUANTUMESPRESSO
 # 2026-09-04): run it once and read the result.
+$before = (Get-ScheduledTaskInfo -TaskName $name).LastRunTime
 Start-ScheduledTask -TaskName $name
 $deadline = (Get-Date).AddMinutes(5)
+# wait for a run that STARTED after we asked (LastRunTime moves) and ended
+# (0x41301 = still running) — a stale LastTaskResult once passed for a run
 do {
     Start-Sleep -Seconds 3
     $info = Get-ScheduledTaskInfo -TaskName $name
-} while ($info.LastTaskResult -eq 267009 -and (Get-Date) -lt $deadline)   # 0x41301 = running
+} while (($info.LastRunTime -eq $before -or $info.LastTaskResult -eq 267009) -and (Get-Date) -lt $deadline)
+if ($info.LastRunTime -eq $before) { Write-Output "the task did not start within 5 minutes"; exit 1 }
 Write-Output ("LastRunTime {0}  LastTaskResult {1}" -f $info.LastRunTime, $info.LastTaskResult)
 if ($info.LastTaskResult -ne 0) {
     Write-Output "the verification run did not exit 0; read $logDir\task-output.log"

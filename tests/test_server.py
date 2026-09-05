@@ -338,3 +338,41 @@ class ElicitationTimeoutTest(tornado.testing.AsyncHTTPTestCase):
                     break
             conn.close()
         self.io_loop.run_sync(drive, timeout=30)
+
+
+class DriftCacheTest(tornado.testing.AsyncHTTPTestCase):
+    """The page asks /api/drift on every load; the two HTTPS lookups and the
+    `npm ls -g` subprocess behind it run once per process per hour, not once
+    per reload (review 2026-09-05)."""
+
+    def get_app(self):
+        self.tmpdir = Path(tempfile.mkdtemp())
+        profs = self.tmpdir / "agents"
+        profs.mkdir()
+        (profs / "fake.toml").write_text(
+            FIXTURE_PROFILE.format(python=sys.executable)
+            + 'npm_package = "some-adapter"\n', encoding="utf-8")
+        self.auth = TokenAuth()
+        return make_app(profiles_dir=profs, records_dir=self.tmpdir / "records",
+                        auth=self.auth, drift_online=True)
+
+    def test_the_online_lookup_is_cached(self):
+        from acp_cockpit.server import app as appmod
+        calls = []
+
+        def fake_latest(pkg):
+            calls.append(pkg)
+            return {"schema": "schema-v1.21.0", "adapter_latest": "9.9.9",
+                    "adapter_installed": "9.9.8"}
+        appmod._DRIFT_CACHE.clear()
+        original = appmod._latest_versions
+        appmod._latest_versions = fake_latest
+        try:
+            h = {"Cookie": f"acp_cockpit_token={self.auth.token}"}
+            first = json.loads(self.fetch("/api/drift", headers=h).body)
+            second = json.loads(self.fetch("/api/drift", headers=h).body)
+        finally:
+            appmod._latest_versions = original
+            appmod._DRIFT_CACHE.clear()
+        assert first["flags"] and first["flags"] == second["flags"]
+        assert calls == ["some-adapter"], calls

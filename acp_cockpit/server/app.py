@@ -23,7 +23,7 @@ from ..core.branding import ui_name
 from ..core.sentinel import Sentinel
 from ..core.transcript import write_markdown
 from .auth import COOKIE_NAME, origin_ok
-from .procs import SubprocessAgentProcess, resolve_env
+from .procs import GRACE_SECONDS, SubprocessAgentProcess, resolve_env
 from .ws import BufferedSink, SessionWS
 
 UI_DIR = Path(__file__).resolve().parents[1] / "ui" / "web"
@@ -48,6 +48,9 @@ class LocalFiles:
         p = Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(content, encoding="utf-8")
+
+    def is_dir(self, path: str) -> bool:
+        return os.path.isdir(path)
 
 
 class AgentSessionBusy(Exception):
@@ -128,7 +131,8 @@ class SessionManager:
         # runtime it was pointed at — the answer to "which CLI ran this?".
         recorder.append({"dir": "client", "action": "spawn",
                          "command": list(profile.command),
-                         "env_resolved": proc.resolved_env})
+                         "env_resolved": proc.resolved_env,
+                         "tree_guard": proc.tree_guard})
         session = AcpSession(
             sid=sid, profile=profile, proc=proc, sink=sink,
             recorder=recorder,
@@ -196,7 +200,7 @@ class SessionManager:
 
         def evict():
             if not entry.live and self._entries.get(entry_sid) is entry:
-                del self._entries[entry_sid]
+                self.close(entry_sid)      # not a bare del: closes the record
 
         entry_sid = next((s for s, e in self._entries.items() if e is entry),
                          None)
@@ -237,9 +241,19 @@ class SessionManager:
         if entry:
             entry.session.close()
 
-    def close_all(self):
+    def close_all(self, wait: bool = False):
+        """`wait=True` on the shutdown paths: kill() escalates on a daemon
+        thread, and at interpreter exit that thread is torn down before the
+        grace period ends — a SIGTERM-resistant tree survived exactly the
+        way the job object was meant to prevent (review 2026-09-05)."""
+        procs = [e.session.proc for e in self._entries.values()]
         for sid in list(self._entries):
             self.close(sid)
+        if wait:
+            for proc in procs:
+                finish = getattr(proc, "finish", None)
+                if finish:
+                    finish(timeout=GRACE_SECONDS + 1)
 
 
 class Guard:
@@ -644,7 +658,7 @@ class DriftHandler(BaseHandler):
             result["online"] = True
             try:
                 latest = await tornado.ioloop.IOLoop.current().\
-                    run_in_executor(None, _latest_versions, package)
+                    run_in_executor(None, _latest_versions_cached, package)
                 result["flags"] = Sentinel.load_default().compare_versions(
                     pinned, latest.get("schema"),
                     latest.get("adapter_installed"),
@@ -653,6 +667,23 @@ class DriftHandler(BaseHandler):
             except Exception as exc:      # network failure is data, not death
                 result["flags"] = [f"drift-check-failed:{exc}"]
         self.write_json(result)
+
+
+# One lookup per package per hour: the page asks /api/drift on every load,
+# and each lookup is two HTTPS round trips plus an `npm ls -g` subprocess
+# (review 2026-09-05). {package: (monotonic time, result)}.
+_DRIFT_CACHE: dict = {}
+DRIFT_TTL = 3600.0
+
+
+def _latest_versions_cached(npm_package: str | None = None) -> dict:
+    import time as _time
+    hit = _DRIFT_CACHE.get(npm_package)
+    if hit and _time.monotonic() - hit[0] < DRIFT_TTL:
+        return hit[1]
+    result = _latest_versions(npm_package)
+    _DRIFT_CACHE[npm_package] = (_time.monotonic(), result)
+    return result
 
 
 def _latest_versions(npm_package: str | None = None) -> dict:

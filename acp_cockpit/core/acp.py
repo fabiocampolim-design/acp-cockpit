@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 
 from .events import make_event
@@ -17,12 +16,17 @@ _ABS_PATH = re.compile(
     r"|(?<![\w:/])/[\w./-]{2,}")
 
 
-def _looks_like_a_real_posix_path(candidate: str) -> bool:
-    """`/api/sessions` in a tool title is prose about an HTTP route; `/etc/x`
-    is a path. The difference on THIS machine: whether the top-level
-    directory exists. A drive-letter path never comes here."""
-    top = "/" + candidate.split("/", 2)[1] if candidate.count("/") else candidate
-    return os.path.isdir(top)
+_GIT_BASH_DRIVE = re.compile(r"^/([A-Za-z])/(.*)$")
+
+
+def _as_native(candidate: str) -> str:
+    """`/c/Work/x` is how Git Bash — Claude Code's shell on Windows — spells
+    `C:\\Work\\x`. The first URL fix asked the host whether `/c` was a
+    directory and dropped every such path (review 2026-09-05)."""
+    m = _GIT_BASH_DRIVE.match(candidate)
+    if m:
+        return f"{m.group(1).upper()}:\\" + m.group(2).replace("/", "\\")
+    return candidate
 
 _UPDATE_TO_EVENT = {
     "agent_message_chunk": ("message_chunk", "agent"),
@@ -42,7 +46,10 @@ def _slice_lines(text: str, line, limit) -> str:
     2026-09-05)."""
     if line is None and limit is None:
         return text
-    lines = text.splitlines(keepends=True)
+    # newline only: str.splitlines() also breaks on form feeds and U+2028,
+    # which the agent does not count as lines (review 2026-09-05)
+    parts = text.split("\n")
+    lines = [p + "\n" for p in parts[:-1]] + ([parts[-1]] if parts[-1] else [])
     start = max(int(line or 1) - 1, 0)
     end = start + int(limit) if limit is not None else None
     return "".join(lines[start:end])
@@ -199,8 +206,9 @@ class AcpSession:
         self.agent_info = dict(info) if isinstance(info, dict) else None
         methods = result.get("authMethods") or []
         if methods:
-            names = ", ".join(str(m.get("id") or m.get("name") or m)
-                              for m in methods if m is not None)
+            names = ", ".join(
+                str(m.get("id") or m.get("name") or m) if isinstance(m, dict)
+                else str(m) for m in methods if m is not None)
             self._emit("anomaly", {
                 "category": "authentication-unsupported",
                 "detail": f"the agent offers authentication ({names}); this "
@@ -455,9 +463,17 @@ class AcpSession:
         for m in _ABS_PATH.finditer(text):
             candidate = m.group(0).replace("\\\\", "\\")
             candidate = candidate.rstrip("`'\"),;\\")   # JSON-escaped quote tail
-            if candidate.startswith("/") and \
-                    not _looks_like_a_real_posix_path(candidate):
-                continue
+            if candidate.startswith("/"):
+                native = _as_native(candidate)
+                if native == candidate:
+                    # `/api/sessions` is prose about a route; `/etc/x` is a
+                    # path. The difference: whether the top-level directory
+                    # exists — asked through the FileAccess port, never by
+                    # core itself (it does no I/O).
+                    top = "/" + candidate.split("/", 2)[1]
+                    if not self.files.is_dir(top):
+                        continue
+                candidate = native
             if candidate not in found and not self.policy.allowed(candidate):
                 found.append(candidate)
         return found

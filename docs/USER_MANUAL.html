@@ -429,12 +429,16 @@ server process.</p>
 <code>&lt;records-dir&gt;/&lt;session&gt;.jsonl</code>: each protocol
 frame verbatim (before any interpretation), the adapter’s stderr, and
 every client action — prompts, permission answers, file-access decisions
-with the policy that made them, what was launched and which runtime it
-was pointed at. This is the audit trail and the ground truth; the UI’s
-<code>raw_ref</code> numbers index into it. Records are kept for ever
-unless <code>--records-keep-days</code> says otherwise, and the server
-says at startup how many it holds and how large they are. The probe that
-lists resumable sessions leaves no record.</p>
+with the policy that made them, what was launched, which runtime it was
+pointed at, and whether the adapter’s process tree is guarded against a
+hard kill of the server (<code>tree_guard</code>: a Windows job object,
+Linux <code>PR_SET_PDEATHSIG</code>; nothing equivalent exists on macOS,
+where the signal handlers do the work). This is the audit trail and the
+ground truth; the UI’s <code>raw_ref</code> numbers index into it.
+Records are kept for ever unless <code>--records-keep-days</code> says
+otherwise, and the server says at startup how many it holds and how
+large they are. The probe that lists resumable sessions leaves no
+record.</p>
 <h2 id="the-name-it-shows">The name it shows</h2>
 <p>The client calls itself <strong>ClaudIU</strong> by default. That is
 configuration, not code: set <code>ACP_COCKPIT_UINAME</code> in the

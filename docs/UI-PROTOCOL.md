@@ -123,7 +123,8 @@ is behind the latest published version — surface it. A View asks this route
 once per page load (the bundled View: an `update` chip at the top right when
 `flags` is non-empty, and a *Versions* entry in Help either way; with
 `online: false` it says the check is off). A route nobody calls is not a
-feature (2026-09-05). `adapter_package` is
+feature (2026-09-05). The server caches the two lookups behind it for an
+hour, so reloading the page is free of network and of `npm ls`. `adapter_package` is
 the checked profile's `npm_package` (`?profile=<id>` picks the profile;
 default: the first profile that declares one; `null` = no adapter check).
 

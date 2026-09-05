@@ -204,3 +204,30 @@ def test_auth_status_update_is_its_own_event_not_drift(tmp_path):
     ev = [e for e in sink.events if e.kind == "auth_status"][0]
     assert ev.data["label"] == "Claude Pro"
     assert ev.data["account"]["email"] == "someone@example.com"
+
+
+# ---- review 2026-09-05 (independent /code-review of the release range) ----
+
+def test_line_and_limit_count_newlines_only(tmp_path):
+    # str.splitlines() also breaks on form feeds, U+2028 and friends; the
+    # agent counts lines by newline, so a page separator on line 2 made every
+    # later ranged read start one line early.
+    files = FakeFiles()
+    path = str(tmp_path / "ff.txt")
+    files.store[path] = "a\n\x0cb\nc\nd\n"
+    session, proc, sink = make_session(tmp_path, files=files)
+    do_handshake(session, proc)
+    feed(session, {"jsonrpc": "2.0", "id": 53, "method": "fs/read_text_file",
+                   "params": {"sessionId": "acp-123", "path": path,
+                              "line": 3, "limit": 1}})
+    reply = [f for f in sent_frames(proc) if f.get("id") == 53][0]
+    assert reply["result"] == {"content": "c\n"}
+
+
+def test_a_malformed_auth_method_entry_does_not_crash_initialize(tmp_path):
+    session, proc, sink = make_session(tmp_path)
+    _init(session, proc, {"protocolVersion": 1, "agentCapabilities": {},
+                          "authMethods": ["oauth", None, {"id": "key"}]})
+    ev = [e for e in sink.events if e.kind == "anomaly"][0]
+    assert ev.data["category"] == "authentication-unsupported"
+    assert "key" in ev.data["detail"] and "oauth" in ev.data["detail"]

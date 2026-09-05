@@ -14,11 +14,13 @@ process group and the group is signalled.
 """
 from __future__ import annotations
 
+import ctypes
 import fnmatch
 import os
 import shutil
 import signal
 import subprocess
+import sys
 import threading
 
 GRACE_SECONDS = 5.0     # terminate → kill escalation, off the caller's thread
@@ -61,7 +63,6 @@ def build_env(env_scrub: list[str], env_set: dict,
 # ---- Windows job object: the tree dies with the job handle -----------------
 
 if os.name == "nt":
-    import ctypes
     from ctypes import wintypes
 
     _k32 = ctypes.WinDLL("kernel32", use_last_error=True)
@@ -115,13 +116,29 @@ if os.name == "nt":
         _k32.CloseHandle(job)
 
 
+def _linux_parent_death_signal():
+    """prctl(PR_SET_PDEATHSIG, SIGTERM) in the child: a server killed hard
+    (SIGKILL, OOM) still takes its adapters down. Linux only; macOS has
+    no equivalent and relies on the signal handlers. `start_new_session`
+    makes the adapter a session leader, which removed the implicit SIGHUP
+    on terminal close — this is the replacement (review 2026-09-05)."""
+    try:
+        libc = ctypes.CDLL(None, use_errno=True)
+        libc.prctl(1, signal.SIGTERM, 0, 0, 0)          # PR_SET_PDEATHSIG = 1
+    except Exception:  # noqa: BLE001 — best effort in the child
+        pass
+
+
 class SubprocessAgentProcess:
     def __init__(self, command, cwd, env_scrub, env_set,
                  on_line, on_stderr, on_exit, env_resolve=None):
         self.resolved_env = resolve_env(env_resolve, env_set)  # for the record
+        self._job_lock = threading.Lock()
         popen_kwargs = {}
         if os.name != "nt":
             popen_kwargs["start_new_session"] = True   # its own process group
+            if sys.platform == "linux":
+                popen_kwargs["preexec_fn"] = _linux_parent_death_signal
         self._proc = subprocess.Popen(
             resolve_command(command), cwd=cwd,
             env=build_env(env_scrub, env_set, env_resolve),
@@ -129,6 +146,15 @@ class SubprocessAgentProcess:
             stderr=subprocess.PIPE, text=True, encoding="utf-8",
             errors="replace", bufsize=1, **popen_kwargs)
         self._job = _job_for(self._proc._handle) if os.name == "nt" else None
+        # Whether the tree is protected against a hard kill of this server:
+        # a job object on Windows, PDEATHSIG on Linux. Recorded with the
+        # spawn, said on stderr when it is off — the protection degrading
+        # silently would be the ten-orphans problem with a better story.
+        self.tree_guard = (self._job is not None if os.name == "nt"
+                           else sys.platform == "linux")
+        if os.name == "nt" and self._job is None:
+            print("acp-cockpit: could not place the adapter in a job object; "
+                  "its CLI child may outlive it", file=sys.stderr, flush=True)
         self._on_exit = on_exit
         self._threads = [
             threading.Thread(target=self._pump, args=(self._proc.stdout,
@@ -150,10 +176,11 @@ class SubprocessAgentProcess:
 
     def _reap(self):
         code = self._proc.wait()
-        if self._job is not None:
-            # the adapter is gone; closing the job takes any stragglers
-            _close_job(self._job)
-            self._job = None
+        with self._job_lock:
+            if self._job is not None:
+                # the adapter is gone; closing the job takes any stragglers
+                _close_job(self._job)
+                self._job = None
         self._on_exit(code)
 
     def send_line(self, line: str) -> None:
@@ -179,13 +206,26 @@ class SubprocessAgentProcess:
         except subprocess.TimeoutExpired:
             self._signal_tree(hard=True)
 
+    def finish(self, timeout: float = GRACE_SECONDS + 1):
+        """Synchronous end, for the shutdown paths: wait for the tree,
+        hard-kill what is still there, return the exit code."""
+        try:
+            return self._proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            self._signal_tree(hard=True)
+            try:
+                return self._proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                return None
+
     def _signal_tree(self, hard: bool) -> None:
         try:
             if os.name == "nt":
-                if self._job is not None:
-                    _terminate_job(self._job)      # the whole tree at once
-                else:
-                    self._proc.kill()
+                with self._job_lock:       # never a closed or recycled handle
+                    if self._job is not None:
+                        _terminate_job(self._job)  # the whole tree at once
+                    else:
+                        self._proc.kill()
             else:
                 os.killpg(os.getpgid(self._proc.pid),
                           signal.SIGKILL if hard else signal.SIGTERM)

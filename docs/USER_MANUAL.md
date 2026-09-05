@@ -338,8 +338,10 @@ process.
 Every session appends to `<records-dir>/<session>.jsonl`: each protocol
 frame verbatim (before any interpretation), the adapter's stderr, and every
 client action — prompts, permission answers, file-access decisions with the
-policy that made them, what was launched and which runtime it was pointed
-at. This is the audit trail and the ground truth; the UI's `raw_ref` numbers
+policy that made them, what was launched, which runtime it was pointed
+at, and whether the adapter's process tree is guarded against a hard kill of
+the server (`tree_guard`: a Windows job object, Linux `PR_SET_PDEATHSIG`;
+nothing equivalent exists on macOS, where the signal handlers do the work). This is the audit trail and the ground truth; the UI's `raw_ref` numbers
 index into it. Records are kept for ever unless `--records-keep-days` says
 otherwise, and the server says at startup how many it holds and how large
 they are. The probe that lists resumable sessions leaves no record.
