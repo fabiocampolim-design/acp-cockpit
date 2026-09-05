@@ -3,13 +3,26 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 
 from .events import make_event
 from .protocol import JsonRpcConn
 
 # Windows drive paths (JSON-escaped backslashes included) and POSIX paths.
-_ABS_PATH = re.compile(r"[A-Za-z]:(?:\\\\|/)[^\s\"'`<>|&;]+|(?<![\w:])/[\w./-]{2,}")
+# A slash preceded by `:` or `/` is part of a URL (`https://host/path`), not
+# the start of a path (review 2026-09-05: every WebFetch tripped the warning).
+_ABS_PATH = re.compile(
+    r"(?<!\w)[A-Za-z]:(?:\\\\|/)[^\s\"'`<>|&;]+"      # C:\x — not the `s:` of https
+    r"|(?<![\w:/])/[\w./-]{2,}")
+
+
+def _looks_like_a_real_posix_path(candidate: str) -> bool:
+    """`/api/sessions` in a tool title is prose about an HTTP route; `/etc/x`
+    is a path. The difference on THIS machine: whether the top-level
+    directory exists. A drive-letter path never comes here."""
+    top = "/" + candidate.split("/", 2)[1] if candidate.count("/") else candidate
+    return os.path.isdir(top)
 
 _UPDATE_TO_EVENT = {
     "agent_message_chunk": ("message_chunk", "agent"),
@@ -20,6 +33,19 @@ _UPDATE_TO_EVENT = {
 
 class StateError(Exception):
     pass
+
+
+def _slice_lines(text: str, line, limit) -> str:
+    """The schema's `line` (1-based first line) and `limit` (max lines) on
+    fs/read_text_file. Both optional; the whole file when neither is set.
+    Ignoring them returned the whole file for every ranged read (review
+    2026-09-05)."""
+    if line is None and limit is None:
+        return text
+    lines = text.splitlines(keepends=True)
+    start = max(int(line or 1) - 1, 0)
+    end = start + int(limit) if limit is not None else None
+    return "".join(lines[start:end])
 
 
 class AcpSession:
@@ -95,9 +121,14 @@ class AcpSession:
         self._seq += 1
         self.sink.emit(make_event(kind, self.sid, self._seq, data, raw_ref))
 
-    def _set_state(self, state, detail=""):
+    def _set_state(self, state, detail="", **extra):
         self.state = state
-        self._emit("session_state", {"state": state, "detail": detail})
+        self._emit("session_state", {"state": state, "detail": detail, **extra})
+
+    def _ready(self):
+        """`ready`, carrying who is on the other side (`agentInfo` from
+        initialize) so a View can say which agent, which version."""
+        self._set_state("ready", agent_info=getattr(self, "agent_info", None))
 
     def _flush(self):
         for line in self._conn.take_outgoing():
@@ -151,12 +182,30 @@ class AcpSession:
                        "detail": f"agent speaks protocol version {version}, "
                                  f"client speaks {self.PROTOCOL_VERSION}"})
             return self._fail("protocol version mismatch")
-        self.agent_capabilities = result.get("agentCapabilities") or {}
+        self._take_agent_identity(result)
         self._conn.request("session/new",
                            {"cwd": self._cwd, "mcpServers": [],
                             **self._session_meta()},
                            self._on_session_new)
         self._flush()
+
+    def _take_agent_identity(self, result: dict) -> None:
+        """What initialize told us about the agent: its capabilities, its
+        name and version, and whether it wants an authentication this client
+        does not implement — said out loud rather than discovered as a bare
+        `session/new failed` (review 2026-09-05)."""
+        self.agent_capabilities = result.get("agentCapabilities") or {}
+        info = result.get("agentInfo")
+        self.agent_info = dict(info) if isinstance(info, dict) else None
+        methods = result.get("authMethods") or []
+        if methods:
+            names = ", ".join(str(m.get("id") or m.get("name") or m)
+                              for m in methods if m is not None)
+            self._emit("anomaly", {
+                "category": "authentication-unsupported",
+                "detail": f"the agent offers authentication ({names}); this "
+                          "client does not implement `authenticate`, so a "
+                          "session may be refused"}, self._last_raw_ref)
 
     def _on_session_new(self, result, error):
         if error or not result:
@@ -180,7 +229,7 @@ class AcpSession:
         for params, ref in early:
             self._last_raw_ref = ref
             self._on_notify("session/update", params)
-        self._set_state("ready")
+        self._ready()
 
     def on_stderr(self, line: str) -> None:
         """Adapter stderr: recorded and surfaced at low severity. Claude's
@@ -248,8 +297,18 @@ class AcpSession:
 
     # ---- agent -> client ------------------------------------------------
     def _on_notify(self, method, params):
+        if method == "$/cancel_request":
+            return self._agent_cancelled(params.get("requestId"))
         if method != "session/update":
-            return  # tolerated per spec; sentinel already flagged unknowns
+            # Known to the registry or not, a notification this client does
+            # not act on is shown, never swallowed (`elicitation/complete`
+            # was in the registry and ignored — review 2026-09-05).
+            self._emit("unrecognized",
+                       {"why": f"notification {method!r} is not handled by "
+                               "this client",
+                        "frame": {"method": method, "params": params}},
+                       self._last_raw_ref)
+            return
         if self.acp_session_id is None:
             # Updates can precede the session/new result; hold them and
             # replay once the id is known — never drop, never guess.
@@ -267,7 +326,17 @@ class AcpSession:
         ref = self._last_raw_ref
         if kind in _UPDATE_TO_EVENT:
             event_kind, role = _UPDATE_TO_EVENT[kind]
-            text = (update.get("content") or {}).get("text", "")
+            content = update.get("content") or {}
+            if content.get("type", "text") != "text":
+                # An image, audio or resource block has no `text`; reducing
+                # it to "" made an empty row and lost the block (review
+                # 2026-09-05). Surface it with the frame instead.
+                self._emit("unrecognized",
+                           {"why": f"{kind} carries a {content.get('type')!r} "
+                                   "content block this client cannot render",
+                            "frame": update}, ref)
+                return
+            text = content.get("text", "")
             # A predicted next prompt rides on an otherwise empty chunk
             # (claude-agent-acp does not forward these yet — see the ACP
             # notes; an adapter that does uses this vendor key). It is not
@@ -321,6 +390,8 @@ class AcpSession:
         elif kind == "config_option_update":
             self._emit("config_option", {"options": self._ordered_options(
                 update.get("configOptions", []))}, ref)
+        elif kind in getattr(self.sentinel, "vendor_kinds", ()):
+            self._emit("vendor_update", {"kind": kind, "update": update}, ref)
         else:
             self._emit("unrecognized",
                        {"why": f"unknown update kind {kind!r}",
@@ -342,18 +413,44 @@ class AcpSession:
         elif method in ("fs/read_text_file", "fs/write_text_file"):
             self._handle_fs(msg_id, method, params, ref)
         else:
+            # Refused AND shown: an agent asking for something this client
+            # never advertised (a terminal, a vendor method) is worth a row.
+            self._emit("anomaly", {"category": "unsupported-request",
+                                   "detail": f"the agent asked for {method!r}, "
+                                             "which this client does not "
+                                             "support; refused"}, ref)
             self._conn.error(msg_id, -32601, f"unsupported method: {method}")
         self._flush()
+
+    def _agent_cancelled(self, request_id) -> None:
+        """`$/cancel_request`: the agent withdrew a request it made to us.
+        A pending permission is answered `cancelled`, a pending question
+        `cancel`, and the View is told the AGENT did it."""
+        if request_id in self._pending_perms:
+            self._resolve_permission(request_id, {"outcome": "cancelled"},
+                                     None, "agent")
+        elif request_id in self._pending_elicits:
+            self._resolve_elicitation(request_id, "cancel", None, "agent")
+        else:
+            self._emit("anomaly", {"category": "cancel-request",
+                                   "detail": f"the agent cancelled request "
+                                             f"{request_id!r}, which was not "
+                                             "pending"}, self._last_raw_ref)
 
     def _paths_outside(self, tool_call: dict) -> list[str]:
         """Heuristic: absolute paths mentioned anywhere in a tool call that
         fall outside the session boundary. Shell execution is agent-side and
-        cannot be fenced by the client, so the user must SEE the escape."""
+        cannot be fenced by the client, so the user must SEE the escape.
+        URLs are not paths, and a `/word/word` token is a path only when the
+        top-level directory exists on this machine."""
         text = json.dumps(tool_call, ensure_ascii=False)
         found = []
         for m in _ABS_PATH.finditer(text):
             candidate = m.group(0).replace("\\\\", "\\")
             candidate = candidate.rstrip("`'\"),;\\")   # JSON-escaped quote tail
+            if candidate.startswith("/") and \
+                    not _looks_like_a_real_posix_path(candidate):
+                continue
             if candidate not in found and not self.policy.allowed(candidate):
                 found.append(candidate)
         return found
@@ -372,12 +469,16 @@ class AcpSession:
             return
         try:
             if op == "read":
-                self._conn.respond(msg_id,
-                                   {"content": self.files.read_text(path)})
+                text = self.files.read_text(path)
+                self._conn.respond(msg_id, {"content": _slice_lines(
+                    text, params.get("line"), params.get("limit"))})
             else:
                 self.files.write_text(path, params.get("content", ""))
                 self._conn.respond(msg_id, None)
-        except OSError as exc:
+        except Exception as exc:  # noqa: BLE001 — anything: the agent must get an answer
+            # A binary file (UnicodeDecodeError), a NUL in the path
+            # (ValueError): an unanswered request hangs the agent's tool call
+            # for ever (review 2026-09-05). Every failure is a reply.
             self._conn.error(msg_id, -32603, f"fs failure: {exc}")
 
     # ---- permissions ----------------------------------------------------
@@ -554,7 +655,7 @@ class AcpSession:
         if error or (result or {}).get("protocolVersion") != \
                 self.PROTOCOL_VERSION:
             return self._fail(f"initialize for load failed: {error}")
-        self.agent_capabilities = result.get("agentCapabilities") or {}
+        self._take_agent_identity(result)
         caps = self.agent_capabilities.get("sessionCapabilities") or {}
         # session/load replays the conversation so far; session/resume
         # attaches WITHOUT it (spec). A browser client keeps no history of
@@ -582,7 +683,7 @@ class AcpSession:
             for params, ref in early:
                 self._last_raw_ref = ref
                 self._on_notify("session/update", params)
-            self._set_state("ready")
+            self._ready()
         self._conn.request(method, {
             "sessionId": self._load_target, "cwd": self._cwd,
             "mcpServers": [], **self._session_meta()}, done)

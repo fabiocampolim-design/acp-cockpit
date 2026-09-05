@@ -14,16 +14,24 @@ reg = json.loads((ROOT / "vendor/acp/registry.json").read_text(encoding="utf-8")
 known = set()
 for key in ("to_agent_requests", "to_agent_notifications",
             "from_agent_requests", "from_agent_notifications",
-            "update_kinds", "stop_reasons", "permission_kinds"):
-    known |= set(reg[key])
+            "update_kinds", "vendor_update_kinds", "stop_reasons",
+            "permission_kinds"):
+    known |= set(reg.get(key, []))
 
 found = set()
-METHOD = re.compile(r"^(session|fs|terminal|elicitation)/[a-z_]+$")
+# Namespaced methods, the bare top-level ones (initialize, authenticate,
+# logout) and protocol-level `$/…` notifications. The first regex alone
+# could not see `$/cancel_request`, `authenticate` or `logout` at all
+# (review 2026-09-05).
+METHOD = re.compile(r"^(?:(?:session|fs|terminal|elicitation|\$)/[a-z_]+"
+                    r"|initialize|authenticate|logout)$")
 WORD = re.compile(r"^[a-z][a-z_]+$")
 
 def walk(node):
     if isinstance(node, dict):
         for k, v in node.items():
+            if k == "x-method" and isinstance(v, str):
+                found.add(v)
             if k in ("const", "enum"):
                 vals = v if isinstance(v, list) else [v]
                 for x in vals:
@@ -35,7 +43,7 @@ def walk(node):
             walk(x)
     elif isinstance(node, str):
         # method names also live in titles/descriptions/x-method fields
-        for x in re.findall(r"(?:session|fs|terminal|elicitation)/[a-z_]+", node):
+        for x in re.findall(r"(?:session|fs|terminal|elicitation|\$)/[a-z_]+", node):
             found.add(x)
 
 walk(schema)

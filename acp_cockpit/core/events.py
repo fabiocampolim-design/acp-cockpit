@@ -38,6 +38,11 @@ KINDS = frozenset({
     "fs_request",          # {"op": "read"|"write", "path": str, "allowed": bool}
     "turn_ended",          # {"stop_reason": str}; "error" adds
                            #  {"error": {"code": int|None, "message": str}}
+    "vendor_update",       # {"kind": str, "update": dict} — a session/update
+                           #  kind outside the ACP schema that the agent's
+                           #  adapter is KNOWN to send (registry
+                           #  vendor_update_kinds): shown as itself, not as
+                           #  drift
     "replay_truncated",    # {"from_seq": int, "to_seq": int} — the server's
                            #  replay buffer no longer holds that range; the
                            #  JSONL record does. Transport, not agent traffic.

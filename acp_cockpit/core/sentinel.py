@@ -16,7 +16,13 @@ class Sentinel:
         self._known_out = set(registry["to_agent_requests"]) | \
             set(registry["to_agent_notifications"])
         self._root = set(registry["root_keys"])
+        # Schema kinds plus the kinds a known adapter emits outside the schema
+        # (claude-agent-acp's subagent/async-task updates, read from its dist
+        # 2026-09-05): known is not drift; the engine renders them as
+        # `vendor_update` rather than `unrecognized`.
         self._kinds = set(registry["update_kinds"])
+        self.vendor_kinds = frozenset(registry.get("vendor_update_kinds", []))
+        self._kinds |= self.vendor_kinds
         self._stops = set(registry["stop_reasons"])
         self._perms = set(registry["permission_kinds"])
 
