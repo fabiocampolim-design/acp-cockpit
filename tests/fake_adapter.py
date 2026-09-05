@@ -41,6 +41,11 @@ for raw in sys.stdin:
         for req in rule.get("request", []):
             req = json.loads(json.dumps(req).replace("$SESSION", SESSION))
             send(req)
+        for note in rule.get("then_notify", []):      # after the requests
+            if rule.get("then_delay_ms"):
+                import time
+                time.sleep(rule["then_delay_ms"] / 1000)
+            send(json.loads(json.dumps(note).replace("$SESSION", SESSION)))
         if "respond" in rule:
             # $CWD -> the cwd of this request (JSON-escaped), so fixtures
             # can point resumable sessions at a directory that exists.

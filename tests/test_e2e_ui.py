@@ -47,12 +47,26 @@ def server():
     proc.terminate()
 
 
-def open_launcher(page, url):
+def open_launcher(page, url, fresh=True):
     """Go to the app and show the launcher. The server keeps sessions alive
     across page loads, so a fresh page may open straight into one; "+" is
-    how a user asks for a new session."""
+    how a user asks for a new session.
+
+    `fresh` closes every session an earlier test left on the shared server
+    first, and the click on "+" waits for the page to have finished
+    reattaching: on CI the reattach of a dozen stray sessions completed
+    AFTER the click and hid the launcher again, so the Start button was
+    "not visible" (Windows e2e, 2026-09-05)."""
     page.goto(url)
-    page.wait_for_selector("#tab-add")
+    page.wait_for_selector("body[data-restored]")
+    if fresh:
+        page.evaluate("""async () => {
+            const {sessions} = await (await fetch('/api/sessions')).json();
+            await Promise.all(sessions.map(s =>
+                fetch('/api/sessions/' + s.id, {method: 'DELETE'})));
+        }""")
+        page.reload()
+        page.wait_for_selector("body[data-restored]")
     page.click("#tab-add")
     page.wait_for_selector("#launcher:not([hidden])")
     return page
@@ -149,6 +163,10 @@ def test_folder_picker_navigates_and_fills_the_directory(server):
         page.fill("#cwd", str(tmp))
         page.click("#browse")
         page.wait_for_selector("#dirpick[open]")
+        # the dialog opens before the listing arrives: wait for the listing,
+        # not for the dialog (the assert raced the fetch on CI, 2026-09-05)
+        page.wait_for_function(
+            "document.querySelector('#dirpick-path').textContent !== ''")
         assert page.inner_text("#dirpick-path") == str(tmp.resolve())
         page.click('#dirpick-list button[data-name="proj-a"]')
         page.wait_for_selector('#dirpick-list button[data-name="inner"]')
@@ -282,9 +300,15 @@ def test_jump_to_bottom_appears_when_scrolled_away_and_follows_again(server):
         page.fill("#cwd", str(tmp))
         page.click("#start")
         page.wait_for_selector("#send:not([disabled])")
-        for _ in range(4):
-            lanes_turn(page)
         pane = page.locator("#conversation")
+        # enough turns to overflow the 400 px window on ANY font metrics —
+        # four were not always enough on the Linux runner (2026-09-05)
+        for _ in range(12):
+            lanes_turn(page)
+            if pane.evaluate("el => el.scrollHeight > el.clientHeight + 200"):
+                break
+        assert pane.evaluate("el => el.scrollHeight > el.clientHeight"), \
+            "the conversation never overflowed; nothing to scroll"
         assert page.locator("#jump-bottom:visible").count() == 0
         page.evaluate("document.querySelector('#conversation').scrollTop = 0")
         page.wait_for_selector("#jump-bottom:visible")
@@ -725,3 +749,103 @@ def test_theme_choice_applies_and_survives_a_reload(server):
         page.reload()
         page.wait_for_selector("#tab-add")
         assert page.evaluate("document.documentElement.dataset.theme") == "light"
+
+
+# ---- review 2026-09-05 -----------------------------------------------------
+
+def test_space_on_a_focused_button_presses_it_and_types_nothing(server):
+    # "Every other key types" stole Space from focused buttons: a keyboard
+    # user could not press a lane switch or a chip.
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = start_fake_session(pw, url, tmp)
+        btn = page.locator('#lanes button[data-lane-toggle="thinking"]')
+        before = btn.get_attribute("aria-pressed")
+        btn.focus()
+        page.keyboard.press("Space")
+        page.wait_for_function(
+            "v => document.querySelector('#lanes button[data-lane-toggle="
+            "thinking]').getAttribute('aria-pressed') !== v", arg=before)
+        assert page.input_value("#prompt-input") == ""
+        btn.focus()
+        page.keyboard.press("Space")                  # back to where it was
+
+
+def test_each_tab_keeps_its_own_scroll_position(server):
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = pw.chromium.launch().new_page(viewport={"width": 900,
+                                                       "height": 400})
+        open_launcher(page, url)
+        page.select_option("#profile", "fake")
+        page.fill("#cwd", str(tmp))
+        page.click("#start")
+        page.wait_for_selector("#send:not([disabled])")
+        pane = page.locator("#conversation")
+        for _ in range(12):
+            lanes_turn(page)
+            if pane.evaluate("el => el.scrollHeight > el.clientHeight + 200"):
+                break
+        page.evaluate("document.querySelector('#conversation').scrollTop = 0")
+        page.wait_for_selector("#jump-bottom:visible")
+        # a second session, then back to the first
+        page.click("#tab-add")
+        page.wait_for_selector("#launcher:not([hidden])")
+        page.select_option("#profile", "fake")
+        page.fill("#cwd", str(tmp))
+        page.click("#start")
+        page.wait_for_selector("#send:not([disabled])")
+        page.keyboard.press("Alt+1")
+        page.wait_for_function(
+            "document.querySelector('.pane:not([hidden])') !== null")
+        assert pane.evaluate("el => el.scrollTop") == 0, \
+            "switching tabs lost the first tab's reading position"
+        assert page.locator("#jump-bottom:visible").count() == 1
+
+
+def test_help_lists_the_versions_and_the_state_of_the_online_check(server):
+    # /api/drift existed and nothing ever called it: the reader never learnt
+    # the adapter was two releases behind.
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = start_fake_session(pw, url, tmp)
+        page.click("#help-button")
+        page.wait_for_selector("#help[open]")
+        text = page.inner_text("#help")
+        assert "schema-v" in text                      # the pinned schema
+        assert "online check is off" in text.lower()  # --no-drift-online
+        assert page.locator("#update-chip:visible").count() == 0
+
+
+def test_a_known_vendor_update_is_a_row_in_its_lane_not_drift(server):
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = start_fake_session(pw, url, tmp)
+        page.fill("#prompt-input", "do the VENDOR thing")
+        page.click("#send")
+        page.wait_for_selector('.pane:not([hidden]) [data-kind="turn_ended"]')
+        row = page.locator('.pane:not([hidden]) [data-kind="vendor_update"]')
+        assert row.count() == 1
+        assert row.get_attribute("data-lane") == "subagents"
+        assert "subagent_spawned" in row.inner_text()
+        assert page.locator(".drift-chip:visible").count() == 0
+        # the tab knows who is on the other side (agentInfo from initialize)
+        assert "Fake Agent 1.0" in page.locator("#tabs .tab.active").get_attribute("title")
+
+
+def test_an_approval_withdrawn_by_the_agent_closes_and_says_so(server):
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = start_fake_session(pw, url, tmp)
+        page.fill("#prompt-input", "do the WITHDRAW thing")
+        page.click("#send")
+        page.wait_for_selector("#permission[open]")
+        page.wait_for_selector("#permission", state="hidden")   # no click
+        page.wait_for_selector('.pane:not([hidden]) [data-kind="turn_ended"]')
+        convo = page.inner_text(".pane:not([hidden])").lower()
+        assert "withdrawn by the agent" in convo

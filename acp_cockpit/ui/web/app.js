@@ -99,7 +99,10 @@ async function restoreSessions() {
   let live = [];
   try {
     ({sessions: live} = await api("/api/sessions"));
-  } catch (e) { return; }
+  } catch (e) {
+    document.body.dataset.restored = "failed";
+    return;
+  }
   let last = null;
   let wanted = null;
   try { wanted = sessionStorage.getItem(ACTIVE_KEY); } catch (e) {}
@@ -114,6 +117,53 @@ async function restoreSessions() {
   }
   const target = (wanted && sessions.get(wanted)) || last;
   if (target && !active) activate(target);
+  // The page has decided what it opens on. Anything that wants to act on
+  // the launcher (a test, a script) waits for this rather than racing the
+  // reattach, which used to hide the launcher again under a click.
+  document.body.dataset.restored = "1";
+}
+
+/* The pinned schema and the installed adapter against the latest published
+   versions (`/api/drift`). The route existed and nothing called it, so the
+   reader never learnt the adapter was two releases behind (2026-09-05). It is
+   asked once per page load; the answer feeds Help and, when something is
+   behind, a chip at the top right. */
+let driftInfo = null;
+
+async function checkVersions() {
+  try { driftInfo = await api("/api/drift"); } catch (e) { driftInfo = {error: e.message}; }
+  const chip = $("#update-chip");
+  const flags = (driftInfo && driftInfo.flags) || [];
+  chip.hidden = flags.length === 0;
+  if (flags.length) {
+    chip.textContent = "update";
+    chip.title = "behind the latest published version:\n" + flags.join("\n") +
+      "\n(details in Help)";
+  }
+}
+
+function describeVersions() {
+  const d = driftInfo;
+  if (!d) return "not checked yet.";
+  if (d.error) return `could not be read: ${d.error}`;
+  const lines = [`Pinned ACP schema: ${d.pinned_schema}.`];
+  if (!d.online) {
+    lines.push("The online check is off (--no-drift-online), so whether the " +
+               "schema or the adapter is behind the latest release is not known.");
+  } else if (d.latest) {
+    lines.push(`Latest schema release: ${d.latest.schema || "?"}.`);
+    if (d.adapter_package) {
+      lines.push(`Adapter ${d.adapter_package}: installed ` +
+                 `${d.latest.adapter_installed || "unknown"}, latest ` +
+                 `${d.latest.adapter_latest || "?"}.`);
+    }
+    lines.push((d.flags || []).length
+      ? "Behind: " + d.flags.join("; ") + "."
+      : "Nothing is behind.");
+  } else if ((d.flags || []).length) {
+    lines.push(d.flags.join("; "));
+  }
+  return lines.join(" ");
 }
 
 /* ---------------- folder picker ----------------
@@ -281,7 +331,16 @@ function alertBanner(text) {
 
 /* ---------------- tabs ---------------- */
 
+/* Where the active tab's reader is, kept on the session before the tab
+   goes out of view (a switch to another tab OR to the launcher). */
+function stashScroll() {
+  if (!active) return;
+  active.scrollTop = $("#conversation").scrollTop;
+  active.following = following;
+}
+
 function showLauncher() {
+  stashScroll();
   active = null;
   $("#launcher").hidden = false;
   $("#workspace").hidden = true;
@@ -292,6 +351,11 @@ function showLauncher() {
 const ACTIVE_KEY = "acpcockpit.active";
 
 function activate(S) {
+  // The conversation is one scroll container with one pane visible at a
+  // time, so each tab remembers where its reader was (and whether they were
+  // following) across a switch — 2026-09-05, before this the position and
+  // the follow state leaked from one tab to the next.
+  if (active !== S) stashScroll();
   active = S;
   try { sessionStorage.setItem(ACTIVE_KEY, S.sid); } catch (e) {}
   $("#launcher").hidden = true;
@@ -302,6 +366,10 @@ function activate(S) {
     other.tab.classList.toggle("active", other === S);
   }
   S.renderAll();
+  const el = $("#conversation");
+  following = S.following === undefined ? true : S.following;
+  el.scrollTop = following ? el.scrollHeight : (S.scrollTop || 0);
+  renderJumpButton();
   $("#prompt-input").focus();
 }
 
@@ -433,7 +501,11 @@ class Session {
     const base = this.cwd.replace(/[\\/]+$/, "").split(/[\\/]/).pop();
     this.tabLabel.textContent = this.title || `${this.profile} · ${base}`;
     this.tab.dataset.state = this.state;
-    this.tab.title = `${this.profile} — ${this.cwd} — ${this.state}`;
+    // who is on the other side, as initialize reported it
+    const who = this.agentInfo
+      ? ` — ${this.agentInfo.name || "agent"} ${this.agentInfo.version || ""}`.trimEnd()
+      : "";
+    this.tab.title = `${this.profile} — ${this.cwd} — ${this.state}${who}`;
   }
 
   renderAll() {
@@ -709,8 +781,22 @@ class Session {
     switch (ev.kind) {
       case "session_state":
         if (d.state === "turn") this.turnAgentNodes = [];
+        if (d.agent_info) this.agentInfo = d.agent_info;
         this.serverState = d.state;
         this.setState(d.state); break;
+      case "vendor_update": {
+        // A session/update kind outside the schema that this adapter is
+        // KNOWN to send: shown as itself, in its lane, never as drift.
+        this.breakAgg();
+        const lane = String(d.kind).startsWith("subagent") ? "subagents" : "events";
+        const summary = Object.entries(d.update || {})
+          .filter(([k]) => k !== "sessionUpdate" && k !== "_meta")
+          .map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`)
+          .join(" · ");
+        addRawToggle(this.addBlock("vendor_update", null,
+          `${d.kind}${summary ? " — " + summary : ""}`, lane), ev);
+        break;
+      }
       case "replay_truncated":
         // The server's replay buffer is bounded; the JSONL record is not.
         this.note(`events ${d.from_seq}–${d.to_seq} are not replayed here `
@@ -758,7 +844,20 @@ class Session {
         this.renderTab(); break;
       case "stderr": this.renderStderr(ev); break;
       case "permission_request": queuePermission(this, ev); break;
-      case "permission_resolved": resolvePermission(this, d.request); break;
+      case "permission_resolved":
+        resolvePermission(this, d.request);
+        // The reader chose nothing: say what happened instead, where the
+        // conversation's events are (an auto-rejection or a withdrawal used
+        // to close the dialog and leave no trace on the page).
+        if (d.source && d.source !== "user") {
+          this.breakAgg();
+          this.addBlock("permission_resolved", null,
+            d.source === "agent"
+              ? "— approval request withdrawn by the agent —"
+              : "— approval request auto-rejected (no answer in time) —",
+            "events");
+        }
+        break;
       case "elicitation_request": queueElicitation(this, ev); break;
       case "elicitation_resolved": {
         const titles = fieldTitles(this, d.request);
@@ -767,8 +866,10 @@ class Session {
         this.addBlock("elicitation_resolved", null,
           d.action === "accept"
             ? `\u2014 you answered: ${describeAnswer(d.content, titles)} \u2014`
-            : `\u2014 question skipped${d.source === "failsafe"
-                ? " (no answer in time)" : ""} \u2014`, "events");
+            : d.action === "cancel"
+              ? "\u2014 question withdrawn by the agent \u2014"
+              : `\u2014 question skipped${d.source === "failsafe"
+                  ? " (no answer in time)" : ""} \u2014`, "events");
         break;
       }
       case "turn_ended":
@@ -1794,8 +1895,11 @@ document.addEventListener("keydown", (e) => {
   if (e.ctrlKey || e.altKey || e.metaKey || e.key.length !== 1) return;
   if (document.querySelector("dialog[open]")) return;
   const t = e.target;
+  // A focused control keeps its keys: Space presses a button or opens a
+  // <details>, it does not type a space (2026-09-05: keyboard users could
+  // not press a lane switch).
   if (t && (t.isContentEditable ||
-            /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || ""))) return;
+            /^(INPUT|TEXTAREA|SELECT|BUTTON|SUMMARY|A)$/.test(t.tagName || ""))) return;
   const box = $("#prompt-input");
   if (box && !box.disabled) box.focus();
 });
@@ -1887,16 +1991,21 @@ const HELP = [
 function initChrome() {
   applyTheme(storedTheme());
   const help = $("#help");
-  $("#help-body").replaceChildren(...HELP.map(([term, text]) => {
-    const box = document.createElement("div");
-    const h = document.createElement("h3");
-    h.textContent = term;
-    const p = document.createElement("div");
-    p.textContent = text;
-    box.append(h, p);
-    return box;
-  }));
-  $("#help-button").onclick = () => help.showModal();
+  const renderHelp = () => {
+    const entries = [...HELP, ["Versions", "Protocol and adapter versions, " +
+      "as checked when this page loaded: " + describeVersions()]];
+    $("#help-body").replaceChildren(...entries.map(([term, text]) => {
+      const box = document.createElement("div");
+      const h = document.createElement("h3");
+      h.textContent = term;
+      const p = document.createElement("div");
+      p.textContent = text;
+      box.append(h, p);
+      return box;
+    }));
+  };
+  $("#help-button").onclick = () => { renderHelp(); help.showModal(); };
+  $("#update-chip").onclick = () => { renderHelp(); help.showModal(); };
   $("#help-close").onclick = () => help.close();
   const config = $("#config");
   const theme = $("#theme");
@@ -1918,3 +2027,4 @@ initLanes();
 initFollow();
 sizeComposer();
 showLauncher();
+checkVersions();

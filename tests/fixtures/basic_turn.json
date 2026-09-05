@@ -1,396 +1,464 @@
 [
-  {
-    "on_method": "initialize",
-    "respond": {
-      "protocolVersion": 1,
-      "agentCapabilities": {}
-    }
-  },
-  {
-    "on_method": "session/new",
-    "respond": {
-      "sessionId": "$SESSION",
-      "modes": {
-        "currentModeId": "default",
-        "availableModes": [
-          {
-            "id": "default",
-            "name": "Default"
-          }
-        ]
-      }
-    }
-  },
-  {
-    "on_method": "session/prompt",
-    "if_prompt_contains": "PERMISSION",
-    "request": [
-      {
-        "jsonrpc": "2.0",
-        "id": 900,
-        "method": "session/request_permission",
-        "params": {
-          "sessionId": "$SESSION",
-          "toolCall": {
-            "toolCallId": "t1",
-            "title": "Write file"
-          },
-          "options": [
-            {
-              "optionId": "y",
-              "name": "Allow",
-              "kind": "allow_once"
-            },
-            {
-              "optionId": "n",
-              "name": "Reject",
-              "kind": "reject_once"
-            }
-          ]
-        }
-      }
-    ],
-    "respond": {
-      "stopReason": "end_turn"
-    }
-  },
-  {
-    "on_method": "session/prompt",
-    "if_prompt_contains": "ASKQUESTION",
-    "request": [
-      {
-        "jsonrpc": "2.0",
-        "id": 901,
-        "method": "elicitation/create",
-        "params": {
-          "mode": "form",
-          "sessionId": "$SESSION",
-          "toolCallId": "t-ask",
-          "message": "Please answer the following questions.",
-          "requestedSchema": {
-            "type": "object",
-            "properties": {
-              "question_0": {
-                "type": "string",
-                "title": "Colour",
-                "description": "Which colour?",
-                "oneOf": [
-                  {
-                    "const": "Red",
-                    "title": "Red"
-                  },
-                  {
-                    "const": "Blue",
-                    "title": "Blue",
-                    "description": "the cold one"
-                  }
-                ]
-              },
-              "question_0_custom": {
-                "type": "string",
-                "title": "Other",
-                "description": "Type your own answer instead of choosing an option above (optional)."
-              },
-              "question_1": {
-                "type": "array",
-                "title": "Extras",
-                "description": "Which extras?",
-                "items": {
-                  "anyOf": [
-                    {
-                      "const": "Ice",
-                      "title": "Ice"
-                    },
-                    {
-                      "const": "Lemon",
-                      "title": "Lemon"
-                    }
-                  ]
-                }
-              },
-              "question_1_custom": {
-                "type": "string",
-                "title": "Other",
-                "description": "Type your own answer instead of choosing an option above (optional)."
-              }
-            }
-          }
-        }
-      }
-    ],
-    "respond": {
-      "stopReason": "end_turn"
-    }
-  },
-  {
-    "on_method": "session/prompt",
-    "if_prompt_contains": "LANES",
-    "notify": [
-      {
-        "jsonrpc": "2.0",
-        "method": "session/update",
-        "params": {
-          "sessionId": "$SESSION",
-          "update": {
-            "sessionUpdate": "agent_thought_chunk",
-            "content": {
-              "type": "text",
-              "text": "weighing the options"
-            }
-          }
-        }
-      },
-      {
-        "jsonrpc": "2.0",
-        "method": "session/update",
-        "params": {
-          "sessionId": "$SESSION",
-          "update": {
-            "sessionUpdate": "tool_call",
-            "toolCallId": "t-main",
-            "title": "Read config.toml",
-            "kind": "read",
-            "status": "completed"
-          }
-        }
-      },
-      {
-        "jsonrpc": "2.0",
-        "method": "session/update",
-        "params": {
-          "sessionId": "$SESSION",
-          "update": {
-            "sessionUpdate": "tool_call",
-            "toolCallId": "t-task",
-            "title": "Task: research the API",
-            "kind": "other",
-            "status": "in_progress"
-          }
-        }
-      },
-      {
-        "jsonrpc": "2.0",
-        "method": "session/update",
-        "params": {
-          "sessionId": "$SESSION",
-          "update": {
-            "sessionUpdate": "tool_call",
-            "toolCallId": "t-child",
-            "title": "Grep in the subagent",
-            "kind": "search",
-            "status": "completed",
-            "_meta": {
-              "claudeCode": {
-                "parentToolUseId": "t-task"
-              }
-            }
-          }
-        }
-      },
-      {
-        "jsonrpc": "2.0",
-        "method": "session/update",
-        "params": {
-          "sessionId": "$SESSION",
-          "update": {
-            "sessionUpdate": "agent_message_chunk",
-            "content": {
-              "type": "text",
-              "text": "the plain answer"
-            }
-          }
-        }
-      }
-    ],
-    "stderr": [
-      "[session/query] diagnostic line"
-    ],
-    "respond": {
-      "stopReason": "end_turn"
-    }
-  },
-  {
-    "on_method": "session/prompt",
-    "if_prompt_contains": "LIMITS",
-    "notify": [
-      {
-        "jsonrpc": "2.0",
-        "method": "session/update",
-        "params": {
-          "sessionId": "$SESSION",
-          "update": {
-            "sessionUpdate": "usage_update",
-            "used": 42000,
-            "size": 200000,
-            "_meta": {
-              "_claude/rateLimit": {
-                "status": "allowed",
-                "resetsAt": 1788537600,
-                "rateLimitType": "five_hour",
-                "overageStatus": "allowed",
-                "overageResetsAt": 1790812800,
-                "isUsingOverage": false,
-                "unifiedWindows": {
-                  "five_hour": {
-                    "utilization": 0.42,
-                    "resetsAt": 1788537600
-                  },
-                  "seven_day": {
-                    "utilization": 0.88,
-                    "resetsAt": 1788631200
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      {
-        "jsonrpc": "2.0",
-        "method": "session/update",
-        "params": {
-          "sessionId": "$SESSION",
-          "update": {
-            "sessionUpdate": "usage_update",
-            "used": 42000,
-            "size": 200000,
-            "_meta": {
-              "_claude/rateLimit": {
-                "status": "allowed_warning",
-                "resetsAt": 1788631200,
-                "rateLimitType": "seven_day",
-                "utilization": 0.88,
-                "surpassedThreshold": true,
-                "isUsingOverage": true,
-                "canUserPurchaseCredits": true,
-                "unifiedWindows": {
-                  "seven_day": {
-                    "utilization": 0.88,
-                    "resetsAt": 1788631200
-                  },
-                  "seven_day_overage_included": {
-                    "utilization": 0.45,
-                    "resetsAt": 1788631200
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    ],
-    "respond": {
-      "stopReason": "end_turn"
-    }
-  },
-  {
-    "on_method": "session/prompt",
-    "if_prompt_contains": "ANOMALY",
-    "notify": [
-      {
-        "jsonrpc": "2.0",
-        "method": "session/update",
-        "params": {
-          "sessionId": "somebody-elses-session",
-          "update": {
-            "sessionUpdate": "agent_message_chunk",
-            "content": {
-              "type": "text",
-              "text": "not for you"
-            }
-          }
-        }
-      }
-    ],
-    "respond": {
-      "stopReason": "end_turn"
-    }
-  },
-  {
-    "on_method": "session/prompt",
-    "if_prompt_contains": "SLOW",
-    "delay_ms": 3000,
-    "respond": {
-      "stopReason": "end_turn"
-    }
-  },
-  {
-    "on_method": "session/prompt",
-    "if_prompt_contains": "SUGGEST",
-    "notify": [
-      {
-        "jsonrpc": "2.0",
-        "method": "session/update",
-        "params": {
-          "sessionId": "$SESSION",
-          "update": {
-            "sessionUpdate": "agent_message_chunk",
-            "content": {
-              "type": "text",
-              "text": "done."
-            }
-          }
-        }
-      },
-      {
-        "jsonrpc": "2.0",
-        "method": "session/update",
-        "params": {
-          "sessionId": "$SESSION",
-          "update": {
-            "sessionUpdate": "agent_message_chunk",
-            "content": {
-              "type": "text",
-              "text": ""
-            },
-            "_meta": {
-              "_claude/promptSuggestion": {
-                "type": "prompt_suggestion",
-                "suggestion": "add a test for add()"
-              }
-            }
-          }
-        }
-      }
-    ],
-    "respond": {
-      "stopReason": "end_turn"
-    }
-  },
-  {
-    "on_method": "session/prompt",
-    "notify": [
-      {
-        "jsonrpc": "2.0",
-        "method": "session/update",
-        "params": {
-          "sessionId": "$SESSION",
-          "update": {
-            "sessionUpdate": "agent_message_chunk",
-            "content": {
-              "type": "text",
-              "text": "hello "
-            }
-          }
-        }
-      },
-      {
-        "jsonrpc": "2.0",
-        "method": "session/update",
-        "params": {
-          "sessionId": "$SESSION",
-          "update": {
-            "sessionUpdate": "agent_message_chunk",
-            "content": {
-              "type": "text",
-              "text": "world"
-            }
-          }
-        }
-      }
-    ],
-    "respond": {
-      "stopReason": "end_turn"
-    }
+ {
+  "on_method": "initialize",
+  "respond": {
+   "protocolVersion": 1,
+   "agentCapabilities": {},
+   "agentInfo": {
+    "name": "Fake Agent",
+    "version": "1.0"
+   }
   }
+ },
+ {
+  "on_method": "session/new",
+  "respond": {
+   "sessionId": "$SESSION",
+   "modes": {
+    "currentModeId": "default",
+    "availableModes": [
+     {
+      "id": "default",
+      "name": "Default"
+     }
+    ]
+   }
+  }
+ },
+ {
+  "on_method": "session/prompt",
+  "if_prompt_contains": "PERMISSION",
+  "request": [
+   {
+    "jsonrpc": "2.0",
+    "id": 900,
+    "method": "session/request_permission",
+    "params": {
+     "sessionId": "$SESSION",
+     "toolCall": {
+      "toolCallId": "t1",
+      "title": "Write file"
+     },
+     "options": [
+      {
+       "optionId": "y",
+       "name": "Allow",
+       "kind": "allow_once"
+      },
+      {
+       "optionId": "n",
+       "name": "Reject",
+       "kind": "reject_once"
+      }
+     ]
+    }
+   }
+  ],
+  "respond": {
+   "stopReason": "end_turn"
+  }
+ },
+ {
+  "on_method": "session/prompt",
+  "if_prompt_contains": "VENDOR",
+  "notify": [
+   {
+    "jsonrpc": "2.0",
+    "method": "session/update",
+    "params": {
+     "sessionId": "$SESSION",
+     "update": {
+      "sessionUpdate": "subagent_spawned",
+      "subagentSessionId": "sub-1",
+      "toolCallId": "t-task"
+     }
+    }
+   }
+  ],
+  "respond": {
+   "stopReason": "end_turn"
+  }
+ },
+ {
+  "on_method": "session/prompt",
+  "if_prompt_contains": "WITHDRAW",
+  "request": [
+   {
+    "jsonrpc": "2.0",
+    "id": 901,
+    "method": "session/request_permission",
+    "params": {
+     "sessionId": "$SESSION",
+     "toolCall": {
+      "toolCallId": "t2",
+      "title": "Write file"
+     },
+     "options": [
+      {
+       "optionId": "y",
+       "name": "Allow",
+       "kind": "allow_once"
+      },
+      {
+       "optionId": "n",
+       "name": "Reject",
+       "kind": "reject_once"
+      }
+     ]
+    }
+   }
+  ],
+  "then_notify": [
+   {
+    "jsonrpc": "2.0",
+    "method": "$/cancel_request",
+    "params": {
+     "requestId": 901
+    }
+   }
+  ],
+  "respond": {
+   "stopReason": "end_turn"
+  },
+  "then_delay_ms": 600
+ },
+ {
+  "on_method": "session/prompt",
+  "if_prompt_contains": "ASKQUESTION",
+  "request": [
+   {
+    "jsonrpc": "2.0",
+    "id": 901,
+    "method": "elicitation/create",
+    "params": {
+     "mode": "form",
+     "sessionId": "$SESSION",
+     "toolCallId": "t-ask",
+     "message": "Please answer the following questions.",
+     "requestedSchema": {
+      "type": "object",
+      "properties": {
+       "question_0": {
+        "type": "string",
+        "title": "Colour",
+        "description": "Which colour?",
+        "oneOf": [
+         {
+          "const": "Red",
+          "title": "Red"
+         },
+         {
+          "const": "Blue",
+          "title": "Blue",
+          "description": "the cold one"
+         }
+        ]
+       },
+       "question_0_custom": {
+        "type": "string",
+        "title": "Other",
+        "description": "Type your own answer instead of choosing an option above (optional)."
+       },
+       "question_1": {
+        "type": "array",
+        "title": "Extras",
+        "description": "Which extras?",
+        "items": {
+         "anyOf": [
+          {
+           "const": "Ice",
+           "title": "Ice"
+          },
+          {
+           "const": "Lemon",
+           "title": "Lemon"
+          }
+         ]
+        }
+       },
+       "question_1_custom": {
+        "type": "string",
+        "title": "Other",
+        "description": "Type your own answer instead of choosing an option above (optional)."
+       }
+      }
+     }
+    }
+   }
+  ],
+  "respond": {
+   "stopReason": "end_turn"
+  }
+ },
+ {
+  "on_method": "session/prompt",
+  "if_prompt_contains": "LANES",
+  "notify": [
+   {
+    "jsonrpc": "2.0",
+    "method": "session/update",
+    "params": {
+     "sessionId": "$SESSION",
+     "update": {
+      "sessionUpdate": "agent_thought_chunk",
+      "content": {
+       "type": "text",
+       "text": "weighing the options"
+      }
+     }
+    }
+   },
+   {
+    "jsonrpc": "2.0",
+    "method": "session/update",
+    "params": {
+     "sessionId": "$SESSION",
+     "update": {
+      "sessionUpdate": "tool_call",
+      "toolCallId": "t-main",
+      "title": "Read config.toml",
+      "kind": "read",
+      "status": "completed"
+     }
+    }
+   },
+   {
+    "jsonrpc": "2.0",
+    "method": "session/update",
+    "params": {
+     "sessionId": "$SESSION",
+     "update": {
+      "sessionUpdate": "tool_call",
+      "toolCallId": "t-task",
+      "title": "Task: research the API",
+      "kind": "other",
+      "status": "in_progress"
+     }
+    }
+   },
+   {
+    "jsonrpc": "2.0",
+    "method": "session/update",
+    "params": {
+     "sessionId": "$SESSION",
+     "update": {
+      "sessionUpdate": "tool_call",
+      "toolCallId": "t-child",
+      "title": "Grep in the subagent",
+      "kind": "search",
+      "status": "completed",
+      "_meta": {
+       "claudeCode": {
+        "parentToolUseId": "t-task"
+       }
+      }
+     }
+    }
+   },
+   {
+    "jsonrpc": "2.0",
+    "method": "session/update",
+    "params": {
+     "sessionId": "$SESSION",
+     "update": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+       "type": "text",
+       "text": "the plain answer"
+      }
+     }
+    }
+   }
+  ],
+  "stderr": [
+   "[session/query] diagnostic line"
+  ],
+  "respond": {
+   "stopReason": "end_turn"
+  }
+ },
+ {
+  "on_method": "session/prompt",
+  "if_prompt_contains": "LIMITS",
+  "notify": [
+   {
+    "jsonrpc": "2.0",
+    "method": "session/update",
+    "params": {
+     "sessionId": "$SESSION",
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 42000,
+      "size": 200000,
+      "_meta": {
+       "_claude/rateLimit": {
+        "status": "allowed",
+        "resetsAt": 1788537600,
+        "rateLimitType": "five_hour",
+        "overageStatus": "allowed",
+        "overageResetsAt": 1790812800,
+        "isUsingOverage": false,
+        "unifiedWindows": {
+         "five_hour": {
+          "utilization": 0.42,
+          "resetsAt": 1788537600
+         },
+         "seven_day": {
+          "utilization": 0.88,
+          "resetsAt": 1788631200
+         }
+        }
+       }
+      }
+     }
+    }
+   },
+   {
+    "jsonrpc": "2.0",
+    "method": "session/update",
+    "params": {
+     "sessionId": "$SESSION",
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 42000,
+      "size": 200000,
+      "_meta": {
+       "_claude/rateLimit": {
+        "status": "allowed_warning",
+        "resetsAt": 1788631200,
+        "rateLimitType": "seven_day",
+        "utilization": 0.88,
+        "surpassedThreshold": true,
+        "isUsingOverage": true,
+        "canUserPurchaseCredits": true,
+        "unifiedWindows": {
+         "seven_day": {
+          "utilization": 0.88,
+          "resetsAt": 1788631200
+         },
+         "seven_day_overage_included": {
+          "utilization": 0.45,
+          "resetsAt": 1788631200
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  ],
+  "respond": {
+   "stopReason": "end_turn"
+  }
+ },
+ {
+  "on_method": "session/prompt",
+  "if_prompt_contains": "ANOMALY",
+  "notify": [
+   {
+    "jsonrpc": "2.0",
+    "method": "session/update",
+    "params": {
+     "sessionId": "somebody-elses-session",
+     "update": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+       "type": "text",
+       "text": "not for you"
+      }
+     }
+    }
+   }
+  ],
+  "respond": {
+   "stopReason": "end_turn"
+  }
+ },
+ {
+  "on_method": "session/prompt",
+  "if_prompt_contains": "SLOW",
+  "delay_ms": 3000,
+  "respond": {
+   "stopReason": "end_turn"
+  }
+ },
+ {
+  "on_method": "session/prompt",
+  "if_prompt_contains": "SUGGEST",
+  "notify": [
+   {
+    "jsonrpc": "2.0",
+    "method": "session/update",
+    "params": {
+     "sessionId": "$SESSION",
+     "update": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+       "type": "text",
+       "text": "done."
+      }
+     }
+    }
+   },
+   {
+    "jsonrpc": "2.0",
+    "method": "session/update",
+    "params": {
+     "sessionId": "$SESSION",
+     "update": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+       "type": "text",
+       "text": ""
+      },
+      "_meta": {
+       "_claude/promptSuggestion": {
+        "type": "prompt_suggestion",
+        "suggestion": "add a test for add()"
+       }
+      }
+     }
+    }
+   }
+  ],
+  "respond": {
+   "stopReason": "end_turn"
+  }
+ },
+ {
+  "on_method": "session/prompt",
+  "notify": [
+   {
+    "jsonrpc": "2.0",
+    "method": "session/update",
+    "params": {
+     "sessionId": "$SESSION",
+     "update": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+       "type": "text",
+       "text": "hello "
+      }
+     }
+    }
+   },
+   {
+    "jsonrpc": "2.0",
+    "method": "session/update",
+    "params": {
+     "sessionId": "$SESSION",
+     "update": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+       "type": "text",
+       "text": "world"
+      }
+     }
+    }
+   }
+  ],
+  "respond": {
+   "stopReason": "end_turn"
+  }
+ }
 ]

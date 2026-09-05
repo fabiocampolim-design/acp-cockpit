@@ -563,6 +563,8 @@ pre.raw {
   padding: .1rem .5rem;
 }
 #topright button:hover { background: var(--bg-hover); color: var(--fg); }
+/* the version chip: only present when something is behind, and it says so */
+#update-chip { color: var(--warn, #c9a227); border-color: var(--warn, #c9a227); font-size: .8em; }
 #account { display: flex; gap: .35rem; align-items: center; font-size: .8em; }
 #account .window {
   border: 1px solid var(--border); border-radius: 999px; padding: 0 .55em;
