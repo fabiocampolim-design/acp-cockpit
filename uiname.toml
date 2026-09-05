@@ -1,0 +1,11 @@
+# The name this client shows in its own interface.
+#
+# The project, the package and the docs are `acp-cockpit`; what the running
+# client calls itself on screen is this, and only this. Change it freely —
+# nothing else depends on it.
+#
+# Longer than 15 characters is truncated with an ellipsis, because the name
+# has to fit a browser tab, a heading and a dialog title.
+#
+# The environment variable of the same name wins over this file.
+ACP_COCKPIT_UINAME = "ClaudIU"

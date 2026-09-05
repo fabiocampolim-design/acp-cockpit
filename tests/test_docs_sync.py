@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 from pathlib import Path
-from claudiu.core.events import KINDS
+from acp_cockpit.core.events import KINDS
 
 DOC = Path("docs/UI-PROTOCOL.md").read_text(encoding="utf-8")
 

@@ -1,4 +1,4 @@
-# ClaudIU
+# acp-cockpit
 
 A **browser client for AI coding agents** that speaks the
 [Agent Client Protocol](https://github.com/agentclientprotocol/agent-client-protocol)
@@ -9,8 +9,10 @@ agent is Claude Code, through the
 [`claude-agent-acp`](https://github.com/agentclientprotocol/claude-agent-acp)
 adapter.
 
-> Working name only. This project is not affiliated with, endorsed by, or
-> sponsored by Anthropic or Zed Industries.
+> The client shows itself as **ClaudIU** out of the box — that name is
+> one line of configuration (`uiname.toml`), yours to change. This project
+> is not affiliated with, endorsed by, or sponsored by Anthropic or Zed
+> Industries.
 
 ![A real session: the model's thinking in italics above its answer, with the
 tools, events and harness lanes switched off so only the conversation
@@ -99,7 +101,7 @@ never a balance, so no figure in money is shown — there is none in the
 protocol to show.
 
 **What actually runs on my machine when I install this?**
-One Python process. `python -m claudiu` starts a Tornado server bound to
+One Python process. `python -m acp_cockpit` starts a Tornado server bound to
 `127.0.0.1` on an OS-assigned port (or `--port`), prints a URL with a
 one-time token, and waits. Nothing is installed as a service, nothing starts
 at boot, and nothing listens on a public interface. When you start a session
@@ -114,7 +116,7 @@ them. It is a program you run, not a daemon you host.
 ```
 npm install -g @agentclientprotocol/claude-agent-acp   # the Claude adapter
 pip install -e .                                       # Python >= 3.11
-python -m claudiu
+python -m acp_cockpit
 ```
 
 Open the printed `http://127.0.0.1:<port>/?token=...` URL, pick an agent,
@@ -123,7 +125,7 @@ run unless you pass `--port`. If a `claude` CLI is installed, the adapter is
 pointed at it instead of the older copy it bundles (the launcher shows which
 runtime resolved; `agents/PROFILE-SCHEMA.md` → `env_resolve`). For a stable
 address, pin the port and keep the token:
-`python -m claudiu --port 8642 --token-file ~/.claudiu/token` — bookmark the
+`python -m acp_cockpit --port 8642 --token-file ~/.claudiu/token` — bookmark the
 printed URL once (the token file is owner-only; treat it like a password).
 
 `docs/USER_MANUAL.md` is the full manual.
@@ -141,9 +143,14 @@ agents/*.toml Data        everything agent-specific (see PROFILE-SCHEMA.md)
 ```
 
 - **Swap the UI**: implement `docs/UI-PROTOCOL.md` (enforced in tests).
-- **Swap the server**: implement the three ports in `claudiu/core/ports.py`.
+- **Swap the server**: implement the three ports in `acp_cockpit/core/ports.py`.
 - **Add an agent**: write one TOML profile; the engine never changes.
   `agents/local-*.toml` is yours and is never tracked.
+- **Rename it**: the name in the tab, the launcher heading and the help
+  dialog comes from `ACP_COCKPIT_UINAME` — the environment variable, else
+  `uiname.toml`, else the shipped default. Over 15 characters is cut with an
+  ellipsis, because it has to fit a browser tab. Nothing else in the program
+  depends on it.
 
 ## Losslessness & drift
 
@@ -194,12 +201,12 @@ session, so you know what this client cannot see and why.
 
 ```
 python -m pytest tests/ -q          # full suite (e2e needs playwright)
-CLAUDIU_CONTRACT=1 python -m pytest tests/contract/ -q   # real adapter
+ACP_COCKPIT_CONTRACT=1 python -m pytest tests/contract/ -q   # real adapter
 python -m pyflakes claudiu tools tests
 python tools/check_schema_drift.py
 ```
 
-Verified by 207 checks (plus the opt-in real-adapter contract test), on
+Verified by 215 checks (plus the opt-in real-adapter contract test), on
 Linux, Windows and macOS. See `AGENTS.md` for the working rules,
 `docs/DESIGN.md` for the reasoning and `docs/superpowers/specs/` for the
 design history — the research notes and the approved specifications the

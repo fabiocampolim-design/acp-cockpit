@@ -12,8 +12,8 @@ from pathlib import Path
 
 import tornado.testing
 
-from claudiu.server.app import make_app
-from claudiu.server.auth import TokenAuth
+from acp_cockpit.server.app import make_app
+from acp_cockpit.server.auth import TokenAuth
 FIXTURE_PROFILE = """
 id = "fake"
 name = "Fake Agent"
@@ -52,7 +52,7 @@ class OptionsTest(tornado.testing.AsyncHTTPTestCase):
                         archiver=str(self.archiver))
 
     def _headers(self):
-        return {"Cookie": f"claudiu_token={self.auth.token}"}
+        return {"Cookie": f"acp_cockpit_token={self.auth.token}"}
 
     def _post(self, body, expect=200):
         resp = self.fetch("/api/sessions", method="POST",

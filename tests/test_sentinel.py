@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import json
 from pathlib import Path
-from claudiu.core.sentinel import Sentinel
+from acp_cockpit.core.sentinel import Sentinel
 
 REG = json.loads(Path("vendor/acp/registry.json").read_text())
 

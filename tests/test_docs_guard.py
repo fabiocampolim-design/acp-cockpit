@@ -11,7 +11,7 @@ def test_user_manual_matches_the_product():
     # 0.2 is an ACP client; the manual must not describe the archived
     # terminal-mirror app.
     assert "Agent Client Protocol" in MANUAL
-    assert "python -m claudiu" in MANUAL
+    assert "python -m acp_cockpit" in MANUAL
     for gone in ("xterm.js", "pseudo-terminal"):
         assert gone not in MANUAL, f"stale v0.1 concept in manual: {gone}"
     for flag in ("--port", "--profiles", "--records", "--no-drift-online"):
@@ -48,7 +48,7 @@ def test_profile_schema_documents_every_field():
     # A profile knob nobody documented is a knob nobody can use: the schema
     # doc is the contract for adding an agent without touching core/.
     import dataclasses
-    from claudiu.core.profiles import AgentProfile
+    from acp_cockpit.core.profiles import AgentProfile
     schema = Path("agents/PROFILE-SCHEMA.md").read_text(encoding="utf-8")
     for f in dataclasses.fields(AgentProfile):
         assert f"`{f.name}`" in schema, \

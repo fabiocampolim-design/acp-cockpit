@@ -51,6 +51,8 @@ account limits, help, settings</a></li>
 suggestions</a></li>
 <li><a href="#what-the-launcher-remembers" id="toc-what-the-launcher-remembers">What the launcher
 remembers</a></li>
+<li><a href="#the-name-it-shows" id="toc-the-name-it-shows">The name it
+shows</a></li>
 <li><a href="#adding-your-own-agent-profile" id="toc-adding-your-own-agent-profile">Adding your own agent
 profile</a></li>
 <li><a href="#approvals" id="toc-approvals">Approvals</a></li>
@@ -73,7 +75,7 @@ thinking, tool calls with diffs, permission requests — in your browser.
 Nothing is screen-scraped; everything you see comes from typed protocol
 data, and every byte that crosses the wire is recorded.</p>
 <h2 id="starting">Starting</h2>
-<pre><code>python -m claudiu</code></pre>
+<pre><code>python -m acp_cockpit</code></pre>
 <p>Options: <code>--port N</code> (default 0 = OS-assigned),
 <code>--profiles DIR</code> (default <code>agents/</code>),
 <code>--records DIR</code> (default <code>~/.claudiu/records</code>),
@@ -198,8 +200,8 @@ which writes it into your usual archive directory
 (<code>CLAUDE_ARCHIVE_DIR</code>) in the formats it always produces. The
 server must know where that tool is: start it with
 <code>--archiver &lt;path to transcript_archiver.py&gt;</code> or set
-<code>CLAUDIU_ARCHIVER</code>. Without it the button says so; nothing is
-copied into this project.</p>
+<code>ACP_COCKPIT_ARCHIVER</code>. Without it the button says so;
+nothing is copied into this project.</p>
 <h2 id="the-top-right-account-limits-help-settings">The top right:
 account limits, help, settings</h2>
 <p>The agent reports your <strong>account’s</strong> rate-limit windows
@@ -280,9 +282,10 @@ never covers it, and it closes. Choose where to save and which
 formats:</p>
 <ul>
 <li>With <strong>claude-session-publisher</strong> configured
-(<code>--archiver &lt;path&gt;</code> or <code>CLAUDIU_ARCHIVER</code>),
-you get its full document: HTML, Markdown, text, LaTeX or PDF, with the
-fidelity report that proves nothing was dropped.</li>
+(<code>--archiver &lt;path&gt;</code> or
+<code>ACP_COCKPIT_ARCHIVER</code>), you get its full document: HTML,
+Markdown, text, LaTeX or PDF, with the fidelity report that proves
+nothing was dropped.</li>
 <li>Without it, ClaudIU writes a <strong>plain Markdown
 transcript</strong> from the session’s own record — prompts, answers,
 thinking and tool-call titles — and says so, in the panel and in the
@@ -317,6 +320,17 @@ remembers for that directory, newest first, each with when it was last
 touched (“2 h ago”, “yesterday 14:02”). A session the agent never dated
 says so and sorts last rather than pretending to be recent; the session
 id is in the tooltip.</p>
+<h2 id="the-name-it-shows">The name it shows</h2>
+<p>The client calls itself <strong>ClaudIU</strong> by default. That is
+configuration, not code: set <code>ACP_COCKPIT_UINAME</code> in the
+environment, or edit <code>uiname.toml</code> (beside the package, or
+<code>~/.acp-cockpit/uiname.toml</code>), and the browser tab, the
+launcher heading and the help dialog follow. The environment wins over
+the file. A name longer than 15 characters is cut with an ellipsis so it
+still fits a tab, and a blank or broken setting falls back to the
+default rather than leaving the interface nameless.</p>
+<p>The project, the package and this manual are
+<code>acp-cockpit</code>; only the name on screen is yours.</p>
 <h2 id="adding-your-own-agent-profile">Adding your own agent
 profile</h2>
 <p>Every file in <code>agents/*.toml</code> is an agent this client can

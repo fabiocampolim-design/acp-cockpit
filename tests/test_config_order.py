@@ -9,7 +9,7 @@ drops or renames a choice.
 import json
 from pathlib import Path
 
-from claudiu.core.profiles import ProfileError, load_profile
+from acp_cockpit.core.profiles import ProfileError, load_profile
 from tests.helpers import make_session
 
 REAL_MODELS = [                      # captured from ~/.claudiu/records

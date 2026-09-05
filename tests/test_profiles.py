@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import pytest
 from pathlib import Path
-from claudiu.core.profiles import AgentProfile, ProfileError, load_profile, load_profiles
+from acp_cockpit.core.profiles import AgentProfile, ProfileError, load_profile, load_profiles
 
 
 def test_claude_profile_loads():

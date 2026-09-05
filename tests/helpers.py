@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 from pathlib import Path
-from claudiu.core.acp import AcpSession
-from claudiu.core.policy import PathPolicy
-from claudiu.core.profiles import load_profile
-from claudiu.core.record import Recorder
-from claudiu.core.sentinel import Sentinel
+from acp_cockpit.core.acp import AcpSession
+from acp_cockpit.core.policy import PathPolicy
+from acp_cockpit.core.profiles import load_profile
+from acp_cockpit.core.record import Recorder
+from acp_cockpit.core.sentinel import Sentinel
 
 
 class FakeProc:

@@ -8,7 +8,7 @@ import os
 import secrets
 from pathlib import Path
 
-COOKIE_NAME = "claudiu_token"
+COOKIE_NAME = "acp_cockpit_token"
 MIN_TOKEN_CHARS = 32
 
 

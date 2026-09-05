@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import json
 import pytest
-from claudiu.core.acp import StateError
+from acp_cockpit.core.acp import StateError
 from tests.helpers import make_session
 
 
@@ -141,7 +141,7 @@ def test_session_new_carries_the_profile_client_options(tmp_path):
 
 def test_session_new_omits_meta_without_client_options(tmp_path):
     from pathlib import Path
-    from claudiu.core.profiles import load_profile
+    from acp_cockpit.core.profiles import load_profile
     bare = tmp_path / "bare.toml"
     bare.write_text(MINIMAL_PROFILE, encoding="utf-8")
     session, proc, sink = make_session(tmp_path,

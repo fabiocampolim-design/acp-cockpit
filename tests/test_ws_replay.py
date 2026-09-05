@@ -7,8 +7,8 @@ server grew without bound and a reconnecting View received a second copy of
 the whole conversation.
 """
 import json
-from claudiu.core.events import make_event
-from claudiu.server.ws import BufferedSink
+from acp_cockpit.core.events import make_event
+from acp_cockpit.server.ws import BufferedSink
 
 
 class Collector:

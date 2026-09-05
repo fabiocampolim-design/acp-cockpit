@@ -73,8 +73,8 @@ def render_markdown(entries, title: str | None = None) -> str:
     flush()
 
     head = [
-        "# " + (title or "ClaudIU session transcript"), "",
-        f"*{prompts} prompt(s), {tools} tool call(s). Written by ClaudIU's "
+        "# " + (title or "Session transcript"), "",
+        f"*{prompts} prompt(s), {tools} tool call(s). Written by acp-cockpit's "
         "built-in fallback: prompts, answers, thinking and tool-call titles. "
         "Tool arguments and results, diffs, permissions and the raw protocol "
         "frames stay in the session's JSONL record — install "
@@ -90,6 +90,6 @@ def write_markdown(record_path, dest_dir, session_id: str,
     dest = Path(dest_dir)
     dest.mkdir(parents=True, exist_ok=True)
     entries = list(Recorder(Path(record_path)).replay())
-    target = dest / f"claudiu-{session_id}.md"
+    target = dest / f"acp-cockpit-{session_id}.md"
     target.write_text(render_markdown(entries, title), encoding="utf-8")
     return str(target)

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Contract tests against the real ACP adapter named by the profile.
 
-Run: CLAUDIU_CONTRACT=1 python -m pytest tests/contract/ -q
+Run: ACP_COCKPIT_CONTRACT=1 python -m pytest tests/contract/ -q
 Costs real tokens; requires claude credentials and the adapter installed.
 """
 import os
@@ -9,13 +9,13 @@ import queue
 import shutil
 import pytest
 from pathlib import Path
-from claudiu.core.acp import AcpSession
-from claudiu.core.policy import PathPolicy
-from claudiu.core.profiles import load_profile
-from claudiu.core.record import Recorder
-from claudiu.core.sentinel import Sentinel
-from claudiu.server.app import LocalFiles
-from claudiu.server.procs import SubprocessAgentProcess
+from acp_cockpit.core.acp import AcpSession
+from acp_cockpit.core.policy import PathPolicy
+from acp_cockpit.core.profiles import load_profile
+from acp_cockpit.core.record import Recorder
+from acp_cockpit.core.sentinel import Sentinel
+from acp_cockpit.server.app import LocalFiles
+from acp_cockpit.server.procs import SubprocessAgentProcess
 
 # The adapter to look for is the one the PROFILE names: the package was
 # renamed (claude-code-acp -> claude-agent-acp) and a hardcoded old name
@@ -23,9 +23,9 @@ from claudiu.server.procs import SubprocessAgentProcess
 _ADAPTER = load_profile(Path("agents/claude.toml")).command[0]
 
 pytestmark = pytest.mark.skipif(
-    os.environ.get("CLAUDIU_CONTRACT") != "1"
+    os.environ.get("ACP_COCKPIT_CONTRACT") != "1"
     or shutil.which(_ADAPTER) is None,
-    reason="contract tier: set CLAUDIU_CONTRACT=1 with adapter installed")
+    reason="contract tier: set ACP_COCKPIT_CONTRACT=1 with adapter installed")
 
 
 class QueueSink:

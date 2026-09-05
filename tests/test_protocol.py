@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 import json
-from claudiu.core.protocol import JsonRpcConn
+from acp_cockpit.core.protocol import JsonRpcConn
 
 
 def make_conn(log):

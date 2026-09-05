@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import json
 import pytest
-from claudiu.core.events import KINDS, make_event, to_wire
+from acp_cockpit.core.events import KINDS, make_event, to_wire
 
 def test_kinds_cover_spec_surface():
     for k in ("session_state", "message_chunk", "tool_call", "tool_call_update",

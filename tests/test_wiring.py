@@ -4,7 +4,7 @@ import re
 import tomllib
 from pathlib import Path
 
-import claudiu
+import acp_cockpit
 
 CITATION = Path("CITATION.cff").read_text(encoding="utf-8")
 
@@ -14,7 +14,7 @@ def test_version_is_semver_and_has_a_changelog_section():
     # the fix was to retype the number — a tripwire that only ever caught
     # the release it was meant to help. What is worth enforcing is that the
     # version is well formed AND that the CHANGELOG says what is in it.
-    version = claudiu.__version__
+    version = acp_cockpit.__version__
     assert re.fullmatch(r"\d+\.\d+\.\d+", version), version
     changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
     assert re.search(rf"^## {re.escape(version)}\b", changelog, re.M), \
@@ -26,10 +26,10 @@ def test_pyproject_and_citation_state_the_same_version():
     # it went stale through 0.2.0 unnoticed because nothing checked it.
     pyproject = tomllib.loads(
         Path("pyproject.toml").read_text(encoding="utf-8"))
-    assert pyproject["project"]["version"] == claudiu.__version__
+    assert pyproject["project"]["version"] == acp_cockpit.__version__
     m = re.search(r'^version:\s*"([^"]+)"', CITATION, re.M)
     assert m, "CITATION.cff has no version"
-    assert m.group(1) == claudiu.__version__
+    assert m.group(1) == acp_cockpit.__version__
 
 
 def test_citation_describes_the_current_product():

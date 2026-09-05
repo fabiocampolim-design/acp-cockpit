@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import os
 import pytest
-from claudiu.core.policy import PathPolicy
+from acp_cockpit.core.policy import PathPolicy
 
 
 def test_inside_root_allowed(tmp_path):

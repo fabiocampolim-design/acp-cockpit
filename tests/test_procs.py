@@ -4,7 +4,7 @@ import sys
 import threading
 from pathlib import Path
 import pytest
-from claudiu.server.procs import SubprocessAgentProcess, resolve_command
+from acp_cockpit.server.procs import SubprocessAgentProcess, resolve_command
 
 CHILD = str(Path("tests/child_lines.py").resolve())
 
@@ -63,7 +63,7 @@ def test_resolve_command_missing_raises():
 
 
 # ---- env_resolve: VAR -> command name, resolved on PATH after the scrub ----
-from claudiu.server import procs  # noqa: E402
+from acp_cockpit.server import procs  # noqa: E402
 
 
 def test_env_resolve_points_var_at_the_command_on_path(monkeypatch):

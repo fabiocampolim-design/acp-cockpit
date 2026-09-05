@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 import pytest
-from claudiu.core.acp import StateError
+from acp_cockpit.core.acp import StateError
 from tests.helpers import make_session, FakeFiles
 from tests.test_acp_handshake import do_handshake, feed, sent_frames
 

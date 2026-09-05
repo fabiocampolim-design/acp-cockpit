@@ -5,8 +5,8 @@ import tempfile
 import time
 from pathlib import Path
 import tornado.testing
-from claudiu.server.app import make_app
-from claudiu.server.auth import TokenAuth
+from acp_cockpit.server.app import make_app
+from acp_cockpit.server.auth import TokenAuth
 from tests.test_server import FIXTURE_PROFILE
 
 
@@ -22,7 +22,7 @@ class SecurityTest(tornado.testing.AsyncHTTPTestCase):
                         records_dir=self.tmpdir / "records", auth=self.auth)
 
     def ok_headers(self):
-        return {"Cookie": f"claudiu_token={self.auth.token}"}
+        return {"Cookie": f"acp_cockpit_token={self.auth.token}"}
 
     def test_missing_token_403(self):
         assert self.fetch("/api/sessions").code == 403
@@ -31,7 +31,7 @@ class SecurityTest(tornado.testing.AsyncHTTPTestCase):
 
     def test_wrong_token_403(self):
         r = self.fetch("/api/sessions",
-                       headers={"Cookie": "claudiu_token=wrong"})
+                       headers={"Cookie": "acp_cockpit_token=wrong"})
         assert r.code == 403
 
     def test_evil_host_403(self):
@@ -74,8 +74,17 @@ class SecurityTest(tornado.testing.AsyncHTTPTestCase):
         assert self.fetch("/ui/app.js").code == 403
         r = self.fetch("/ui/app.js", headers=self.ok_headers())
         assert r.code == 200
-        assert b"ClaudIU" in r.body or b"session" in r.body
+        assert b"session" in r.body
         assert "default-src 'self'" in r.headers["Content-Security-Policy"]
+
+    def test_the_page_carries_the_configured_name_not_a_placeholder(self):
+        # The name is substituted server-side, so a reader never watches it
+        # change one request after the page arrives.
+        r = self.fetch("/", headers=self.ok_headers())
+        assert r.code == 200
+        body = r.body.decode("utf-8")
+        assert "{{UI_NAME}}" not in body, "placeholder reached the browser"
+        assert "<title>ClaudIU</title>" in body
 
     def test_the_ui_files_are_revalidated_not_cached(self):
         # "Reload the page" is the documented recovery from half the things

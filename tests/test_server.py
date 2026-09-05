@@ -6,8 +6,8 @@ from pathlib import Path
 import tornado.httpclient
 import tornado.testing
 import tornado.websocket
-from claudiu.server.app import make_app
-from claudiu.server.auth import TokenAuth
+from acp_cockpit.server.app import make_app
+from acp_cockpit.server.auth import TokenAuth
 
 # Absolute paths: sessions spawn with cwd=<session dir>, so relative
 # script paths would not resolve.
@@ -43,7 +43,7 @@ class ServerTest(tornado.testing.AsyncHTTPTestCase):
                         records_dir=self.tmpdir / "records", auth=self.auth)
 
     def _headers(self):
-        return {"Cookie": f"claudiu_token={self.auth.token}"}
+        return {"Cookie": f"acp_cockpit_token={self.auth.token}"}
 
     def test_profiles_listed(self):
         resp = self.fetch("/api/profiles", headers=self._headers())
@@ -309,7 +309,7 @@ class ElicitationTimeoutTest(tornado.testing.AsyncHTTPTestCase):
                         permission_timeout=0.3)
 
     def _headers(self):
-        return {"Cookie": f"claudiu_token={self.auth.token}"}
+        return {"Cookie": f"acp_cockpit_token={self.auth.token}"}
 
     def test_unanswered_elicitation_declines_itself(self):
         resp = self.fetch("/api/sessions", method="POST",

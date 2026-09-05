@@ -1,14 +1,14 @@
 # UI Protocol — the View seam
 
 Any UI (web, desktop, mobile) implementing this document is a full ClaudIU
-front-end. The bundled `claudiu/ui/web/` consumes exactly this protocol and
+front-end. The bundled `acp_cockpit/ui/web/` consumes exactly this protocol and
 nothing else. `tests/test_docs_sync.py` enforces that this document stays in
 lockstep with the code.
 
 ## 1. Authentication
 
 The server prints a launch URL `http://127.0.0.1:<port>/?token=<token>` once
-per run (with `--token-file` the token persists across runs). Opening it sets the `claudiu_token` cookie (HttpOnly, SameSite
+per run (with `--token-file` the token persists across runs). Opening it sets the `acp_cockpit_token` cookie (HttpOnly, SameSite
 Strict) and redirects to `/`. Every REST call and WebSocket upgrade must
 carry that cookie; anything else is `403`. The server binds 127.0.0.1 only
 and rejects foreign `Host`/`Origin` headers.
@@ -102,7 +102,7 @@ markdown, written by ClaudIU itself.
 
 Writes the conversation. With the publisher configured it hands the
 session's agent-session id to `transcript_archiver.py` (named by the
-server's `--archiver` / `CLAUDIU_ARCHIVER`; the tool is never vendored in)
+server's `--archiver` / `ACP_COCKPIT_ARCHIVER`; the tool is never vendored in)
 and passes `--archive-dir`. **Without it the server writes a plain Markdown
 transcript from the session's own record** and marks the answer
 `"fallback": true` with a `warning` — refusing to save anything because

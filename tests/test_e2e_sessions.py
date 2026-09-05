@@ -22,7 +22,7 @@ def server():
         PROFILE.replace("{python}", json.dumps(sys.executable)),
         encoding="utf-8")
     proc = subprocess.Popen(
-        [sys.executable, "-m", "claudiu", "--profiles", str(profs),
+        [sys.executable, "-m", "acp_cockpit", "--profiles", str(profs),
          "--records", str(tmp / "rec"), "--no-drift-online"],
         stdout=subprocess.PIPE, text=True, encoding="utf-8")
     url = None

@@ -2,6 +2,21 @@
 
 All notable changes to CLAUDIU are documented in this file.
 
+## Unreleased
+
+- **Renamed to `acp-cockpit`** — the project, the Python package
+  (`python -m acp_cockpit`), the distribution and the documentation. The
+  name a reader sees in the interface is now a separate, configurable
+  thing: `ACP_COCKPIT_UINAME`, from the environment or `uiname.toml`,
+  shipped as **ClaudIU**. Over 15 characters is truncated with an ellipsis,
+  because the name sits in a browser tab, a heading and a dialog title; a
+  blank or broken value falls back to the default rather than leaving the
+  interface nameless. The server substitutes it into the page rather than
+  letting the browser fetch it, so nobody watches the name change one
+  request after the page arrives.
+- The data directory is unchanged (`~/.claudiu`): renaming a project should
+  not strand anyone's records or their pinned token.
+
 ## 0.4.0 - 2026-09-05 - the audit, and a client that holds still
 
 A full-scope audit of the project (eleven findings, all closed) and six
@@ -278,7 +293,7 @@ day to day.
   another live session already holds is refused with a 409 naming the
   holder - two adapters would write the same transcript file.
 - **Archive button**: hands the session to claude-session-publisher
-  (`--archiver` / `CLAUDIU_ARCHIVER`), which writes it into the usual
+  (`--archiver` / `ACP_COCKPIT_ARCHIVER`), which writes it into the usual
   archive directory; the tool is never vendored in (rule 21).
 - **The composer stopped eating short windows**: the prompt box starts at two
   rows and grows with the text to a 30vh cap, and the toolbar is one compact

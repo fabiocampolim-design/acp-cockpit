@@ -9,10 +9,10 @@ gitignored) — read-only history, never modified.
 
 ## Layer rules (enforce these in review)
 
-- `claudiu/core/` imports **stdlib only** and does no real I/O except
+- `acp_cockpit/core/` imports **stdlib only** and does no real I/O except
   `record.py` writing its own files; the outside world comes through
   `core/ports.py`. Never import tornado in core.
-- `claudiu/ui/web/` consumes **only** `docs/UI-PROTOCOL.md`. If the UI
+- `acp_cockpit/ui/web/` consumes **only** `docs/UI-PROTOCOL.md`. If the UI
   needs something new, extend the doc and `tests/test_docs_sync.py` first.
 - Everything agent-specific lives in `agents/*.toml`
   (`agents/PROFILE-SCHEMA.md`); the engine never names Claude.
@@ -26,7 +26,7 @@ gitignored) — read-only history, never modified.
 - Full suite: `python -m pytest tests/ -q`. Real-adapter contract tier
   (costs tokens, needs the adapter named in `agents/claude.toml` —
   `claude-agent-acp` — plus credentials):
-  `CLAUDIU_CONTRACT=1 python -m pytest tests/contract/ -q`.
+  `ACP_COCKPIT_CONTRACT=1 python -m pytest tests/contract/ -q`.
 - Always `python -m pyflakes claudiu tools tests` before committing.
 - `tools/check_schema_drift.py` must stay green; when it reports novel
   identifiers after a schema bump, extend `vendor/acp/registry.json` and

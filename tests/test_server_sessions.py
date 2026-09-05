@@ -7,8 +7,8 @@ from pathlib import Path
 import tornado.httpclient
 import tornado.testing
 import tornado.websocket
-from claudiu.server.app import make_app
-from claudiu.server.auth import TokenAuth
+from acp_cockpit.server.app import make_app
+from acp_cockpit.server.auth import TokenAuth
 
 PROFILE = '''
 id = "cmds"
@@ -34,7 +34,7 @@ class SessionsTest(tornado.testing.AsyncHTTPTestCase):
                         records_dir=self.tmpdir / "records", auth=self.auth)
 
     def _headers(self):
-        return {"Cookie": f"claudiu_token={self.auth.token}"}
+        return {"Cookie": f"acp_cockpit_token={self.auth.token}"}
 
     def test_list_agent_sessions_via_probe(self):
         resp = self.fetch(f"/api/profiles/cmds/sessions?cwd={self.tmpdir}",

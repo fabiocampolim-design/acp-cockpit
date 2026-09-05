@@ -11,7 +11,7 @@ every byte that crosses the wire is recorded.
 ## Starting
 
 ```
-python -m claudiu
+python -m acp_cockpit
 ```
 
 Options: `--port N` (default 0 = OS-assigned), `--profiles DIR` (default
@@ -140,7 +140,7 @@ file and corrupt it.
 which writes it into your usual archive directory (`CLAUDE_ARCHIVE_DIR`) in
 the formats it always produces. The server must know where that tool is:
 start it with `--archiver <path to transcript_archiver.py>` or set
-`CLAUDIU_ARCHIVER`. Without it the button says so; nothing is copied into
+`ACP_COCKPIT_ARCHIVER`. Without it the button says so; nothing is copied into
 this project.
 
 ## The top right: account limits, help, settings
@@ -187,7 +187,7 @@ dismissed unanswered.
 and it closes. Choose where to save and which formats:
 
 - With **claude-session-publisher** configured (`--archiver <path>` or
-  `CLAUDIU_ARCHIVER`), you get its full document: HTML, Markdown, text,
+  `ACP_COCKPIT_ARCHIVER`), you get its full document: HTML, Markdown, text,
   LaTeX or PDF, with the fidelity report that proves nothing was dropped.
 - Without it, ClaudIU writes a **plain Markdown transcript** from the
   session's own record — prompts, answers, thinking and tool-call
@@ -225,6 +225,19 @@ are preferences: losing them costs three dropdowns.
 directory, newest first, each with when it was last touched ("2 h ago",
 "yesterday 14:02"). A session the agent never dated says so and sorts last
 rather than pretending to be recent; the session id is in the tooltip.
+
+## The name it shows
+
+The client calls itself **ClaudIU** by default. That is configuration, not
+code: set `ACP_COCKPIT_UINAME` in the environment, or edit `uiname.toml`
+(beside the package, or `~/.acp-cockpit/uiname.toml`), and the browser tab,
+the launcher heading and the help dialog follow. The environment wins over
+the file. A name longer than 15 characters is cut with an ellipsis so it
+still fits a tab, and a blank or broken setting falls back to the default
+rather than leaving the interface nameless.
+
+The project, the package and this manual are `acp-cockpit`; only the name on
+screen is yours.
 
 ## Adding your own agent profile
 

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-from claudiu.server.auth import TokenAuth, COOKIE_NAME
+from acp_cockpit.server.auth import TokenAuth, COOKIE_NAME
 
 
 def test_token_is_long_and_unique():
@@ -17,7 +17,7 @@ def test_verify():
 
 
 def test_cookie_name_stable():
-    assert COOKIE_NAME == "claudiu_token"
+    assert COOKIE_NAME == "acp_cockpit_token"
 
 
 def test_token_file_persists_and_is_reused(tmp_path):

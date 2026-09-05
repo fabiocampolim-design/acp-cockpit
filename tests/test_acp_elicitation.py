@@ -6,7 +6,7 @@ advertises `elicitation.form`, and renders the tool's questions as an ACP
 form elicitation when it is advertised (claude-agent-acp 0.73).
 """
 import pytest
-from claudiu.core.acp import StateError
+from acp_cockpit.core.acp import StateError
 from tests.helpers import make_session
 from tests.test_acp_handshake import do_handshake, feed, sent_frames
 

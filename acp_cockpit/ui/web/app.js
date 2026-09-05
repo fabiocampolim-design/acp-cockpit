@@ -1,5 +1,5 @@
 "use strict";
-/* ClaudIU web View. Talks ONLY the UI protocol (docs/UI-PROTOCOL.md).
+/* acp-cockpit web View. Talks ONLY the UI protocol (docs/UI-PROTOCOL.md).
    Multi-session: one Session object per tab; the status strip, controls
    and composer always reflect the ACTIVE session. */
 
@@ -120,9 +120,9 @@ async function restoreSessions() {
    A page cannot learn an absolute path from the OS folder dialog, so the
    server lists directories (GET /api/dirs) and the dialog walks them. */
 
-const PROFILE_KEY = "claudiu.profile";
-const THINK_KEY = "claudiu.thinking";
-const CWD_KEY = "claudiu.cwd";
+const PROFILE_KEY = "acpcockpit.profile";
+const THINK_KEY = "acpcockpit.thinking";
+const CWD_KEY = "acpcockpit.cwd";
 
 async function browseTo(path) {
   const dlg = $("#dirpick");
@@ -289,7 +289,7 @@ function showLauncher() {
   $("#tab-add").classList.add("active");
 }
 
-const ACTIVE_KEY = "claudiu.active";
+const ACTIVE_KEY = "acpcockpit.active";
 
 function activate(S) {
   active = S;
@@ -1316,7 +1316,7 @@ const LANES = [
   ["events", "turn separators, file access, answers you gave"],
   ["harness", "adapter log rows, anomalies, drift, unknown frames"],
 ];
-const LANE_KEY = "claudiu.lanes";
+const LANE_KEY = "acpcockpit.lanes";
 
 function hiddenLanes() {
   try {
@@ -1618,10 +1618,10 @@ $("#send").onclick = sendPrompt;
 /* View preference: tool results collapsed by default (like the terminal);
    the checkbox opens them all and persists per browser. */
 function expandTools() {
-  try { return localStorage.getItem("claudiu.expandTools") === "1"; } catch (e) { return false; }
+  try { return localStorage.getItem("acpcockpit.expandTools") === "1"; } catch (e) { return false; }
 }
 function applyExpandTools(on) {
-  try { localStorage.setItem("claudiu.expandTools", on ? "1" : "0"); } catch (e) {}
+  try { localStorage.setItem("acpcockpit.expandTools", on ? "1" : "0"); } catch (e) {}
   for (const det of document.querySelectorAll('[data-kind="tool_call"] details')) {
     det.open = on && $(".tool-body", det).children.length > 0;
   }
@@ -1640,7 +1640,7 @@ $("#cancel").onclick = () => active && active.send({cmd: "cancel"});
    claude-session-publisher installed, plain Markdown without it — so the
    panel never offers a choice that would fail. */
 
-const ARCHIVE_DEST_KEY = "claudiu.archiveDest";
+const ARCHIVE_DEST_KEY = "acpcockpit.archiveDest";
 
 function archivePanel() { return $("#archive-panel"); }
 
@@ -1805,7 +1805,7 @@ document.addEventListener("keydown", (e) => {
    The OS decides until the reader says otherwise; the choice is this
    browser's, and it is applied before anything is drawn. */
 
-const THEME_KEY = "claudiu.theme";
+const THEME_KEY = "acpcockpit.theme";
 
 function applyTheme(theme) {
   if (theme && theme !== "system") {
@@ -1842,7 +1842,8 @@ const HELP = [
   ["Archive", "Opens a panel beside the conversation: where to save, and " +
    "which formats. With claude-session-publisher installed you get its " +
    "full document (HTML, Markdown, text, LaTeX, PDF, fidelity report); " +
-   "without it ClaudIU writes a plain Markdown transcript from the session " +
+   "without it this client writes a plain Markdown transcript from the " +
+   "session " +
    "record and says so. Nothing covers the conversation, and the panel " +
    "closes."],
   ["The model in the strip", "The API's own id for what is running — " +
@@ -1862,7 +1863,7 @@ const HELP = [
    "is never sent for you. Most adapters forward none, so the strip is " +
    "usually absent."],
   ["Who can see this conversation",
-   "ClaudIU is a local program: it binds 127.0.0.1, serves this browser, " +
+   "This is a local program: it binds 127.0.0.1, serves this browser, " +
    "and runs the agent's adapter as a child process on your machine. Your " +
    "prompts go exactly where they would if you ran the agent in a " +
    "terminal — no further. It has no account, no telemetry and no " +

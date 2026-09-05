@@ -12,12 +12,14 @@ from pathlib import Path
 
 import tornado.concurrent
 import tornado.ioloop
+import tornado.escape
 import tornado.web
 
 from ..core.acp import AcpSession
 from ..core.policy import PathPolicy
 from ..core.profiles import load_profiles
 from ..core.record import Recorder
+from ..core.branding import ui_name
 from ..core.sentinel import Sentinel
 from ..core.transcript import write_markdown
 from .auth import COOKIE_NAME, origin_ok
@@ -301,7 +303,12 @@ class RootHandler(BaseHandler):
         if self.get_query_argument("token", None):
             return self.redirect("/")
         self.set_header("Content-Type", "text/html; charset=utf-8")
-        self.write((UI_DIR / "index.html").read_bytes())
+        # The name the client shows is configuration, not code, and it is
+        # substituted here rather than fetched by the page: a name that
+        # arrives one request later is a name the reader watches change.
+        page = (UI_DIR / "index.html").read_text(encoding="utf-8")
+        name = self.application.settings.get("ui_name") or ""
+        self.write(page.replace("{{UI_NAME}}", tornado.escape.xhtml_escape(name)))
 
 
 class ProfilesHandler(BaseHandler):
@@ -442,7 +449,7 @@ FALLBACK_FORMATS = ["markdown"]
 def default_archive_dir() -> str:
     """Where a transcript goes unless the user says otherwise."""
     return os.environ.get("CLAUDE_ARCHIVE_DIR") or str(
-        Path.home() / "claudiu-transcripts")
+        Path.home() / "acp-cockpit-transcripts")
 
 
 class ArchiveHandler(BaseHandler):
@@ -453,7 +460,7 @@ class ArchiveHandler(BaseHandler):
     those choices. POST writes it.
 
     The preferred writer is the INSTALLED claude-session-publisher, named by
-    `--archiver` or `CLAUDIU_ARCHIVER`; it is never copied in here (GITHUBIFY
+    `--archiver` or `ACP_COCKPIT_ARCHIVER`; it is never copied in here (GITHUBIFY
     rule 21). Without it the server still writes a plain Markdown transcript
     from the session's own record, and says plainly that it is the simpler
     one — refusing to save anything at all was the wrong answer to a missing
@@ -470,12 +477,12 @@ class ArchiveHandler(BaseHandler):
             "default_dest": default_archive_dir(),
             "agent_session": entry.agent_session if entry else None,
             "warning": None if archiver else
-                "claude-session-publisher is not configured, so ClaudIU will "
+                "claude-session-publisher is not configured, so this server will "
                 "write a simple Markdown transcript from the session record "
                 "itself: prompts, answers, thinking and tool-call titles. "
                 "For the full document (HTML, PDF, LaTeX, fidelity report) "
                 "start the server with --archiver <path to "
-                "transcript_archiver.py> or set CLAUDIU_ARCHIVER.",
+                "transcript_archiver.py> or set ACP_COCKPIT_ARCHIVER.",
         })
 
     async def post(self, sid):
@@ -528,7 +535,7 @@ class ArchiveHandler(BaseHandler):
         self.write_json({
             "ok": True, "output": [written], "fallback": True,
             "warning": "claude-session-publisher is not configured, so this "
-                       "is ClaudIU's simple Markdown transcript — prompts, "
+                       "is the built-in simple Markdown transcript — prompts, "
                        "answers, thinking and tool-call titles. The full "
                        "document needs --archiver.",
             "command": None, "detail": None})
@@ -659,7 +666,7 @@ def _latest_versions(npm_package: str | None = None) -> dict:
 
 def make_app(profiles_dir, records_dir, auth,
              permission_timeout: float = 3600.0, drift_online: bool = False,
-             archiver: str | None = None):
+             archiver: str | None = None, ui_name_file=None):
     manager = SessionManager(profiles_dir, records_dir, permission_timeout)
     common = {"manager": manager, "auth": auth}
     app = tornado.web.Application([
@@ -676,6 +683,7 @@ def make_app(profiles_dir, records_dir, auth,
         (r"/ws/sessions/([0-9a-f]+)", SessionWS, common),
         (r"/ui/(.*)", GuardedStaticFileHandler,
          {"path": str(UI_DIR), "auth": auth}),
-    ], drift_online=drift_online, archiver=archiver)
+    ], drift_online=drift_online, archiver=archiver,
+       ui_name=ui_name(ui_name_file))
     app.manager = manager
     return app

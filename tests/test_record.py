@@ -2,7 +2,7 @@
 import os
 import time
 
-from claudiu.core.record import Recorder, prune
+from acp_cockpit.core.record import Recorder, prune
 
 
 def test_append_returns_line_numbers_and_replay_roundtrips(tmp_path):

@@ -34,7 +34,7 @@ agent's adapter.
    pip install -e .[dev]
    python -m pyflakes claudiu tools tests
    python -m pytest tests -q                      # engine, server, security, e2e (needs playwright)
-   CLAUDIU_CONTRACT=1 python -m pytest tests/contract/ -q   # against the real adapter; costs tokens
+   ACP_COCKPIT_CONTRACT=1 python -m pytest tests/contract/ -q   # against the real adapter; costs tokens
    python tools/check_schema_drift.py             # registry vs the pinned ACP schema
    ```
 
