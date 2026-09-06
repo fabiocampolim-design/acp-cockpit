@@ -28,12 +28,15 @@ def test_writing_the_transcript_leaves_no_handle_on_the_live_record(tmp_path):
     record to replay it and never closed it — a leaked handle per archive,
     on the file the session is still writing (review 2026-09-06)."""
     record = _record(tmp_path / "s1.jsonl")
+    gc.collect()          # other tests' garbage is not this test's evidence
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         written = write_markdown(record, tmp_path / "out", "agent-1", "T")
         gc.collect()
+    # only a handle on THIS test's record counts (the fixture helpers leave
+    # Recorders open in other tests, and their file is also called s1.jsonl)
     leaks = [w for w in caught if issubclass(w.category, ResourceWarning)
-             and "s1.jsonl" in str(w.message)]
+             and tmp_path.name in str(w.message)]
     assert not leaks, [str(w.message) for w in leaks]
     # and the record can be moved at once (Windows refuses while a handle
     # is open)
