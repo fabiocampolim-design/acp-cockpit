@@ -42,6 +42,97 @@ def test_handshake_reaches_ready(tmp_path):
     assert states[-1] == "ready"
 
 
+def test_session_new_without_a_session_id_fails_instead_of_wedging(tmp_path):
+    """`result["sessionId"]` was the only bracket deref among `.get`
+    neighbours. A result missing the key raised inside the JSON-RPC callback:
+    no session_state event, so `evict` never armed, the entry never left the
+    manager and the adapter tree ran until the server died (2026-09-06)."""
+    session, proc, sink = make_session(tmp_path)
+    session.start(cwd="C:\\w")
+    init = sent_frames(proc)[0]
+    feed(session, {"jsonrpc": "2.0", "id": init["id"], "result": {
+        "protocolVersion": 1, "agentCapabilities": {"loadSession": True}}})
+    new = sent_frames(proc)[1]
+    feed(session, {"jsonrpc": "2.0", "id": new["id"],
+                   "result": {"modes": {"currentModeId": "default"}}})
+    assert session.state == "failed", session.state
+    states = [e.data["state"] for e in sink.events if e.kind == "session_state"]
+    assert states and states[-1] == "failed"
+
+
+def test_string_config_choices_do_not_wedge_the_session(tmp_path):
+    """`_ordered_options` guarded `isinstance(opt, dict)` but not the elements
+    of its `options` list, so a bare-string choice list crashed `sorted()` and
+    left the session in "starting" for ever (review 2026-09-06)."""
+    # the shipped profile already orders `model`, so this is the real path
+    session, proc, sink = make_session(tmp_path)
+    assert session.profile.config_option_order.get("model")
+    session.start(cwd="C:\\w")
+    init = sent_frames(proc)[0]
+    feed(session, {"jsonrpc": "2.0", "id": init["id"], "result": {
+        "protocolVersion": 1, "agentCapabilities": {"loadSession": True}}})
+    new = sent_frames(proc)[1]
+    feed(session, {"jsonrpc": "2.0", "id": new["id"], "result": {
+        "sessionId": "acp-123",
+        "configOptions": [{"id": "model", "currentValue": "opus",
+                           "options": ["opus", "fable"]}]}})
+    assert session.state == "ready", session.state
+
+
+def test_a_null_capability_means_the_agent_does_not_offer_it(tmp_path):
+    """The schema says `SessionCapabilities.resume` omitted OR null both mean
+    unsupported. `"resume" in caps` was true for an explicit null, so the
+    client sent session/resume, got -32601 back and killed the session with a
+    raw adapter error instead of the accurate message (review 2026-09-06)."""
+    session, proc, sink = make_session(tmp_path)
+    session.load("acp-old", cwd="C:\\w")
+    init = sent_frames(proc)[0]
+    feed(session, {"jsonrpc": "2.0", "id": init["id"], "result": {
+        "protocolVersion": 1,
+        "agentCapabilities": {"sessionCapabilities": {"resume": None}}}})
+    assert session.state == "failed"
+    assert not any(f.get("method") == "session/resume"
+                   for f in sent_frames(proc))
+    detail = [e.data["detail"] for e in sink.events
+              if e.kind == "session_state" and e.data["state"] == "failed"]
+    assert detail and "session/resume" in detail[0]
+
+
+def test_a_null_list_capability_is_not_a_list_capability(tmp_path):
+    session, proc, sink = make_session(tmp_path)
+    seen = {}
+    session.probe_sessions("C:\\w",
+                           lambda s, e: seen.update(sessions=s, error=e))
+    init = sent_frames(proc)[0]
+    feed(session, {"jsonrpc": "2.0", "id": init["id"], "result": {
+        "protocolVersion": 1,
+        "agentCapabilities": {"sessionCapabilities": {"list": None}}}})
+    assert seen["error"] == {"message": "agent cannot list sessions"}
+    assert not any(f.get("method") == "session/list"
+                   for f in sent_frames(proc))
+
+
+def test_a_boolean_config_option_carries_its_type_discriminator(tmp_path):
+    """vendor/acp/schema.json: SetSessionConfigOptionRequest anyOf[0] requires
+    ["type","value"] with type const "boolean"; anyOf[1] is the default when
+    `type` is absent and constrains `value` to a STRING id. A bare boolean
+    matched neither, so the agent could not deserialize it and the checkbox
+    snapped back (review 2026-09-06)."""
+    session, proc, sink = make_session(tmp_path)
+    do_handshake(session, proc)
+    session.set_config_option("web_search", True)
+    frame = [f for f in sent_frames(proc)
+             if f.get("method") == "session/set_config_option"][-1]
+    assert frame["params"]["value"] is True
+    assert frame["params"]["type"] == "boolean"
+    # a string value id stays the default variant: no discriminator
+    session.set_config_option("model", "opus")
+    frame = [f for f in sent_frames(proc)
+             if f.get("method") == "session/set_config_option"][-1]
+    assert frame["params"]["value"] == "opus"
+    assert "type" not in frame["params"]
+
+
 def test_version_mismatch_fails_closed(tmp_path):
     session, proc, sink = make_session(tmp_path)
     session.start(cwd="C:\\w")

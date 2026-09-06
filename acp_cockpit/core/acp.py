@@ -136,6 +136,10 @@ class AcpSession:
                 continue
 
             def rank(choice, order=order):
+                # the ELEMENTS are the agent's too: a bare-string choice list
+                # crashed sorted() and wedged the session (review 2026-09-06)
+                if not isinstance(choice, dict):
+                    return len(order)
                 hay = (f"{choice.get('value', '')} {choice.get('name', '')}"
                        ).casefold()
                 for i, want in enumerate(order):
@@ -247,7 +251,23 @@ class AcpSession:
     def _on_session_new(self, result, error):
         if error or not result:
             return self._fail(f"session/new failed: {error}")
+        # `.get`, like every field beside it: a bracket deref raised inside
+        # the JSON-RPC callback, so no session_state was ever emitted, `evict`
+        # never armed and the adapter tree outlived the session (2026-09-06).
+        if not result.get("sessionId"):
+            return self._fail("session/new returned no sessionId")
         self.acp_session_id = result["sessionId"]
+        self._session_opened(result)
+
+    def _session_opened(self, result):
+        """What a newly opened agent session tells the View, whether it was
+        created (`session/new`) or attached to (`session/load`/`resume`).
+
+        ONE epilogue: the load path was a copy of this and had already lost
+        the `models` emit, so a resumed session never showed a model selector
+        (review 2026-09-06).
+        """
+        result = result or {}
         modes = result.get("modes") or {}
         if modes:
             self._emit("mode", {"current": modes.get("currentModeId"),
@@ -527,16 +547,22 @@ class AcpSession:
     def _handle_fs(self, msg_id, method, params, ref):
         op = "read" if method == "fs/read_text_file" else "write"
         path = params.get("path", "")
-        ok = self.policy.allowed(path)
-        self._emit("fs_request", {"op": op, "path": path, "allowed": ok}, ref)
-        self.recorder.append({"dir": "client", "action": "fs_decision",
-                              "op": op, "path": path, "allowed": ok,
-                              "policy": self.policy.describe()})
-        if not ok:
-            self._conn.error(msg_id, -32602,
-                             "path outside the session boundary")
-            return
         try:
+            # The boundary check, the event and the record belong INSIDE the
+            # guard. `params.get("path", "")` returns None for a present-and-
+            # null key, so `policy.allowed(None)` raised out here and the
+            # request was never answered — the very hang the note below is
+            # about (review 2026-09-06).
+            ok = self.policy.allowed(path)
+            self._emit("fs_request",
+                       {"op": op, "path": path, "allowed": ok}, ref)
+            self.recorder.append({"dir": "client", "action": "fs_decision",
+                                  "op": op, "path": path, "allowed": ok,
+                                  "policy": self.policy.describe()})
+            if not ok:
+                self._conn.error(msg_id, -32602,
+                                 "path outside the session boundary")
+                return
             if op == "read":
                 text = self.files.read_text(path)
                 self._conn.respond(msg_id, {"content": _slice_lines(
@@ -546,8 +572,9 @@ class AcpSession:
                 self._conn.respond(msg_id, None)
         except Exception as exc:  # noqa: BLE001 — anything: the agent must get an answer
             # A binary file (UnicodeDecodeError), a NUL in the path
-            # (ValueError): an unanswered request hangs the agent's tool call
-            # for ever (review 2026-09-05). Every failure is a reply.
+            # (ValueError), a path that is not a string at all (TypeError):
+            # an unanswered request hangs the agent's tool call for ever
+            # (review 2026-09-05). Every failure is a reply.
             self._conn.error(msg_id, -32603, f"fs failure: {exc}")
 
     # ---- permissions ----------------------------------------------------
@@ -702,9 +729,15 @@ class AcpSession:
             else:
                 self._emit("config_option", {"options": self._ordered_options(
                     (result or {}).get("configOptions", []))})
-        self._conn.request("session/set_config_option",
-                           {"sessionId": self.acp_session_id,
-                            "configId": config_id, "value": value}, done)
+        params = {"sessionId": self.acp_session_id,
+                  "configId": config_id, "value": value}
+        if isinstance(value, bool):
+            # schema.json, SetSessionConfigOptionRequest: the boolean variant
+            # REQUIRES the discriminator; without it the frame falls to the
+            # value_id variant, whose `value` must be a string, and the agent
+            # cannot deserialize it at all (review 2026-09-06).
+            params["type"] = "boolean"
+        self._conn.request("session/set_config_option", params, done)
         self._flush()
 
     # ---- attaching to existing agent sessions ---------------------------
@@ -731,7 +764,9 @@ class AcpSession:
         # its own, so history wins whenever the agent offers it.
         if self.agent_capabilities.get("loadSession"):
             method = "session/load"
-        elif "resume" in caps:
+        elif caps.get("resume") is not None:
+            # the schema: omitted OR null both mean "not advertised"; only a
+            # present, non-null value is support (review 2026-09-06)
             method = "session/resume"
         else:
             return self._fail("agent offers neither session/load nor "
@@ -741,18 +776,7 @@ class AcpSession:
             if err:
                 return self._fail(f"{method} failed: {err}")
             self.acp_session_id = self._load_target
-            modes = (res or {}).get("modes") or {}
-            if modes:
-                self._emit("mode", {"current": modes.get("currentModeId"),
-                                    "available": modes.get("availableModes", [])})
-            cfg = (res or {}).get("configOptions")
-            if cfg:
-                self._emit("config_option", {"options": self._ordered_options(cfg)})
-            early, self._early_updates = self._early_updates, []
-            for params, ref in early:
-                self._last_raw_ref = ref
-                self._on_notify("session/update", params)
-            self._ready()
+            self._session_opened(res)
         self._conn.request(method, {
             "sessionId": self._load_target, "cwd": self._cwd,
             "mcpServers": [], **self._session_meta()}, done)
@@ -779,7 +803,7 @@ class AcpSession:
                 return on_result([], err or {"message": "version mismatch"})
             caps = (res.get("agentCapabilities") or {}).get(
                 "sessionCapabilities") or {}
-            if "list" not in caps:
+            if caps.get("list") is None:      # omitted or null: not advertised
                 return on_result([], {"message": "agent cannot list sessions"})
             self._conn.request("session/list", {"cwd": cwd}, listed)
             self._flush()

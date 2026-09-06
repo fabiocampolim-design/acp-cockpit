@@ -71,6 +71,25 @@ def test_fs_write_outside_boundary_refused(tmp_path):
     assert ev.data["allowed"] is False
 
 
+def test_a_path_that_is_not_a_string_still_gets_an_answer(tmp_path):
+    """The boundary check sat OUTSIDE the try/except whose comment promises
+    "every failure is a reply": `params.get("path", "")` returns None when the
+    key is present and null, so `policy.allowed(None)` raised before anything
+    was queued and the agent's tool call hung for ever (review 2026-09-06)."""
+    files = FakeFiles()
+    session, proc, sink = make_session(tmp_path, files=files)
+    do_handshake(session, proc)
+    for bad_id, bad in ((60, None), (61, 12), (62, ["/tmp/x"]),
+                        (63, {"path": "/tmp/x"})):
+        feed(session, {"jsonrpc": "2.0", "id": bad_id,
+                       "method": "fs/read_text_file",
+                       "params": {"sessionId": "acp-123", "path": bad}})
+        reply = [f for f in sent_frames(proc) if f.get("id") == bad_id]
+        assert reply, f"id {bad_id} ({bad!r}) was never answered"
+        assert "error" in reply[0], reply[0]
+    assert files.store == {}
+
+
 def test_cancel_sends_notification_and_turn_ends_cancelled(tmp_path):
     session, proc, sink = make_session(tmp_path)
     do_handshake(session, proc)
@@ -130,6 +149,27 @@ def test_load_reaches_ready(tmp_path):
     feed(session, {"jsonrpc": "2.0", "id": load["id"], "result": None})
     assert session.state == "ready"
     assert session.acp_session_id == "acp-old"
+
+
+def test_a_resumed_session_gets_its_model_selector_too(tmp_path):
+    """The session/load epilogue was a divergent copy of the session/new one
+    and had lost the `models` emit, so a RESUMED session never showed a model
+    selector (review 2026-09-06). One epilogue, used by both."""
+    session, proc, sink = make_session(tmp_path)
+    session.load("acp-old", cwd="C:\\work\\proj")
+    init = sent_frames(proc)[0]
+    feed(session, {"jsonrpc": "2.0", "id": init["id"],
+                   "result": {"protocolVersion": 1,
+                              "agentCapabilities": {"loadSession": True}}})
+    load = sent_frames(proc)[1]
+    feed(session, {"jsonrpc": "2.0", "id": load["id"], "result": {
+        "modes": {"currentModeId": "default", "availableModes": []},
+        "models": {"currentModelId": "opus",
+                   "availableModels": [{"modelId": "opus"}]}}})
+    assert session.state == "ready"
+    model = [e for e in sink.events if e.kind == "model"]
+    assert model, [e.kind for e in sink.events]
+    assert model[0].data["current"] == "opus"
 
 
 def _permission(session, request_id, options):
