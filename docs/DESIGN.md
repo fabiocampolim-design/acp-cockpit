@@ -109,4 +109,13 @@ Recorded decisions, not open questions — each waits for the stated trigger.
   the adapter advertises image prompts. Trigger: need.
 - **Version bump and publication** wait for a "better state" (the author,
   2026-09-01); rule-26 files are in place.
+- **Collaboration — spec written, implementation pinned (2026-09-06).**
+  Several people in different places on one agent session: identity from
+  the transport (owner-issued invites, OIDC, or a shared link marked
+  unverified — admin policy), a driving policy (baton, owner-only, queue),
+  an approvals policy (owner or driver), and a notes lane the agent never
+  sees. `docs/superpowers/specs/2026-09-06-collaboration-design.md` carries
+  the design and the thirteen lessons from an earlier team-chat deployment
+  it is built on. Phase 0 (a tailnet or SSH forward plus the token URL)
+  works today for a trusted group; everything else waits for the author.
 

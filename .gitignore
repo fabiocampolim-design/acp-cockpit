@@ -14,6 +14,9 @@ archive/
 docs/superpowers/plans/
 .githubify-scrub-allow
 .acp-cockpit-server.log*
+# Material lent by other projects (lessons files, notes) that informs a
+# spec but belongs to its own repository — never tracked here (2026-09-06).
+docs/external/
 .playwright-mcp/
 
 # Profiles you add for yourself in a checkout: a local adapter build, a
