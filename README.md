@@ -217,7 +217,7 @@ python -m pyflakes acp_cockpit tools scripts tests docs
 python tools/check_schema_drift.py
 ```
 
-Verified by 291 checks (plus the opt-in real-adapter contract test), on
+Verified by 295 checks (plus the opt-in real-adapter contract test), on
 Linux, Windows and macOS. See `AGENTS.md` for the working rules,
 `docs/DESIGN.md` for the reasoning and `docs/superpowers/specs/` for the
 design history — the research notes and the approved specifications the

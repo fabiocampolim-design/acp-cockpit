@@ -576,15 +576,27 @@ class ArchiveHandler(BaseHandler):
             "command": None, "detail": None})
 
 
+def archiver_cmd(archiver: str, session_id: str, fmt: str,
+                 dest: str | None = None) -> list:
+    """The archiver command line.
+
+    `session_id` is the AGENT's own string, so it may begin with `-` and was
+    being parsed as an option (review 2026-09-06). Options first, then the
+    `--` end-of-options separator argparse honours, then the id.
+    """
+    import sys as _sys
+    cmd = [_sys.executable, archiver, "--format", fmt]
+    if dest:
+        cmd += ["--archive-dir", dest]
+    return cmd + ["--", session_id]
+
+
 def _run_archiver(archiver: str, session_id: str, fmt: str,
                   dest: str | None = None) -> dict:
     """Blocking, run in an executor. Reports what the tool actually did:
     its own `wrote <path>` lines, and its output when it fails."""
     import subprocess
-    import sys as _sys
-    cmd = [_sys.executable, archiver, session_id, "--format", fmt]
-    if dest:
-        cmd += ["--archive-dir", dest]
+    cmd = archiver_cmd(archiver, session_id, fmt, dest)
     try:
         done = subprocess.run(cmd, capture_output=True, text=True,
                               timeout=900)

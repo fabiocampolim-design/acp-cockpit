@@ -102,6 +102,43 @@ def test_full_turn_and_permission(server):
         page.wait_for_selector("#permission", state="hidden")
 
 
+def test_a_digit_typed_in_another_dialog_never_answers_the_permission(server):
+    """The 1-9 shortcut checked only that #permission was open — no target
+    check, no top-of-stack check — while the two dialogs have independent
+    queues and can both be showModal'd. A digit typed into the elicitation
+    dialog's own field clicked a permission option underneath, and the
+    options are sorted allow_once first, so "1" granted (review 2026-09-06)."""
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = start_fake_session(pw, url, tmp)
+        page.fill("#prompt-input", "do the PERMISSION thing")
+        page.click("#send")
+        page.wait_for_selector("#permission[open]")
+        # the second dialog opens on top, as it does when the agent asks a
+        # question while a tool waits for approval
+        page.evaluate("""() => {
+            const d = document.querySelector('#elicitation');
+            const i = document.createElement('input');
+            i.id = 'probe-field';
+            d.querySelector('#elic-form').appendChild(i);
+            d.showModal();
+            i.focus();
+        }""")
+        page.keyboard.press("1")
+        assert page.is_visible("#permission[open]"), \
+            "a digit typed in the elicitation field answered the permission"
+        page.keyboard.press("2")
+        assert page.is_visible("#permission[open]")
+        # the field got the keystrokes, as any text field would
+        assert page.input_value("#probe-field") == "12"
+        # and with the dialog closed again the shortcut still works
+        page.evaluate(
+            "() => document.querySelector('#elicitation').close()")
+        page.keyboard.press("1")
+        page.wait_for_selector("#permission", state="hidden")
+
+
 def test_permission_reject_path(server):
     url, tmp = server
     from playwright.sync_api import sync_playwright

@@ -1925,11 +1925,27 @@ function renderPalette(filter) {
   if (!cmds.length) pal.hidden = true;
 }
 
+/* The 1-9 shortcut answers the approval dialog — but only when that dialog
+   is the one the user is answering. It used to test `dlg.open` alone: the
+   elicitation dialog keeps its own queue and can sit on top, so a digit typed
+   into one of ITS fields clicked an option underneath, and the options are
+   sorted allow_once first — "1" granted an unreviewed permission (review
+   2026-09-06). Any other open dialog, or a focused field, means the digit is
+   not meant for us. */
+function typingInAField(t) {
+  return !!t && (t.isContentEditable ||
+                 /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || ""));
+}
+
 document.addEventListener("keydown", (e) => {
   const dlg = $("#permission");
-  if (dlg.open && /^[1-9]$/.test(e.key) && !e.altKey) {
+  const otherDialog = [...document.querySelectorAll("dialog[open]")]
+        .some((d) => d !== dlg);
+  if (dlg.open && /^[1-9]$/.test(e.key) &&
+      !e.altKey && !e.ctrlKey && !e.metaKey &&
+      !otherDialog && !typingInAField(e.target)) {
     const btn = $("#perm-options").children[Number(e.key) - 1];
-    if (btn) btn.click();
+    if (btn) { e.preventDefault(); btn.click(); }
   }
   if (e.key === "Escape") {
     const pal = $("#palette");
@@ -1952,8 +1968,7 @@ document.addEventListener("keydown", (e) => {
   if (e.ctrlKey || e.altKey || e.metaKey || e.key.length !== 1) return;
   if (document.querySelector("dialog[open]")) return;
   const t = e.target;
-  if (t && (t.isContentEditable ||
-            /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || ""))) return;
+  if (typingInAField(t)) return;
   // A focused button keeps Space (it presses it) — but only Space: a mouse
   // click leaves the button focused, and the letters typed next still
   // belong to the composer (review 2026-09-05).

@@ -83,6 +83,24 @@ def render_markdown(entries, title: str | None = None) -> str:
     return "\n".join(head + body).rstrip() + "\n"
 
 
+def safe_stem(session_id: str) -> str:
+    """A filename component that cannot leave the directory it is joined to.
+
+    `session_id` is whatever string the AGENT returned in `session/new`, or a
+    `resume` id taken raw from the request body — never pattern-checked, unlike
+    the `[0-9a-f]+` route regexes. Interpolated straight into the filename it
+    wrote the transcript outside the directory the user picked (review
+    2026-09-06). Keep it recognisable, confine it to one component.
+    """
+    text = str(session_id or "")
+    # both separators, on every platform: the id crosses machines
+    tail = text.replace("\\", "/").rsplit("/", 1)[-1]
+    keep = [c for c in tail if c.isalnum() or c in "-_.@+"]
+    stem = "".join(keep).strip(".").strip()
+    # "..", ".", "" and an all-punctuation id all collapse to nothing
+    return (stem or "session")[:96]
+
+
 def write_markdown(record_path, dest_dir, session_id: str,
                    title: str | None = None) -> str:
     """Render `record_path` into `dest_dir`; returns the path written."""
@@ -94,6 +112,6 @@ def write_markdown(record_path, dest_dir, session_id: str,
     with open(record_path, encoding="utf-8") as f:
         entries = [(i, json.loads(line)) for i, line in enumerate(f, 1)
                    if line.strip()]
-    target = dest / f"acp-cockpit-{session_id}.md"
+    target = dest / f"acp-cockpit-{safe_stem(session_id)}.md"
     target.write_text(render_markdown(entries, title), encoding="utf-8")
     return str(target)

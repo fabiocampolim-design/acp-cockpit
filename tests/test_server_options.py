@@ -163,8 +163,11 @@ class OptionsTest(tornado.testing.AsyncHTTPTestCase):
         assert "session.html" in " ".join(data["output"])
         argv = json.loads((self.tmpdir / "archiver-argv.json")
                           .read_text(encoding="utf-8"))
-        assert argv[0] == "fake-session-1"
-        assert "--format" in argv
+        # the id is the last argument, behind the `--` separator, so an id
+        # that begins with `-` cannot be read as an option
+        assert argv[-1] == "fake-session-1"
+        assert argv[-2] == "--"
+        assert "--format" in argv[:-2]
 
     def test_archive_says_so_when_no_archiver_is_configured(self):
         app = make_app(profiles_dir=self.tmpdir / "agents",
@@ -179,3 +182,18 @@ async def _until(loop, done, tries=300):
             return
         await asyncio.sleep(0.05)
     raise AssertionError("condition never became true")
+
+
+def test_an_agent_session_id_is_never_parsed_as_an_archiver_flag():
+    """`agent_session` is the agent's own string and went to the archiver as
+    the first positional argument, so an id beginning with `-` was parsed as
+    an option (review 2026-09-06). Options first, then `--`, then the id."""
+    from acp_cockpit.server.app import archiver_cmd
+    cmd = archiver_cmd("/x/transcript_archiver.py", "--archive-dir=/etc",
+                       "markdown", "/tmp/dest")
+    assert "--" in cmd, cmd
+    end = cmd.index("--")
+    assert cmd[end + 1:] == ["--archive-dir=/etc"], cmd
+    # every real option is still passed, and ahead of the separator
+    assert cmd[:end].count("--format") == 1
+    assert "markdown" in cmd[:end] and "/tmp/dest" in cmd[:end]
