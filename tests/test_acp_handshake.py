@@ -74,6 +74,9 @@ def test_prompt_turn_streams_and_ends(tmp_path):
     feed(session, {"jsonrpc": "2.0", "id": p["id"],
                    "result": {"stopReason": "end_turn"}})
     chunks = [e for e in sink.events if e.kind == "message_chunk"]
+    # the user's own prompt leads the turn (review 2026-09-06)
+    assert chunks[0].data["role"] == "user"
+    chunks = chunks[1:]
     assert chunks[0].data == {"role": "agent", "text": "hi ",
                              "parent_tool_call_id": None}
     assert chunks[1].data == {"role": "thought", "text": "thinking",

@@ -67,3 +67,13 @@ def test_vendor_notifications_the_adapter_is_known_to_send_are_not_drift():
     s = Sentinel(REG)
     assert s.check_frame("in", {"jsonrpc": "2.0", "method": "_auth/status_update",
                                 "params": {"authStatus": {}}}) == []
+
+
+def test_the_registry_maps_each_vendor_notification_to_its_event():
+    # {method: {event, field}} - the engine reads the mapping, it names
+    # nothing itself (review 2026-09-06). Every event named must exist.
+    from acp_cockpit.core.events import KINDS
+    s = Sentinel.load_default()
+    assert s.vendor_notifications["_auth/status_update"] == {
+        "event": "auth_status", "field": "authStatus"}
+    assert all(v["event"] in KINDS for v in s.vendor_notifications.values())

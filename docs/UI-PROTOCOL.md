@@ -25,13 +25,17 @@ and rejects foreign `Host`/`Origin` headers.
 ```
 `env_resolved` is what the profile's `env_resolve` table resolved on this
 machine (empty when nothing resolved); show it so the user knows which
-runtime the adapter is pointed at.
+runtime the adapter is pointed at. `launch_choices` (omitted above; a list,
+possibly empty) are the agent's session-creation choices — each `{id, label,
+title, options: [{value, text, client_options}]}` — which a View renders as
+selectors in its launcher and whose chosen `client_options` it sends with
+`POST /api/sessions`. A View invents no option payload of its own.
 
 ### `POST /api/sessions` — body `{"profile": "claude", "cwd": "C:\\work\\proj"}`
 
 Optional `resume` (an agent session id) attaches to an existing agent
 session; optional `client_options` (an object) is merged over the profile's
-`client_options` and sent to the agent as `_meta.claudeCode.options` — this
+`client_options` and sent to the agent at the profile's `meta.session_options` path — this
 is where session-CREATION choices live, `thinking` above all, because ACP
 offers no way to change them later. A non-object `client_options` is a 400.
 
@@ -183,8 +187,8 @@ Every server → client message is one event:
 | Kind | `data` payload | Rendering intent |
 |---|---|---|
 | `session_state` | `state` (`starting`/`ready`/`turn`/`failed`/`closed`), `detail`; the `ready` that follows initialize also carries `agent_info` (`{name, version, title}` from the agent's `initialize` response, or null) | Status strip; disable composer unless `ready`. Show `agent_info` where a reader would look for "which agent, which version" (the bundled View: the tab tooltip). |
-| `message_chunk` | `role` (`agent`/`user`/`thought`), `text`, `parent_tool_call_id` (the tool call that owns it, or null) | Append to the conversation; aggregate consecutive chunks of one role; `thought` dimmed/collapsible. A non-null `parent_tool_call_id` means a **subagent** said it — file it under that tool call, not the main agent. |
-| `tool_call` | ACP toolCall passthrough (`toolCallId`, `title`, `kind`, `status`, `content`, `locations`, …) | Collapsible tool row; render diff content when present. |
+| `message_chunk` | `role` (`agent`/`user`/`thought`), `text`, `parent_tool_call_id` (the tool call that owns it, or null) | Append to the conversation; aggregate consecutive chunks of one role; `thought` dimmed/collapsible. A non-null `parent_tool_call_id` means a **subagent** said it — file it under that tool call, not the main agent. **The user's own prompt arrives this way too** (`role: user`, echoed by the server the moment it is sent, before the `turn` state): a View draws that and never a local copy, so a reload or a second browser replays the questions with the answers (2026-09-06). |
+| `tool_call` | ACP toolCall passthrough (`toolCallId`, `title`, `kind`, `status`, `content`, `locations`, …) plus `parent_tool_call_id` (the tool call that owns it — a subagent's — or null) and `tool_name` (the agent's own name for the tool, or null), both read by the engine from the agent's `_meta` at the profile's paths | Collapsible tool row; render diff content when present. A non-null `parent_tool_call_id` files the row, and retroactively its owner, under the subagents lane. |
 | `tool_call_update` | same shape, partial | Update the matching row by `toolCallId`. |
 | `plan` | `entries` (list of `{content, status, priority}`) | Plan panel. |
 | `commands` | `commands` (list of `{name, description, input}`) | Command palette source. |

@@ -10,9 +10,8 @@ being a summary.
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
-
-from .record import Recorder
 
 _HEADING = {"user": "You", "agent": "Agent", "thought": "Thinking"}
 
@@ -89,7 +88,12 @@ def write_markdown(record_path, dest_dir, session_id: str,
     """Render `record_path` into `dest_dir`; returns the path written."""
     dest = Path(dest_dir)
     dest.mkdir(parents=True, exist_ok=True)
-    entries = list(Recorder(Path(record_path)).replay())
+    # Read, never a Recorder: a Recorder opens the file for APPEND and this
+    # one was never closed — a leaked handle on the live record per archive
+    # (review 2026-09-06).
+    with open(record_path, encoding="utf-8") as f:
+        entries = [(i, json.loads(line)) for i, line in enumerate(f, 1)
+                   if line.strip()]
     target = dest / f"acp-cockpit-{session_id}.md"
     target.write_text(render_markdown(entries, title), encoding="utf-8")
     return str(target)

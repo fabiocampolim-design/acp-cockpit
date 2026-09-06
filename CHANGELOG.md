@@ -2,6 +2,38 @@
 
 All notable changes to acp-cockpit are documented in this file.
 
+## Unreleased
+
+### review 2026-09-06 — the day-after review of 0.5.0
+
+- **Your own prompts survive a reload.** The prompt was a record line and
+  a row the page drew for itself, never an event: a reload or a second
+  browser replayed the agent's answers without your questions. The server
+  now echoes every prompt as a user message chunk the moment it is sent,
+  and the page draws that — once — so every attached View shows the same
+  conversation.
+- **The engine and the page no longer name Claude.** Every vendor `_meta`
+  path the client reads or writes (where session options go, the prompt
+  suggestion, the rate-limit state, the tool call that owns a subagent's
+  work, the agent's tool name) is a `[meta]` table in the agent profile;
+  the notification that announces the account is mapped to its event by the
+  registry; the launcher's *Thinking* select and the option payloads it
+  sends are `[[launch_choices]]` in the profile. Tool-call events carry
+  `parent_tool_call_id` and `tool_name` for a View that wants them.
+- **A crashed adapter takes its CLI with it on Linux and macOS.** When the
+  adapter exited by itself the process group it started was never
+  signalled; the job object already covered Windows.
+- The WebSocket upgrade refuses a Host that is not loopback, like every
+  REST route. The Markdown archive fallback no longer leaves a file handle
+  open on the live record. The unused `grant` on the path policy is gone.
+  The scheduler wrapper's synopsis names the log it actually writes; the
+  CLI docstring lists every flag; the repository pins LF line endings.
+- **Upgrade notes.** A profile of your own in `~/.acp-cockpit/agents/` that
+  carries `client_options` must now say where they go — add the `[meta]`
+  table from the shipped `claude.toml` (and its `[[launch_choices]]` if you
+  want the Thinking select) — or it is refused at start-up with a message
+  naming the missing key.
+
 ## 0.5.0 - 2026-09-05 - the review: the wheel, the protocol, the process tree, the watch
 
 ### review 2026-09-05 — a senior review of the whole project, all findings fixed

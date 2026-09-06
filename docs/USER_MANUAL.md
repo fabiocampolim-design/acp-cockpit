@@ -370,6 +370,11 @@ pointing at a local adapter build, an experiment, or a private agent
 belongs — a machine-specific path never reaches the repository, and an
 installed copy never has to touch site-packages. In a checkout,
 `acp_cockpit/agents/local-*.toml` does the same and is never tracked.
+Everything vendor-specific is in the profile, the `_meta` paths included
+(`[meta]`), and so are the launcher's session-creation choices
+(`[[launch_choices]]`, the *Thinking* select for Claude): a profile that
+carries `client_options` must name `meta.session_options`, or it is refused
+at start-up with a message saying so.
 
 ## Security notes
 

@@ -149,6 +149,19 @@ approval and one `/context`. Then:
       browser's task manager: memory stable between turns) and the server
       process has not grown beyond the records it holds.
 
+## Runs
+
+Record each run here: date, adapter version, which sections, pass/fail.
+
+- **2026-09-06** (day-after review of 0.5.0, adapter 0.75.1, Windows).
+  **H: PASS** — contract tier 1 passed, zero drift; wheel built and started
+  from a fresh venv outside the checkout (profiles listed, page served);
+  `docs/watch/2026-09-06.md` present, scheduled task LastTaskResult 0.
+  **A–G: not run** — they need a live account session at the keyboard;
+  the automated suite (291 checks) covered the reload and the launcher
+  changes made that day. Sections A–G are still owed before the next
+  release.
+
 ## H. Before a release, in addition
 
 - [ ] `ACP_COCKPIT_CONTRACT=1 python -m pytest tests/contract/ -q` against the

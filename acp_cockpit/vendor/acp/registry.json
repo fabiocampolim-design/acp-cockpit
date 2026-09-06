@@ -79,7 +79,10 @@
     "reject_once",
     "reject_always"
   ],
-  "vendor_from_agent_notifications": [
-    "_auth/status_update"
-  ]
+  "vendor_from_agent_notifications": {
+    "_auth/status_update": {
+      "event": "auth_status",
+      "field": "authStatus"
+    }
+  }
 }

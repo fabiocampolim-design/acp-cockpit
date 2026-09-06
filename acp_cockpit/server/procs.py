@@ -181,6 +181,15 @@ class SubprocessAgentProcess:
                 # the adapter is gone; closing the job takes any stragglers
                 _close_job(self._job)
                 self._job = None
+        if os.name != "nt":
+            # The adapter died — by our kill or by itself. Its process group
+            # (its pid, since it started the session) may still hold the
+            # CLI it spawned: nothing else reaps that on POSIX (review
+            # 2026-09-06). ProcessLookupError = the group is already empty.
+            try:
+                os.killpg(self._proc.pid, signal.SIGKILL)
+            except (OSError, ProcessLookupError):
+                pass
         self._on_exit(code)
 
     def send_line(self, line: str) -> None:

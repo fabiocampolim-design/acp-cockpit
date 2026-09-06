@@ -18,9 +18,13 @@ class Sentinel:
         # Vendor (`_`-prefixed) notifications a known adapter sends: the
         # Claude adapter announces the account it runs as (0.75.1, caught
         # by the contract tier 2026-09-05). Known is not drift.
-        self.vendor_notifications = frozenset(
-            registry.get("vendor_from_agent_notifications", []))
-        self._known_in |= self.vendor_notifications
+        # {method: {"event": <event kind>, "field": <params key>}}: the
+        # engine emits that event with that field — it names no method
+        # itself (review 2026-09-06). A bare list is known-but-unrendered.
+        raw = registry.get("vendor_from_agent_notifications", {})
+        self.vendor_notifications = (dict(raw) if isinstance(raw, dict)
+                                     else {m: {} for m in raw})
+        self._known_in |= set(self.vendor_notifications)
         self._known_out = set(registry["to_agent_requests"]) | \
             set(registry["to_agent_notifications"])
         self._root = set(registry["root_keys"])

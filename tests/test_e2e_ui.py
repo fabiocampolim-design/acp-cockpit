@@ -878,3 +878,24 @@ def test_typing_after_clicking_a_button_still_lands_in_the_composer(server):
         page.keyboard.type("hello")
         assert page.input_value("#prompt-input") == "hello"
         page.click('#lanes button[data-lane-toggle="events"]')   # restore
+
+
+def test_your_own_prompt_survives_a_reload_and_is_never_doubled(server):
+    # The prompt was a record line and a locally drawn row, never an event:
+    # a reload (or a second browser) replayed the answers without the
+    # questions (review 2026-09-06). Now the server echoes it as a user
+    # message chunk, and the View draws THAT — once.
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = start_fake_session(pw, url, tmp)
+        page.fill("#prompt-input", "remember this question")
+        page.click("#send")
+        page.wait_for_selector('.pane:not([hidden]) [data-kind="turn_ended"]')
+        user_rows = '.pane:not([hidden]) [data-kind="message_chunk"][data-role="user"]'
+        assert page.locator(user_rows).count() == 1
+        page.reload()
+        page.wait_for_selector("#workspace:not([hidden])")
+        page.wait_for_selector('.pane:not([hidden]) [data-kind="turn_ended"]')
+        assert page.locator(user_rows).count() == 1
+        assert "remember this question" in page.inner_text(user_rows)

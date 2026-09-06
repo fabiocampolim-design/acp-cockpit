@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 """CLI: python -m acp_cockpit [--port N] [--profiles DIR] [--records DIR]
-                          [--records-keep-days N] [--token-file F]"""
+                          [--records-keep-days N] [--token-file F]
+                          [--no-drift-online] [--archiver FILE]
+                          [--ui-name-file FILE]"""
 import argparse
 import atexit
 import os

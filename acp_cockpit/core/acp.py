@@ -28,6 +28,25 @@ def _as_native(candidate: str) -> str:
         return f"{m.group(1).upper()}:\\" + m.group(2).replace("/", "\\")
     return candidate
 
+def _meta_get(meta, path):
+    """A dotted path (`claudeCode.parentToolUseId`) into a `_meta` object;
+    None when the path is unset or any step is missing."""
+    cur = meta
+    for part in (path or "").split("."):
+        if not part or not isinstance(cur, dict):
+            return None
+        cur = cur.get(part)
+    return cur
+
+
+def _meta_put(path: str, value) -> dict:
+    """The nested object a dotted path names: `a.b` -> {"a": {"b": value}}."""
+    out = value
+    for part in reversed(path.split(".")):
+        out = {part: out}
+    return out
+
+
 _UPDATE_TO_EVENT = {
     "agent_message_chunk": ("message_chunk", "agent"),
     "agent_thought_chunk": ("message_chunk", "thought"),
@@ -82,6 +101,9 @@ class AcpSession:
         self.client_options = dict(getattr(profile, "client_options", None)
                                    or {})
         self.client_options.update(client_options or {})
+        # Where this agent keeps its vendor `_meta` data — profile data, so
+        # the engine never spells out a vendor's key (review 2026-09-06).
+        self.meta = dict(getattr(profile, "meta", None) or {})
         self.state = "starting"
         self.acp_session_id = None
         self._seq = 0
@@ -169,7 +191,14 @@ class AcpSession:
         options = self.client_options
         if not options:
             return {}
-        return {"_meta": {"claudeCode": {"options": dict(options)}}}
+        path = self.meta.get("session_options")
+        if not path:
+            self._emit("anomaly", {
+                "category": "profile",
+                "detail": "client options were given but the profile has "
+                          "no meta.session_options path; not sent"})
+            return {}
+        return {"_meta": _meta_put(path, dict(options))}
 
     # ---- lifecycle ------------------------------------------------------
     def start(self, cwd: str) -> None:
@@ -276,8 +305,15 @@ class AcpSession:
     def prompt(self, text: str) -> None:
         if self.state != "ready":
             raise StateError(f"cannot prompt in state {self.state!r}")
-        self.recorder.append({"dir": "client", "action": "prompt",
-                              "text": text})
+        ref = self.recorder.append({"dir": "client", "action": "prompt",
+                                    "text": text})
+        # The prompt is part of the conversation, so it is an EVENT, not
+        # only a record line: a View that reattaches (a reload, a second
+        # browser) replays the stream and used to get the answers without
+        # the questions (review 2026-09-06). The adapter echoes user text
+        # only on session/load, never for a live turn.
+        self._emit("message_chunk", {"role": "user", "text": text,
+                                     "parent_tool_call_id": None}, ref)
         self._set_state("turn")
         self._turn_id = self._conn.request("session/prompt", {
             "sessionId": self.acp_session_id,
@@ -307,11 +343,15 @@ class AcpSession:
     def _on_notify(self, method, params):
         if method == "$/cancel_request":
             return self._agent_cancelled(params.get("requestId"))
-        if method == "_auth/status_update":
-            # Which account the agent is authenticated as (vendor extension
-            # of claude-agent-acp 0.75.1): passed through whole.
-            status = params.get("authStatus")
-            self._emit("auth_status", dict(status) if isinstance(status, dict)
+        vendor = getattr(self.sentinel, "vendor_notifications", {})
+        spec = vendor.get(method) if isinstance(vendor, dict) else None
+        if spec and spec.get("event"):
+            # A vendor notification the registry maps to an event (the
+            # Claude adapter's `_auth/status_update` -> `auth_status`):
+            # the named field passed through whole.
+            field = spec.get("field")
+            payload = params.get(field) if field else params
+            self._emit(spec["event"], dict(payload) if isinstance(payload, dict)
                        else {"raw": params}, self._last_raw_ref)
             return
         if method != "session/update":
@@ -356,21 +396,27 @@ class AcpSession:
             # (claude-agent-acp does not forward these yet — see the ACP
             # notes; an adapter that does uses this vendor key). It is not
             # something the agent SAID, so it never becomes a message row.
-            suggestion = ((update.get("_meta") or {})
-                          .get("_claude/promptSuggestion") or {})
-            if isinstance(suggestion, dict) and suggestion.get("suggestion"):
-                self._emit("prompt_suggestion",
-                           {"text": suggestion["suggestion"]}, ref)
+            meta = update.get("_meta") or {}
+            suggestion = _meta_get(meta, self.meta.get("prompt_suggestion"))
+            if isinstance(suggestion, str) and suggestion:
+                self._emit("prompt_suggestion", {"text": suggestion}, ref)
                 if not text:
                     return
             # Subagent text and thinking are stamped with the tool call that
             # owns them; the View files those under the subagent.
-            parent = ((update.get("_meta") or {}).get("claudeCode") or {}
-                      ).get("parentToolUseId")
+            parent = _meta_get(meta, self.meta.get("parent_tool_call"))
             self._emit(event_kind, {"role": role, "text": text,
                                     "parent_tool_call_id": parent}, ref)
         elif kind in ("tool_call", "tool_call_update"):
-            self._emit(kind, update, ref)
+            # The passthrough, plus the two things a View needs without
+            # knowing this agent's `_meta`: which tool call owns it (a
+            # subagent's) and the agent's own name for the tool.
+            meta = update.get("_meta") or {}
+            self._emit(kind, {
+                **update,
+                "parent_tool_call_id": _meta_get(
+                    meta, self.meta.get("parent_tool_call")),
+                "tool_name": _meta_get(meta, self.meta.get("tool_name"))}, ref)
         elif kind == "plan":
             self._emit("plan", {"entries": update.get("entries", [])}, ref)
         elif kind == "available_commands_update":
@@ -392,10 +438,10 @@ class AcpSession:
                                  "size": update.get("size"),
                                  "cost": update.get("cost"),
                                  "models_used": models}, ref)
-            # The account's rate-limit state rides on usage updates
-            # (`_meta._claude/rateLimit`). It is account-wide, not session
-            # state, so it travels as its own event, passed through whole.
-            limits = (update.get("_meta") or {}).get("_claude/rateLimit")
+            # The account's rate-limit state rides on usage updates (the
+            # profile's `meta.rate_limit` path). It is account-wide, not
+            # session state, so it travels as its own event, passed through.
+            limits = _meta_get(meta, self.meta.get("rate_limit"))
             if isinstance(limits, dict):
                 self._emit("rate_limit", limits, ref)
         elif kind == "session_info_update":

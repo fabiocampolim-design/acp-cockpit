@@ -123,3 +123,52 @@ def test_the_claude_profile_names_its_upstream_repository():
     # the daily watch reads WHAT to watch from the profile, never from code
     p = load_profile(Path("acp_cockpit/agents/claude.toml"))
     assert p.upstream_repo == "agentclientprotocol/claude-agent-acp"
+
+
+# ---- review 2026-09-06: the engine and the View named Claude ----------------
+
+VENDOR_META_PATHS = {"session_options": "claudeCode.options",
+               "prompt_suggestion": "_claude/promptSuggestion.suggestion",
+               "rate_limit": "_claude/rateLimit",
+               "parent_tool_call": "claudeCode.parentToolUseId",
+               "tool_name": "claudeCode.toolName"}
+
+
+def test_claude_profile_declares_its_vendor_meta_paths():
+    # Every `_meta` key the engine reads or writes for this agent is data in
+    # the profile - the engine used to spell them out itself.
+    p = load_profile(Path("acp_cockpit/agents/claude.toml"))
+    assert p.meta == VENDOR_META_PATHS
+
+
+def test_meta_must_map_names_to_dotted_paths(tmp_path):
+    f = tmp_path / "x.toml"
+    f.write_text(MINIMAL + "[meta]\nrate_limit = 3\n", encoding="utf-8")
+    with pytest.raises(ProfileError):
+        load_profile(f)
+    f.write_text(MINIMAL, encoding="utf-8")
+    assert load_profile(f).meta == {}
+
+
+def test_claude_profile_offers_the_thinking_choice_at_launch():
+    # The launcher's Thinking select and the option shapes it sent were
+    # hardcoded in the View; they are profile data now.
+    p = load_profile(Path("acp_cockpit/agents/claude.toml"))
+    assert [c["id"] for c in p.launch_choices] == ["thinking"]
+    thinking = p.launch_choices[0]
+    assert thinking["label"] == "Thinking"
+    values = {o["value"]: o["client_options"] for o in thinking["options"]}
+    assert set(values) == {"summarized", "omitted", "off"}
+    assert values["off"] == {"thinking": {"type": "disabled"}}
+    assert values["summarized"] == {"thinking": {"type": "adaptive",
+                                                 "display": "summarized"}}
+
+
+def test_launch_choices_are_validated(tmp_path):
+    f = tmp_path / "x.toml"
+    f.write_text(MINIMAL + "[[launch_choices]]\nid = \"t\"\n",
+                 encoding="utf-8")
+    with pytest.raises(ProfileError):          # no label, no options
+        load_profile(f)
+    f.write_text(MINIMAL, encoding="utf-8")
+    assert load_profile(f).launch_choices == []

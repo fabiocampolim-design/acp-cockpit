@@ -20,6 +20,7 @@ name = "Fake Agent"
 command = [{python!r}, ADAPTER, FIXTURE]
 install_hint = "n/a"
 env_scrub = []
+meta = {{session_options = "claudeCode.options"}}
 """.replace("ADAPTER", json.dumps(
     str(Path("tests/fake_adapter.py").resolve()))).replace(
     "FIXTURE", json.dumps(

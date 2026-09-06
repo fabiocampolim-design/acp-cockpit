@@ -38,6 +38,16 @@ class AgentProfile:
     # versioned id (`claude-fable-5-1[1m]`) is still matched by `fable`.
     # Options nothing matches keep their order and follow the matched ones.
     config_option_order: dict = field(default_factory=dict)
+    # {name: dotted path under `_meta`} — every vendor `_meta` key the engine
+    # reads or writes for this agent. Names the engine knows:
+    # `session_options` (where `client_options` go on session creation),
+    # `prompt_suggestion`, `rate_limit`, `parent_tool_call`, `tool_name`.
+    # A name the profile leaves out is a feature this agent does not have.
+    meta: dict = field(default_factory=dict)
+    # Session-creation choices the launcher offers for this agent:
+    # [{id, label, title?, options: [{value, text, client_options}]}]. The
+    # chosen option's `client_options` are merged over the profile's.
+    launch_choices: list = field(default_factory=list)
 
 
 _REQUIRED = ("id", "name", "command", "install_hint", "env_scrub")
@@ -81,6 +91,23 @@ def load_profile(path: Path) -> AgentProfile:
             for k, v in order.items()):
         raise ProfileError(f"{path}: 'config_option_order' must map a config "
                            "id to a list of match strings")
+    meta = raw.get("meta", {})
+    if not isinstance(meta, dict) or not all(
+            isinstance(k, str) and isinstance(v, str) and v
+            for k, v in meta.items()):
+        raise ProfileError(f"{path}: 'meta' must map names to dotted paths "
+                           "under _meta")
+    choices = raw.get("launch_choices", [])
+    if not isinstance(choices, list) or not all(_launch_choice_ok(c)
+                                                for c in choices):
+        raise ProfileError(f"{path}: 'launch_choices' must be a list of "
+                           "{id, label, options: [{value, text, "
+                           "client_options}]} tables")
+    if (client_options or any(o.get("client_options")
+                              for c in choices for o in c["options"])) \
+            and "session_options" not in meta:
+        raise ProfileError(f"{path}: client options need 'meta.session_"
+                           "options' to say where the agent reads them")
     return AgentProfile(
         id=raw["id"], name=raw["name"], command=list(raw["command"]),
         install_hint=raw["install_hint"], env_scrub=list(raw["env_scrub"]),
@@ -93,7 +120,25 @@ def load_profile(path: Path) -> AgentProfile:
         extensions=list(raw.get("extensions", [])),
         client_options=dict(client_options),
         config_option_order={k: list(v) for k, v in order.items()},
+        meta=dict(meta),
+        launch_choices=[{**c, "options": [
+            {"client_options": {}, **o} for o in c["options"]]}
+            for c in choices],
     )
+
+
+def _launch_choice_ok(c) -> bool:
+    if not isinstance(c, dict) or not isinstance(c.get("id"), str) \
+            or not isinstance(c.get("label"), str):
+        return False
+    if "title" in c and not isinstance(c["title"], str):
+        return False
+    options = c.get("options")
+    return isinstance(options, list) and bool(options) and all(
+        isinstance(o, dict) and isinstance(o.get("value"), str)
+        and isinstance(o.get("text"), str)
+        and isinstance(o.get("client_options", {}), dict)
+        for o in options)
 
 
 def load_profiles(*directories) -> dict[str, AgentProfile]:

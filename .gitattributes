@@ -3,3 +3,8 @@
 #   <path> text eol=lf
 # Nothing is vendored at the moment (the two entries that used to sit
 # here named files removed with the vendored conformance checker).
+
+# Rule 30: every text file is LF in the index and on checkout, so a
+# byte-compared artefact (the manual PDF is byte-reproducible) never
+# differs by line endings between machines.
+* text=auto eol=lf

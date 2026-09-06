@@ -45,6 +45,7 @@ async function initLauncher() {
       items.push(li);
     }
     $("#caveats").replaceChildren(...items);
+    renderLaunchChoices(p);
   };
   sel.onchange();
   $("#start").onclick = () => startSession(null);
@@ -53,6 +54,52 @@ async function initLauncher() {
   await restoreLauncherSettings();
   initPicker();
   await restoreSessions();
+}
+
+/* Session-creation choices are the AGENT's (its profile lists them, with
+   the option payloads the agent reads): one select per choice, rendered
+   into #launch-choices whenever the profile changes. The View knows no
+   option shape of its own (2026-09-06: the thinking select and its
+   payloads were hardcoded here). */
+let launcherMemory = {};        // server-side memory, read once
+
+function renderLaunchChoices(p) {
+  const box = $("#launch-choices");
+  box.replaceChildren(...((p && p.launch_choices) || []).map(c => {
+    const label = document.createElement("label");
+    label.htmlFor = c.id;
+    label.append(c.label + " ");
+    const sel = document.createElement("select");
+    sel.id = c.id;
+    sel.dataset.launchChoice = c.id;
+    if (c.title) sel.title = c.title;
+    for (const o of c.options) {
+      const el = document.createElement("option");
+      el.value = o.value; el.textContent = o.text;
+      sel.append(el);
+    }
+    let remembered = null;
+    try { remembered = localStorage.getItem(choiceKey(c.id)); } catch (e) {}
+    const want = remembered || launcherMemory[c.id];
+    if (want && c.options.some(o => o.value === want)) sel.value = want;
+    label.append(sel);
+    return label;
+  }));
+}
+
+function choiceKey(id) { return `acpcockpit.${id}`; }
+
+/* The chosen option of every launch choice, and what it asks the agent for. */
+function launchSelection(p) {
+  const values = {}, client_options = {};
+  for (const c of (p && p.launch_choices) || []) {
+    const sel = $(`#launch-choices select[data-launch-choice="${c.id}"]`);
+    const opt = c.options.find(o => o.value === (sel && sel.value));
+    if (!opt) continue;
+    values[c.id] = opt.value;
+    Object.assign(client_options, opt.client_options || {});
+  }
+  return {values, client_options};
 }
 
 /* What the launcher was last started with. This browser's own memory wins
@@ -64,31 +111,29 @@ async function restoreLauncherSettings() {
   try {
     local.profile = localStorage.getItem(PROFILE_KEY);
     local.cwd = localStorage.getItem(CWD_KEY);
-    local.thinking = localStorage.getItem(THINK_KEY);
   } catch (e) {}
   let remote = {};
   try { remote = await api("/api/settings"); } catch (e) {}
+  launcherMemory = remote || {};
   const pick = (k) => local[k] || remote[k] || "";
   const sel = $("#profile");
   const wanted = pick("profile");
   if (wanted && [...sel.options].some(o => o.value === wanted && !o.disabled)) {
     sel.value = wanted;
-    sel.onchange();
   }
+  sel.onchange();            // renders the choices with the memory applied
   if (!$("#cwd").value) $("#cwd").value = pick("cwd");
-  const think = pick("thinking");
-  if (think) $("#thinking").value = think;
 }
 
-function rememberLauncherSettings(profile, cwd, thinking) {
+function rememberLauncherSettings(profile, cwd, choices) {
   try {
     localStorage.setItem(PROFILE_KEY, profile);
     localStorage.setItem(CWD_KEY, cwd);
-    localStorage.setItem(THINK_KEY, thinking);
+    for (const [id, v] of Object.entries(choices)) localStorage.setItem(choiceKey(id), v);
   } catch (e) {}
   // and on the server, for the next browser that has never been here
   api("/api/settings", {method: "POST",
-                        body: JSON.stringify({profile, cwd, thinking})})
+                        body: JSON.stringify({profile, cwd, ...choices})})
     .catch(() => {});
 }
 
@@ -171,7 +216,6 @@ function describeVersions() {
    server lists directories (GET /api/dirs) and the dialog walks them. */
 
 const PROFILE_KEY = "acpcockpit.profile";
-const THINK_KEY = "acpcockpit.thinking";
 const CWD_KEY = "acpcockpit.cwd";
 
 async function browseTo(path) {
@@ -300,13 +344,10 @@ async function startSession(resume, resumeCwd) {
   const cwd = (resume && resumeCwd) ? resumeCwd : $("#cwd").value.trim();
   if (resume && resumeCwd) $("#cwd").value = resumeCwd;
   if (!cwd) { alertBanner("pick a project directory first"); return; }
-  const thinking = $("#thinking").value;
-  // Session-CREATION options: thinking cannot be changed later over ACP.
-  const client_options = {
-    summarized: {thinking: {type: "adaptive", display: "summarized"}},
-    omitted: {thinking: {type: "adaptive", display: "omitted"}},
-    off: {thinking: {type: "disabled"}},
-  }[thinking] || {};
+  // Session-CREATION options (thinking, for Claude): the profile's choices,
+  // with the payload the agent reads — nothing the View made up.
+  const {values, client_options} =
+    launchSelection(profiles.find(x => x.id === profile));
   const body = JSON.stringify({profile, cwd, resume, client_options});
   let id;
   try {
@@ -315,7 +356,7 @@ async function startSession(resume, resumeCwd) {
     alertBanner(e.message);
     return;
   }
-  rememberLauncherSettings(profile, cwd, thinking);
+  rememberLauncherSettings(profile, cwd, values);
   const S = new Session(id, profile, cwd);
   sessions.set(id, S);
   activate(S);
@@ -965,13 +1006,11 @@ class Session {
     }
     const t = entry.data;
     // A tool call stamped with a parent belongs to a subagent, and so does
-    // the Task row that owns it (marked retroactively, since the parent row
-    // arrives first and only its children reveal the relationship).
-    const parent = (t._meta && t._meta.claudeCode
-                    && t._meta.claudeCode.parentToolUseId) || null;
-    const toolName = (t._meta && t._meta.claudeCode
-                      && t._meta.claudeCode.toolName) || "";
-    if (parent || toolName === "Task") entry.node.dataset.lane = "subagents";
+    // the row that owns it (marked retroactively, since the parent row
+    // arrives first and only its children reveal the relationship). The
+    // engine stamps `parent_tool_call_id` from the agent's own `_meta`.
+    const parent = t.parent_tool_call_id || null;
+    if (parent) entry.node.dataset.lane = "subagents";
     if (parent) {
       const owner = this.tools.get(parent);
       if (owner) owner.node.dataset.lane = "subagents";
@@ -1722,9 +1761,9 @@ function sendPrompt() {
   if (active) { active.suggestion = null; active.renderSuggestion(); }
   const text = promptEl.value.trim();
   if (!active || !text || active.state !== "ready") return;
-  active.breakAgg();
-  active.addBlock("message_chunk", "user", text);
-  active.breakAgg();
+  // The row is NOT drawn here: the server echoes the prompt as a user
+  // message chunk (an event every attached View replays), and drawing it
+  // locally too doubled it — and a reload used to lose it (2026-09-06).
   active.send({cmd: "prompt", text});
   promptEl.value = "";
   sizeComposer();

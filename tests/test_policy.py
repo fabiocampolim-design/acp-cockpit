@@ -22,13 +22,12 @@ def test_relative_paths_denied(tmp_path):
     assert not pol.allowed("relative/file.txt")
 
 
-def test_grant_extends_boundary(tmp_path):
+def test_the_boundary_is_the_root_and_nothing_else(tmp_path):
+    # `grant()` widened the boundary and nothing in the product ever called
+    # it (review 2026-09-06): the policy describes one root, no grants.
     pol = PathPolicy(tmp_path / "proj")
-    extra = tmp_path / "shared"
-    assert not pol.allowed(str(extra / "f.txt"))
-    pol.grant(extra)
-    assert pol.allowed(str(extra / "f.txt"))
-    assert str(extra.resolve()) in pol.describe()["grants"][0]
+    assert not pol.allowed(str(tmp_path / "shared" / "f.txt"))
+    assert pol.describe() == {"root": str((tmp_path / "proj").resolve())}
 
 
 @pytest.mark.skipif(os.name != "nt", reason="case rule is Windows-specific")

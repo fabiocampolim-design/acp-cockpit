@@ -5,9 +5,12 @@
            scripts/watch_upstream.py --daily, and verify it ran.
 .DESCRIPTION
   This is a live product on a fast-moving adapter: it is watched once a day.
-  The task action goes through cmd so stdout and stderr land in a log
-  (<state>\logs\task-YYYYMMDD.log) -- a task action discards output, and a
-  script that only logs on success once hid four days of failures. After
+  The task action goes through cmd so stdout and stderr land in
+  <state>\logs\task-output.log -- a task action discards output, and a
+  script that only logs on success once hid four days of failures. With -q
+  that file stays empty on success; the per-run audit trail is
+  <state>\logs\watch-<stamp>.log, written by the script itself on success
+  AND on failure (with the traceback). After
   registering, the task is started once and Get-ScheduledTaskInfo is read:
   a LastTaskResult of 0 and today's report on disk are what "registered"
   means here.

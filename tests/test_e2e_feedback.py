@@ -17,6 +17,9 @@ name = "Commands Agent"
 command = [{python}, {adapter}, {fixture}]
 install_hint = "n/a"
 env_scrub = []
+
+meta = {session_options = "claudeCode.options", prompt_suggestion = "_claude/promptSuggestion.suggestion", rate_limit = "_claude/rateLimit", parent_tool_call = "claudeCode.parentToolUseId", tool_name = "claudeCode.toolName"}
+launch_choices = [{id = "thinking", label = "Thinking", title = "what the agent is asked to do about thinking", options = [{value = "summarized", text = "summarized - show the model's own summary", client_options = {thinking = {type = "adaptive", display = "summarized"}}}, {value = "omitted", text = "omitted - think, but send nothing to show", client_options = {thinking = {type = "adaptive", display = "omitted"}}}, {value = "off", text = "off - don't request thinking at all", client_options = {thinking = {type = "disabled"}}}]}]
 '''.replace("{adapter}", json.dumps(str(Path("tests/fake_adapter.py").resolve()))
 ).replace("{fixture}",
           json.dumps(str(Path("tests/fixtures/commands_turn.json").resolve())))

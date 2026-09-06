@@ -108,6 +108,7 @@ def test_env_resolve_reaches_the_child_and_is_reported(tmp_path):
 
 # ---- the whole process TREE dies with the adapter (review 2026-09-05) ----
 import os          # noqa: E402
+import signal      # noqa: E402
 import subprocess  # noqa: E402
 import time        # noqa: E402
 
@@ -226,3 +227,25 @@ def test_children_die_with_a_hard_killed_parent_on_linux(tmp_path):
     helper.kill()                                   # SIGKILL: no handler runs
     helper.wait(timeout=15)
     assert wait_dead(child), "the adapter outlived its SIGKILLed server"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="the job object covers Windows")
+def test_a_crashed_adapter_takes_its_children_with_it_on_posix(tmp_path):
+    # Windows closes the job when the adapter exits, and the tree goes with
+    # it. On POSIX nothing signalled the group when the adapter died by
+    # ITSELF (a crash, an OOM kill): PR_SET_PDEATHSIG only covers the death
+    # of this server (review 2026-09-06).
+    lines, errs, exits, done = collectors()
+    proc = SubprocessAgentProcess(
+        command=[sys.executable, TREE], cwd=str(tmp_path),
+        env_scrub=[], env_set={},
+        on_line=lines.append, on_stderr=errs.append,
+        on_exit=lambda code: (exits.append(code), done.set()))
+    end = time.time() + 15
+    while not lines and time.time() < end:
+        time.sleep(0.1)
+    grandchild = json.loads(lines[0])["grandchild"]
+    assert alive(grandchild)
+    os.kill(proc.pid, signal.SIGKILL)          # the adapter crashes
+    assert done.wait(timeout=15)
+    assert wait_dead(grandchild), "the grandchild outlived a crashed adapter"

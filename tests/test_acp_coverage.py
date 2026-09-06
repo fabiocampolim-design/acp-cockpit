@@ -231,3 +231,19 @@ def test_a_malformed_auth_method_entry_does_not_crash_initialize(tmp_path):
     ev = [e for e in sink.events if e.kind == "anomaly"][0]
     assert ev.data["category"] == "authentication-unsupported"
     assert "key" in ev.data["detail"] and "oauth" in ev.data["detail"]
+
+
+def test_vendor_notifications_are_mapped_by_the_registry_not_the_engine(tmp_path):
+    # `_auth/status_update` -> `auth_status` was spelled out in the engine
+    # (review 2026-09-06). It is a registry entry: without it, the
+    # notification is shown as unrecognized like any other.
+    import json
+    from acp_cockpit.core.sentinel import Sentinel, _REGISTRY_PATH
+    reg = json.loads(_REGISTRY_PATH.read_text(encoding="utf-8"))
+    reg.pop("vendor_from_agent_notifications")
+    session, proc, sink = make_session(tmp_path, sentinel=Sentinel(reg))
+    do_handshake(session, proc)
+    feed(session, {"jsonrpc": "2.0", "method": "_auth/status_update",
+                   "params": AUTH_STATUS})
+    assert "auth_status" not in sink.kinds()
+    assert "unrecognized" in sink.kinds()

@@ -17,6 +17,9 @@ name = "Fake Agent"
 command = [{python!r}, {adapter}, {fixture}]
 install_hint = "n/a"
 env_scrub = []
+
+meta = {{session_options = "claudeCode.options", prompt_suggestion = "_claude/promptSuggestion.suggestion", rate_limit = "_claude/rateLimit", parent_tool_call = "claudeCode.parentToolUseId", tool_name = "claudeCode.toolName"}}
+launch_choices = [{{id = "thinking", label = "Thinking", title = "what the agent is asked to do about thinking", options = [{{value = "summarized", text = "summarized - show the model's own summary", client_options = {{thinking = {{type = "adaptive", display = "summarized"}}}}}}, {{value = "omitted", text = "omitted - think, but send nothing to show", client_options = {{thinking = {{type = "adaptive", display = "omitted"}}}}}}, {{value = "off", text = "off - don't request thinking at all", client_options = {{thinking = {{type = "disabled"}}}}}}]}}]
 '''.replace("{adapter}", json.dumps(str(Path("tests/fake_adapter.py").resolve()))
 ).replace("{fixture}",
           json.dumps(str(Path("tests/fixtures/basic_turn.json").resolve())))
@@ -376,3 +379,14 @@ class DriftCacheTest(tornado.testing.AsyncHTTPTestCase):
             appmod._DRIFT_CACHE.clear()
         assert first["flags"] and first["flags"] == second["flags"]
         assert calls == ["some-adapter"], calls
+
+
+class ProfilesCarryLaunchChoicesTest(ServerTest):
+    def test_profiles_route_carries_the_launch_choices(self):
+        # The View builds the launcher's session-creation selects from these
+        # (review 2026-09-06: the thinking select was hardcoded in the page).
+        resp = self.fetch("/api/profiles", headers=self._headers())
+        prof = json.loads(resp.body)["profiles"][0]
+        assert [c["id"] for c in prof["launch_choices"]] == ["thinking"]
+        assert prof["launch_choices"][0]["options"][2]["client_options"] == {
+            "thinking": {"type": "disabled"}}

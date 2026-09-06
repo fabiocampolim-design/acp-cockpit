@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 
+import tornado.web
 import tornado.websocket
 
 from ..core.events import now_iso, to_wire
@@ -80,6 +81,13 @@ class SessionWS(tornado.websocket.WebSocketHandler):
         self._manager = manager
         self._auth = auth
         self._entry = None
+
+    def prepare(self):
+        # The REST routes refuse a Host that is not loopback (DNS
+        # rebinding); the upgrade checked origin and cookie only (review
+        # 2026-09-06). Same rule on every route this server answers.
+        if self.request.host_name not in ("127.0.0.1", "localhost"):
+            raise tornado.web.HTTPError(403, "bad host")
 
     def check_origin(self, origin: str) -> bool:
         # A WebSocket has no CORS preflight to fall back on, so this check

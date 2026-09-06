@@ -193,3 +193,72 @@ def test_a_usage_update_without_a_quota_meta_reports_no_models(tmp_path):
     feed(session, update("usage_update", used=1, size=2,
                          _meta={"quota": {"token_count": {}}}))
     assert [e for e in sink.events if e.kind == "usage"][-1]         .data["models_used"] == []
+
+
+def test_the_users_own_prompt_is_an_event_a_reattaching_view_replays(tmp_path):
+    """The record held the prompt but the event stream did not: a reload or
+    a second browser replayed the answers without the questions (review
+    2026-09-06). The prompt travels as a user message chunk, before the
+    turn state, with the record line it came from."""
+    session, proc, sink = make_session(tmp_path)
+    do_handshake(session, proc)
+    session.prompt("hello there")
+    kinds = sink.kinds()
+    chunks = [e for e in sink.events
+              if e.kind == "message_chunk" and e.data["role"] == "user"]
+    assert len(chunks) == 1
+    assert chunks[0].data == {"role": "user", "text": "hello there",
+                              "parent_tool_call_id": None}
+    assert chunks[0].raw_ref is not None
+    turn = [i for i, e in enumerate(sink.events)
+            if e.kind == "session_state" and e.data["state"] == "turn"][0]
+    assert kinds.index("message_chunk") < turn
+
+
+# ---- review 2026-09-06: vendor `_meta` paths come from the profile ----------
+
+def _profile(tmp_path, extra=""):
+    from acp_cockpit.core.profiles import load_profile
+    f = tmp_path / "agent.toml"
+    f.write_text("id = \"x\"\nname = \"X\"\ncommand = [\"x-acp\"]\n"
+                 "install_hint = \"n/a\"\nenv_scrub = []\n" + extra,
+                 encoding="utf-8")
+    return load_profile(f)
+
+
+def test_rate_limit_is_read_from_the_profiles_meta_path_not_a_builtin_name(tmp_path):
+    session, proc, sink = make_session(tmp_path, profile=_profile(tmp_path))
+    do_handshake(session, proc)
+    feed(session, update("usage_update", used=1, size=10,
+                         _meta={"_claude/rateLimit": {"status": "allowed"}}))
+    assert "rate_limit" not in sink.kinds()      # this agent declares none
+    session, proc, sink = make_session(tmp_path, profile=_profile(
+        tmp_path, "[meta]\nrate_limit = \"x/limits\"\n"))
+    do_handshake(session, proc)
+    feed(session, update("usage_update", used=1, size=10,
+                         _meta={"x/limits": {"status": "allowed"}}))
+    assert [e.data for e in sink.events if e.kind == "rate_limit"] == [
+        {"status": "allowed"}]
+
+
+def test_session_options_go_where_the_profile_says(tmp_path):
+    prof = _profile(tmp_path, "[meta]\nsession_options = \"foo.opts\"\n"
+                              "[client_options]\nverbose = true\n")
+    session, proc, sink = make_session(tmp_path, profile=prof)
+    session.start("C:\\work")
+    feed(session, {"jsonrpc": "2.0", "id": 1, "result": {"protocolVersion": 1}})
+    new = sent_frames(proc)[1]
+    assert new["params"]["_meta"] == {"foo": {"opts": {"verbose": True}}}
+
+
+def test_tool_calls_carry_their_parent_and_tool_name_from_the_meta_paths(tmp_path):
+    prof = _profile(tmp_path, "[meta]\nparent_tool_call = \"v.parent\"\n"
+                              "tool_name = \"v.tool\"\n")
+    session, proc, sink = make_session(tmp_path, profile=prof)
+    do_handshake(session, proc)
+    feed(session, update("tool_call", toolCallId="t2", title="Read x",
+                         _meta={"v": {"parent": "t1", "tool": "Read"}}))
+    ev = [e for e in sink.events if e.kind == "tool_call"][0]
+    assert ev.data["parent_tool_call_id"] == "t1"
+    assert ev.data["tool_name"] == "Read"
+    assert ev.data["toolCallId"] == "t2"            # still the passthrough

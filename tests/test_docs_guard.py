@@ -133,3 +133,14 @@ def test_profile_schema_documents_every_field():
     for f in dataclasses.fields(AgentProfile):
         assert f"`{f.name}`" in schema, \
             f"profile field {f.name} missing from agents/PROFILE-SCHEMA.md"
+
+
+def test_the_page_hardcodes_no_agent_specific_launch_options():
+    # The thinking select and its three option shapes lived in index.html
+    # and app.js; they are profile data rendered into #launch-choices
+    # (review 2026-09-06).
+    page = Path("acp_cockpit/ui/web/index.html").read_text(encoding="utf-8")
+    js = Path("acp_cockpit/ui/web/app.js").read_text(encoding="utf-8")
+    assert 'id="launch-choices"' in page
+    assert 'id="thinking"' not in page
+    assert "adaptive" not in js and "claudeCode" not in js

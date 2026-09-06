@@ -463,7 +463,12 @@ local adapter build, an experiment, or a private agent belongs — a
 machine-specific path never reaches the repository, and an installed
 copy never has to touch site-packages. In a checkout,
 <code>acp_cockpit/agents/local-*.toml</code> does the same and is never
-tracked.</p>
+tracked. Everything vendor-specific is in the profile, the
+<code>_meta</code> paths included (<code>[meta]</code>), and so are the
+launcher’s session-creation choices (<code>[[launch_choices]]</code>,
+the <em>Thinking</em> select for Claude): a profile that carries
+<code>client_options</code> must name <code>meta.session_options</code>,
+or it is refused at start-up with a message saying so.</p>
 <h2 id="security-notes">Security notes</h2>
 <p>The server binds 127.0.0.1 only; every request needs the launch token
 — the page and its files included; a Host that is not loopback, or an

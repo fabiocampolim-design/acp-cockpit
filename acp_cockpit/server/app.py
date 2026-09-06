@@ -351,6 +351,7 @@ class ProfilesHandler(BaseHandler):
             {"id": p.id, "name": p.name, "caveats": p.caveats,
              "install_ok": shutil.which(p.command[0]) is not None,
              "install_hint": p.install_hint,
+             "launch_choices": p.launch_choices,
              "env_resolved": resolve_env(p.env_resolve, p.env_set)}
             for p in self.manager.profiles.values()]})
 

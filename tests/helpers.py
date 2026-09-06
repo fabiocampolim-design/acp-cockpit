@@ -57,7 +57,7 @@ def make_session(tmp_path, **kw):
         profile=kw.pop("profile", load_profile(Path("acp_cockpit/agents/claude.toml"))),
         proc=proc, sink=sink,
         recorder=Recorder(tmp_path / "s1.jsonl"),
-        sentinel=Sentinel.load_default(),
+        sentinel=kw.pop("sentinel", Sentinel.load_default()),
         policy=PathPolicy(tmp_path),
         files=kw.pop("files", FakeFiles()),
         **kw)

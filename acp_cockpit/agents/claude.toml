@@ -19,6 +19,16 @@ env_scrub = ["CLAUDECODE", "CLAUDE_CODE_*"]
 # `session/set_model` method: model choice is a standard config option now.
 extensions = ["_claude/rateLimit", "_claude/origin", "claudeCode.promptQueueing"]
 
+# Every vendor `_meta` key the engine reads or writes for this agent, as a
+# dotted path under `_meta`. The engine knows the NAMES; the paths are this
+# adapter's (review 2026-09-06: they used to be spelled out in core/).
+[meta]
+session_options = "claudeCode.options"                  # client_options go here
+prompt_suggestion = "_claude/promptSuggestion.suggestion"
+rate_limit = "_claude/rateLimit"
+parent_tool_call = "claudeCode.parentToolUseId"
+tool_name = "claudeCode.toolName"
+
 [env_set]
 
 # Session options the adapter merges into its Agent SDK call
@@ -88,6 +98,31 @@ text = "After you approve a plan the agent changes its own permission mode witho
 [[caveats]]
 id = "terminal-unadvertised"
 text = "This client does not advertise the terminal capability in v1; the agent runs commands through its own executor instead. Nothing is lost, output arrives as tool calls."
+
+# What the launcher offers before a session starts. Thinking is a
+# session-CREATION option — ACP cannot change it later — and the shapes the
+# adapter reads are this agent's business, not the View's.
+[[launch_choices]]
+id = "thinking"
+label = "Thinking"
+title = "what the agent is asked to do about thinking; it can only be chosen when the session starts"
+[[launch_choices.options]]
+value = "summarized"
+text = "summarized — show the model's own summary"
+[launch_choices.options.client_options.thinking]
+type = "adaptive"
+display = "summarized"
+[[launch_choices.options]]
+value = "omitted"
+text = "omitted — think, but send nothing to show"
+[launch_choices.options.client_options.thinking]
+type = "adaptive"
+display = "omitted"
+[[launch_choices.options]]
+value = "off"
+text = "off — don't request thinking at all"
+[launch_choices.options.client_options.thinking]
+type = "disabled"
 
 # The adapter offers the models in its own order (default, sonnet, fable,
 # opus, haiku in 0.73). Offer them by decreasing capability instead — matched

@@ -121,3 +121,41 @@ class SecurityTest(tornado.testing.AsyncHTTPTestCase):
                                         "cwd": str(self.tmpdir)}))
         sid = json.loads(r.body)["id"]
         assert len(sid) >= 12
+
+
+class WebSocketHostTest(tornado.testing.AsyncHTTPTestCase):
+    """The REST routes refuse a Host that is not loopback (DNS rebinding);
+    the WebSocket upgrade checked origin and cookie but never the Host
+    (review 2026-09-06). Same rule on every route."""
+
+    def get_app(self):
+        self.tmpdir = Path(tempfile.mkdtemp())
+        profs = self.tmpdir / "agents"
+        profs.mkdir()
+        (profs / "fake.toml").write_text(
+            FIXTURE_PROFILE.format(python=sys.executable), encoding="utf-8")
+        self.auth = TokenAuth()
+        return make_app(profiles_dir=profs,
+                        records_dir=self.tmpdir / "records", auth=self.auth)
+
+    def test_websocket_refuses_a_foreign_host(self):
+        import tornado.httpclient
+        import tornado.websocket
+        resp = self.fetch("/api/sessions", method="POST",
+                          headers={"Cookie": f"acp_cockpit_token={self.auth.token}"},
+                          body=json.dumps({"profile": "fake",
+                                           "cwd": str(self.tmpdir)}))
+        sid = json.loads(resp.body)["id"]
+        port = self.get_http_port()
+
+        async def attempt():
+            try:
+                await tornado.websocket.websocket_connect(
+                    tornado.httpclient.HTTPRequest(
+                        f"ws://127.0.0.1:{port}/ws/sessions/{sid}",
+                        headers={"Cookie": f"acp_cockpit_token={self.auth.token}",
+                                 "Host": f"evil.example:{port}"}))
+            except tornado.httpclient.HTTPClientError as exc:
+                return exc.code
+            return 101
+        assert self.io_loop.run_sync(attempt) == 403

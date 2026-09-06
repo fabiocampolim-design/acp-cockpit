@@ -32,12 +32,7 @@
   <div class="row"><input id="cwd" spellcheck="false">
     <button id="browse" class="secondary" type="button"
       title="pick a folder instead of typing the path">Browse…</button></div>
-  <label for="thinking">Thinking
-    <select id="thinking" title="what the agent is asked to do about thinking; it can only be chosen when the session starts">
-      <option value="summarized">summarized — show the model's own summary</option>
-      <option value="omitted">omitted — think, but send nothing to show</option>
-      <option value="off">off — don't request thinking at all</option>
-    </select></label>
+  <div id="launch-choices"></div>
   <button id="start">Start session</button>
   <button id="refresh-recent" class="secondary">Find resumable sessions</button>
   <div id="recent" hidden>
