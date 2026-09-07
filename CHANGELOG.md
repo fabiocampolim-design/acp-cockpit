@@ -4,6 +4,57 @@ All notable changes to acp-cockpit are documented in this file.
 
 ## Unreleased
 
+### review 2026-09-06 — a full review of the product, all findings fixed
+
+An independent `/code-review max` over the whole shipped package, on top of
+the two reviews 0.5.0 already had. Fifteen findings, every one reproduced with
+a failing test before it was fixed.
+
+- **Nothing the agent says can steer where your transcript is written.** The
+  archive filename interpolated the session id — a string the AGENT chooses,
+  or a `resume` id taken raw from the request — so `..` in it wrote the file
+  outside the folder you picked. The same string went to
+  claude-session-publisher as its first argument, where an id starting with
+  `-` was read as an option.
+- **A digit answers the dialog you are typing in.** The 1–9 approval shortcut
+  only checked that the approval dialog was open. The agent can ask a question
+  while a tool waits for approval, and a digit typed into that question's text
+  field clicked an option in the dialog underneath — "1" is *allow once*.
+- **Closing a session no longer leaves the page locked.** An approval dialog
+  belonging to a session that has gone away could never be answered or
+  dismissed, and it covers the whole window: the only way out was a reload.
+- **A lane can never hide the agent's own answer.** Subagent text followed by
+  the agent's answer merged into one row and inherited the subagent lane, so
+  switching that lane off took the answer with it — the one thing the lane
+  help promises cannot happen.
+- **The toolbar no longer waits for options an agent may never send.** Modes
+  and config options are optional in ACP; an agent that reports neither hid
+  the mode, model, lane and tool-output controls for ever.
+- **Boolean settings actually apply.** A checkbox in the toolbar sent a value
+  the protocol schema rejects, so the agent could not read it and the box
+  sprang back.
+- **A hung, crashed or half-started agent is cleaned up.** A request that
+  never got an answer kept its turn open for every view that reconnected; an
+  adapter that started and then hung held its session, its record and its
+  process tree for the life of the server; a spawn that failed after the
+  adapter was already running left a tree nothing could kill; the throwaway
+  adapter behind "Find resumable sessions" was outside the shutdown
+  guarantee; and the hour-long fail-safe timers outlived the sessions they
+  belonged to, then wrote their decision into a closed record.
+- **A dead adapter's process group is signalled by the id captured when it
+  started**, not by a pid re-read after the kernel was free to reuse it.
+- Also: a file request with a malformed path is answered instead of hanging
+  the agent's tool call; a session/new result without a session id fails the
+  session instead of wedging it; string choice lists and null capabilities are
+  handled as the schema describes; a resumed session gets its model selector;
+  grouped option lists are real options instead of one entry called
+  "undefined"; an approval answer must be one the request offered; the
+  launcher says so when it cannot load; the token file is created owner-only;
+  the npm version lookup no longer goes through a shell; updates held before a
+  session opens are surfaced on the failure path too, and the buffer is
+  bounded; the client checks its own outbound frames for drift; and a launch
+  choice named `cwd` can no longer overwrite your project directory.
+
 ### review 2026-09-06 — the day-after review of 0.5.0
 
 - **Your own prompts survive a reload.** The prompt was a record line and
