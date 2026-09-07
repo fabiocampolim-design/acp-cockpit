@@ -148,6 +148,44 @@ def test_an_adapter_that_dies_mid_turn_still_ends_the_turn(tmp_path):
     assert ended[0].data["stop_reason"] == "error"
 
 
+def test_early_updates_are_surfaced_even_when_the_session_never_opens(tmp_path):
+    """Updates that arrive before the session/new result are held and replayed
+    — "never drop, never guess". On the failure branch they were simply
+    dropped, and the buffer had no bound at all, so an agent that streams
+    before answering could grow it without limit (review 2026-09-06)."""
+    session, proc, sink = make_session(tmp_path)
+    session.start(cwd="C:\\w")
+    init = sent_frames(proc)[0]
+    feed(session, {"jsonrpc": "2.0", "id": init["id"], "result": {
+        "protocolVersion": 1, "agentCapabilities": {"loadSession": True}}})
+    new = sent_frames(proc)[1]
+    feed(session, {"jsonrpc": "2.0", "method": "session/update", "params": {
+        "sessionId": "acp-1", "update": {
+            "sessionUpdate": "agent_message_chunk",
+            "content": {"type": "text", "text": "said before it opened"}}}})
+    feed(session, {"jsonrpc": "2.0", "id": new["id"],
+                   "error": {"code": -32000, "message": "no"}})
+    assert session.state == "failed"
+    text = " ".join(str(e.data) for e in sink.events)
+    assert "said before it opened" in text, [e.kind for e in sink.events]
+
+
+def test_the_early_update_buffer_is_bounded(tmp_path):
+    session, proc, sink = make_session(tmp_path)
+    session.start(cwd="C:\\w")
+    init = sent_frames(proc)[0]
+    feed(session, {"jsonrpc": "2.0", "id": init["id"], "result": {
+        "protocolVersion": 1, "agentCapabilities": {"loadSession": True}}})
+    for i in range(session.EARLY_UPDATE_CAP + 50):
+        feed(session, {"jsonrpc": "2.0", "method": "session/update", "params": {
+            "sessionId": "acp-1", "update": {
+                "sessionUpdate": "agent_message_chunk",
+                "content": {"type": "text", "text": f"chunk {i}"}}}})
+    assert len(session._early_updates) <= session.EARLY_UPDATE_CAP
+    assert any(e.kind == "anomaly" and "early" in str(e.data).lower()
+               for e in sink.events)
+
+
 def test_version_mismatch_fails_closed(tmp_path):
     session, proc, sink = make_session(tmp_path)
     session.start(cwd="C:\\w")

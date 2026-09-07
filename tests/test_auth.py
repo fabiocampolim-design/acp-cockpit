@@ -1,4 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
+import os
+import stat
+
+import pytest
 from acp_cockpit.server.auth import TokenAuth, COOKIE_NAME
 
 
@@ -31,3 +35,17 @@ def test_token_file_persists_and_is_reused(tmp_path):
     assert len(c.token) >= 43 and c.token != "too-short"
     assert f.read_text(encoding="utf-8").strip() == c.token
 
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX file modes")
+def test_the_token_file_is_never_readable_by_anyone_else(tmp_path):
+    """The file was written with the default umask and chmod'd afterwards, so
+    on a permissive umask it existed world-readable for a moment — and the
+    chmod's failure was swallowed. It is created 0600 (review 2026-09-06)."""
+    old = os.umask(0o000)
+    try:
+        path = tmp_path / "token"
+        TokenAuth.from_file(path)
+        assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    finally:
+        os.umask(old)

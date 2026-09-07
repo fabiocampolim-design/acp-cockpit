@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /* acp-cockpit web View — palette carried from the approved v0.1 design. */
 :root {
   --bg: #14161a; --bg-raised: #1b1e24; --bg-hover: #22262e;
@@ -623,4 +624,12 @@ pre.raw {
 #help .actions button, #config .actions button {
   font: inherit; cursor: pointer; border-radius: 6px; padding: .3rem .9rem;
   border: 1px solid var(--border); background: var(--bg); color: var(--fg);
+}
+
+/* The launcher could not load. Quiet, not alarming: a reload usually fixes
+   it, and the text says so. */
+.launcher-error {
+  margin: 0 0 .75rem; padding: .6rem .8rem; border-radius: 6px;
+  border: 1px solid var(--warn, #b4884c); background: var(--bg-soft, #0000000d);
+  color: var(--fg, inherit); font-size: .95em;
 }

@@ -46,9 +46,15 @@ class TokenAuth:
             return cls(stored)
         auth = cls()
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(auth.token + "\n", encoding="utf-8")
+        # Created 0600, not created-then-chmod'd: under a permissive umask the
+        # file existed readable by everyone for the moment in between, and the
+        # chmod's own failure was swallowed (review 2026-09-06). The mode
+        # argument is ignored on Windows, where the ACL is inherited.
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(auth.token + "\n")
         try:
-            os.chmod(path, 0o600)
+            os.chmod(path, 0o600)          # an existing file keeps its mode
         except OSError:
             pass
         return auth

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 "use strict";
 /* acp-cockpit web View. Talks ONLY the UI protocol (docs/UI-PROTOCOL.md).
    Multi-session: one Session object per tab; the status strip, controls
@@ -427,6 +428,7 @@ function closeSession(S) {
   dropDialogsOf(S);
   fetch(`/api/sessions/${S.sid}`, {method: "DELETE"}).catch(() => {});
   if (S.ws) { S.ws.onclose = null; S.ws.close(); }
+  paneGrowth.unobserve(S.pane);   // the observer holds the pane alive otherwise
   S.pane.remove();
   S.tab.remove();
   sessions.delete(S.sid);
@@ -1256,12 +1258,17 @@ let workingTimer = null;
 
 function showWorking(S, on) {
   const existing = $("#working");
-  if (!S.isActive) return;
+  // Tearing down does not need S to be the visible session. In practice the
+  // next active session's own showWorking(_, false) clears this, which is why
+  // no stale row was ever seen — but the guard was still on the wrong side of
+  // the teardown, and relying on another session to do the cleanup is not a
+  // property worth keeping (review 2026-09-06).
   if (!on) {
     if (existing) existing.remove();
     if (workingTimer) { clearInterval(workingTimer); workingTimer = null; }
     return;
   }
+  if (!S.isActive) return;
   if (existing && existing.parentElement === S.pane) return;
   if (existing) existing.remove();
   const w = document.createElement("div");
@@ -2136,7 +2143,15 @@ function initChrome() {
 }
 
 initChrome();
-initLauncher();
+/* One failed fetch used to leave a blank, inert launcher and an unhandled
+   rejection in the console, with nothing on screen to say why (2026-09-06). */
+initLauncher().catch((e) => {
+  const box = $("#launcher-error");
+  box.hidden = false;
+  box.textContent = "Could not load the agent list from this server: " +
+    (e && e.message ? e.message : e) +
+    ". Reload the page; if it keeps failing, check the server is still running.";
+});
 initLanes();
 initFollow();
 sizeComposer();

@@ -76,6 +76,9 @@ def _slice_lines(text: str, line, limit) -> str:
 
 class AcpSession:
     PROTOCOL_VERSION = 1
+    # Updates held while the session id is still unknown. Bounded, and the
+    # overflow is announced rather than silent (review 2026-09-06).
+    EARLY_UPDATE_CAP = 500
     # `elicitation.form` is what makes the Claude adapter load its
     # AskUserQuestion tool at all; `url` is deliberately not claimed.
     # `subagent-transcript` asks for what a subagent said and thought:
@@ -112,6 +115,8 @@ class AcpSession:
         self._pending_perms: dict = {}
         self._pending_elicits: dict = {}
         self._early_updates: list = []
+        self._early_overflow = False
+        self._replaying_early = False
         self._exited = False
         self._close_record_on_exit = False
         self._conn = JsonRpcConn(self._on_request, self._on_notify,
@@ -282,10 +287,7 @@ class AcpSession:
         cfg = result.get("configOptions")
         if cfg:
             self._emit("config_option", {"options": self._ordered_options(cfg)})
-        early, self._early_updates = self._early_updates, []
-        for params, ref in early:
-            self._last_raw_ref = ref
-            self._on_notify("session/update", params)
+        self._replay_early()
         self._ready()
 
     def on_stderr(self, line: str) -> None:
@@ -294,7 +296,27 @@ class AcpSession:
         ref = self.recorder.append({"dir": "err", "line": line})
         self._emit("stderr", {"line": line}, ref)
 
+    def _replay_early(self) -> None:
+        """Hand over everything held while the session id was unknown.
+
+        On the way to `ready` these are the agent's first words. On the way to
+        `failed` they were simply dropped, though they are often the only
+        explanation of WHY it failed — and the buffer's own comment says
+        "never drop" (review 2026-09-06).
+        """
+        early, self._early_updates = self._early_updates, []
+        if not early:
+            return
+        self._replaying_early = True
+        try:
+            for params, ref in early:
+                self._last_raw_ref = ref
+                self._on_notify("session/update", params)
+        finally:
+            self._replaying_early = False
+
     def _fail(self, detail: str):
+        self._replay_early()
         self._set_state("failed", detail)
         self.proc.kill()
 
@@ -400,12 +422,24 @@ class AcpSession:
                         "frame": {"method": method, "params": params}},
                        self._last_raw_ref)
             return
-        if self.acp_session_id is None:
+        if self.acp_session_id is None and not self._replaying_early:
             # Updates can precede the session/new result; hold them and
-            # replay once the id is known — never drop, never guess.
+            # replay once the id is known — never drop, never guess. Bounded:
+            # an agent that streams before it answers could grow this without
+            # limit, and a buffer that drops must say so (review 2026-09-06).
+            if len(self._early_updates) >= self.EARLY_UPDATE_CAP:
+                if not self._early_overflow:
+                    self._early_overflow = True
+                    self._emit("anomaly", {
+                        "category": "early-update-overflow",
+                        "detail": f"more than {self.EARLY_UPDATE_CAP} updates "
+                                  "arrived before the session was open; the "
+                                  "rest are in the record only"},
+                        self._last_raw_ref)
+                return
             self._early_updates.append((params, self._last_raw_ref))
             return
-        if params.get("sessionId") != self.acp_session_id:
+        if params.get("sessionId") != self.acp_session_id and                 not self._replaying_early:
             self._emit("anomaly", {
                 "category": "unknown-session",
                 "detail": f"update for session {params.get('sessionId')!r}, "

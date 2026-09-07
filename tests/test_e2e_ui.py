@@ -405,6 +405,20 @@ def test_an_agent_with_no_options_still_gets_the_client_side_controls(server):
         assert "a minimal answer" in page.inner_text(".pane:not([hidden])")
 
 
+def test_a_launcher_that_cannot_load_says_so(server):
+    """`initLauncher()` was called with no `.catch()`: one failed fetch left an
+    empty agent list, a blank inert form and an unhandled rejection in the
+    console, with nothing on screen to say what happened (review 2026-09-06)."""
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = pw.chromium.launch().new_page()
+        page.route("**/api/profiles", lambda route: route.abort())
+        page.goto(url)
+        page.wait_for_selector("#launcher-error:not([hidden])")
+        assert "agent" in page.inner_text("#launcher-error").lower()
+
+
 def test_jump_to_bottom_appears_when_scrolled_away_and_follows_again(server):
     url, tmp = server
     from playwright.sync_api import sync_playwright
