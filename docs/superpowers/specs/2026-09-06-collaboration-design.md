@@ -5,6 +5,18 @@ pinned** (Fabio, 2026-09-06: "write spec but pin its implementation"). Nothing
 in this document is built; the numbered phases at the end are the order to
 build it in when the pin lifts.*
 
+*Revised 2026-09-07 after an independent review of this document. Fifteen
+findings, all addressed here — the largest being that `set_mode` and `cancel`
+had no policy cell at all (an observer could have switched the session to a
+permission mode in which the agent stops asking, deleting the approval gate
+the whole of §5 rests on), that attaching a socket was never authorised, that
+the nine existing REST routes sat outside the policy entirely, that the OIDC
+flow specified no ID-token validation, and that `/join?token=` set an
+identity cookie on a GET. Each is marked in place, in bold, with what was
+wrong and why the new rule is the rule. The review found no reason to change
+the shape of the design — the concepts, the three configurables and the
+phase order survive; what was missing was the enforcement surface.*
+
 ## 1. What this is, in one sentence
 
 A shared acp-cockpit session: several people, on their own machines, watch
@@ -85,7 +97,8 @@ collaboration": the server behaves exactly as today.
 ```toml
 [exposure]
 public_origin = "https://cockpit.example.org"   # what collaborators' browsers see; required to share anything
-trust_proxy = true                               # X-Forwarded-* from the tunnel/reverse proxy is believed
+trust_proxy = false                              # see below: OFF by default, and useless without the next key
+trusted_proxies = []                             # e.g. ["127.0.0.1"] — X-Forwarded-* is believed ONLY from these
 health_heartbeat_seconds = 600                   # log line cadence (L6)
 
 [identity]
@@ -97,18 +110,21 @@ providers = ["invite"]            # any of: "invite", "oidc", "shared-link"
 [identity.oidc]                   # only when "oidc" is in providers
 issuer = "https://accounts.google.com"
 client_id = "..."
-client_secret_file = "~/.acp-cockpit/oidc-secret"
+client_secret_file = "~/.acp-cockpit/oidc-secret"   # REQUIRED: confidential client, back-channel exchange only
 allowed = ["someone@example.org"]  # e-mail allow-list; nobody else gets in
 
 [driving]
 mode = "baton"                    # "baton" | "owner-only" | "queue"
-grace_seconds = 90                # baton returns to the owner after this long without the driver's socket (L13)
+grace_seconds = 90                # baton returns to the owner after this long without a LIVE driver socket (L13)
 queue_max = 5                     # queue mode: prompts waiting at most
 
 [approvals]
 who = "owner"                     # "owner" | "driver"
 # The fail-safe timeout of today (reject / decline after an hour) stays in
 # every mode; a policy can widen who may answer, never remove the fail-safe.
+# A request whose `outside_boundary` is non-empty is OWNER-ONLY in every
+# mode: that dialog is the only control over a shell command this client
+# cannot confine, and it is not a policy knob.
 
 [notes]
 enabled = true
@@ -118,6 +134,25 @@ promote = "driver"                # who may turn a note into a prompt: "driver" 
 shared_retention_days = 0         # 0 = keep for ever (as today); shared sessions only
 consent_text = "This session is recorded: everything you write here is kept in the owner's session record."
 ```
+
+**Malformed or unknown policy.** A `collab.toml` that does not parse, names
+an unknown provider or mode, or sets a key this version does not know is a
+**refusal to start**, naming the key — the same rule agent profiles already
+follow (`profiles.py` raises; `branding.py`'s silent fallback is for a
+cosmetic string, and this file is the safety surface). There is no CLI
+override: a flag that could widen a security policy from a shell line would
+defeat the file being the one place it is written. `acp-cockpit collab check`
+prints the parsed policy and exits non-zero if it would be refused.
+
+**`trust_proxy` is off by default, and `trusted_proxies` is what makes it
+mean anything.** It maps to Tornado's `xheaders`, which takes `X-Real-Ip`
+from the request itself; with no trusted-downstream list, any client that can
+reach the server sets its own apparent address, and every per-IP rate limit
+(§9) counts one hit per attacker-chosen value. With the list set, the header
+is believed only when the immediate peer is on it. **A per-IP limit is not
+the mechanism anyway** — behind a local tunnel every request's peer is
+`127.0.0.1`, so an IP bucket throttles the owner and the attacker together.
+§9 says what the limits actually key on.
 
 **Driving modes.**
 - `baton` (default): the owner holds the baton at share time; may pass it
@@ -132,11 +167,55 @@ consent_text = "This session is recorded: everything you write here is kept in t
   owner may drop a queued prompt. Nobody's prompt is ever sent while another
   turn runs (the engine's `ready` gate is unchanged).
 
+**The queue is re-authorised at DEQUEUE, not only at submit.** A prompt sits
+in the queue across turns, and in between its author can be revoked, the
+session can be unshared, or their role can change. `CollabPolicy.may()` is
+asked again the moment a queued prompt is about to be sent; a prompt that no
+longer passes is discarded with `collab.change = "dropped"` naming the author
+and the reason. The same event fires for every queued prompt when the session
+is unshared, when the author is revoked, or when the session fails — a queue
+that strands silently would lose named people's work with no record of it.
+Beyond `queue_max` a submission is REFUSED at submit time (`policy-refused`,
+reason `queue-full`), never accepted-then-dropped.
+
+**Every command has a cell — including the ones that are not prompts.**
+`set_mode`, `set_config_option` and `cancel` are commands `SessionWS`
+dispatches, so they are policy-checked like the rest, and the table in §10
+covers them:
+
+| action | owner-only | baton | queue |
+|---|---|---|---|
+| `prompt` | owner | baton holder | any `driver` (submit; re-checked at dequeue) |
+| `cancel` | owner | owner **or** the baton holder | owner **or** the author of the running turn |
+| `set_config_option` | owner | owner or holder | owner or running author |
+| `set_mode` | **owner, always** | **owner, always** | **owner, always** |
+| `note` | any participant | any participant | any participant |
+| `promote` | per `[notes].promote` | per `[notes].promote` | per `[notes].promote` |
+| `attach` | per §4 sharing | per §4 sharing | per §4 sharing |
+
+`set_mode` is owner-only in every mode because it is the switch that turns
+the approval gate off: the shipped profile offers a permission mode in which
+the agent stops asking at all, so a participant who could set it would delete
+the whole of the approvals policy without ever answering a dialog. `cancel`
+is not owner-only — aborting a turn is safe and sometimes urgent — but it is
+not open to observers either.
+
 **Approval modes.** `owner`: permission requests and elicitations are shown
 to everyone but only the owner's answer is accepted; the dialog on other
 screens is read-only and says who can answer. `driver`: the baton holder may
 answer too. In queue mode `driver` means the author of the prompt whose turn
-is running.
+is running — **and if that author's socket is gone, the approver falls back
+to the owner at once**, rather than leaving a dialog nobody may click until
+the hour-long fail-safe fires. In `owner-only` mode there is no driver, so
+`[notes].promote = "driver"` means the owner; the promote button appears on
+no other screen.
+
+**In every approvals mode, a request whose `outside_boundary` is non-empty
+is answerable by the owner alone.** `docs/UI-PROTOCOL.md` already states that
+such a request must be shown prominently because "shell execution is
+agent-side and the user's answer is the only control". Widening *who may
+prompt* is the point of this design; widening who may hand the owner's
+credentials a path outside the project is not.
 
 ## 6. Architecture — what changes where
 
@@ -153,34 +232,108 @@ concern already lives.
   `collab` (`{change: "joined" | "left" | "baton" | "queued" | "dropped" |
   "shared" | "unshared", ...}`). Both are events on the session's stream,
   so they replay, are lossless, and carry `raw_ref` into the record.
+- **Therefore the ENGINE emits them, not the server.** `seq` is allocated
+  only by `AcpSession._seq` inside `_emit`, and `_emit` does not touch the
+  recorder — every recorded client action calls `recorder.append` separately
+  and passes the returned line number as `raw_ref`. A note or presence event
+  minted anywhere else has no way to get either. So `AcpSession` gains
+  `note(text, by)` and `collab(change, by, **detail)`: each appends its
+  record line and emits with that line as `raw_ref`, exactly like `prompt`.
+  `server/collab.py` decides *whether*; the engine does the emitting. A
+  second seq counter in the server would be the one failure `replay_truncated`
+  exists to make impossible — `BufferedSink.attach` replays `if seq > after`,
+  so a duplicated seq vanishes for every reconnecting View and a leapfrogged
+  one pushes real events below the cursor.
 - A `CollabPolicy` value object: the parsed policy file with `may(actor,
   action, session) -> allowed | reason`. Pure; the server asks it before
-  every command. Tested exhaustively; this is the safety surface.
+  every command **and before every attach**. Tested exhaustively; this is
+  the safety surface.
 
 **server/** (Tornado)
 - `identity.py`: the provider registry. `invite`: personal tokens created
   by `acp-cockpit invite --name <n> --role <r>` (printed once, stored
   hashed, revocable by `acp-cockpit revoke <n>`, listed by `acp-cockpit
-  participants`); the join URL is `<public_origin>/join?token=…` and sets a
-  per-person cookie. `oidc`: the standard authorization-code flow with PKCE
-  against the configured issuer; the allow-list is the gate. `shared-link`:
-  one token, cookie marks the user `unverified`. The owner's launch token
-  stays what it is: the admin's credential.
+  participants`). **The join link is a page, not a side effect.**
+  `GET <public_origin>/join?token=…` renders the consent page and sets
+  NOTHING; the cookie is set by the `POST` that its button makes, carrying a
+  form token bound to that page. A `Set-Cookie` on the GET would be
+  login-CSRF: a cross-site top-level navigation carries no `Origin` header
+  at all, `auth.origin_ok()` returns True when `Origin` is absent, and
+  `SameSite` does not stop a top-level GET — so anyone holding any valid
+  invite could pin a victim's browser to *their* identity, and every action
+  the victim took would be recorded as the attacker's. That inverts the one
+  guarantee Phase 1 exists for.
+- `oidc`: authorization-code flow with PKCE **and a confidential-client
+  back-channel exchange** — the code is redeemed server-to-server over TLS
+  using `client_secret_file`; an ID token is never trusted from the browser.
+  The ID token is validated in full before anyone is admitted: signature
+  against the issuer's published keys, `iss` equal to the configured issuer,
+  `aud` equal to our `client_id`, `exp`/`iat` in range, and `nonce` equal to
+  the one this flow issued. Without the `aud` and `nonce` checks a genuine,
+  correctly-signed token minted for *someone else's* application is accepted:
+  an attacker runs any site with "Sign in with Google", gets an allow-listed
+  person to sign in there once, and replays that token here. **Identity is
+  `(iss, sub)`, not the e-mail**, and an address is only matched against
+  `allowed` when the token says `email_verified` — an address can be
+  self-asserted at a permissive issuer, and a reassigned one would otherwise
+  inherit a departed participant's access and their attribution in the
+  record. `tornado` is the only dependency, so the validating code is ours:
+  §10 requires it be tested against tampered, mis-audienced, expired and
+  replayed tokens, not only against a stub that says yes.
+- `shared-link`: one token, cookie marks the user `unverified`. The owner's
+  launch token stays what it is: the admin's credential.
 - `collab.py`: the per-session collaboration state — participants attached,
-  baton holder and its heartbeat, the prompt queue — and the policy checks
-  in front of `SessionWS.on_message`. A refused command answers the sender
-  with an `anomaly` (`policy-refused`, with the reason) and is recorded.
-- `ws.py`: the socket knows who it is (from the cookie at upgrade); presence
-  (`joined`/`left`) is emitted on attach/detach; the driver's socket is the
-  baton heartbeat.
-- `app.py`: `GET /health` (no token; `{ok, version, heartbeat}`), `GET
-  /api/me`, `GET /api/sessions/<sid>/participants`, `POST
-  /api/sessions/<sid>/share` (owner), `POST …/baton` (pass/take/release),
-  `POST …/notes/<n>/promote`; the `Host`/`Origin` guard accepts the
-  configured `public_origin` in addition to loopback, and the cookie gains
-  `Secure` when the origin is `https`. `--bind` stays loopback by default:
-  the tunnel or reverse proxy on the same machine is the public face
-  (trust_proxy), so the server never listens on a public interface itself.
+  baton holder and its liveness, the prompt queue — and the policy checks in
+  front of `SessionWS.on_message`. A refused command answers the sender with
+  an `anomaly` (`policy-refused`, `{reason}`) **and is recorded**; there is
+  one refusal shape, not two (an earlier draft also described a `not-driver`
+  anomaly "shown to the sender only" — same thing, and `policy-refused` is
+  the name). `category` is `policy-refused` so it joins the anomaly
+  vocabulary the View already renders.
+- `ws.py`: the socket knows who it is (from the cookie at upgrade), and
+  **`open()` asks `CollabPolicy.may(actor, "attach", session)` before it
+  attaches**. Without that, §4's "a session is private unless the owner
+  shares it" has no mechanism anywhere: `open()` checks only the cookie and
+  that the session exists, then replays up to `BufferedSink.CAP` events and
+  subscribes to every future one — so an invited observer who guesses or is
+  told a session id reads a private conversation, prompts, file contents and
+  all, without ever sending a command for the gate to refuse. Presence
+  (`joined`/`left`) is emitted on attach/detach.
+- **Baton liveness is not "the socket exists".** `make_app` sets no
+  `websocket_ping_interval`, so Tornado sends no pings and a driver whose
+  laptop sleeps or drops off Wi-Fi never closes: no FIN arrives, `on_close`
+  never runs, and `BufferedSink.emit` prunes a handler only when a write
+  raises. On Windows the default TCP keepalive is two hours, so
+  `grace_seconds = 90` would never fire and the session would sit with an
+  absent driver — exactly the L13 incident this rule was written to end. The
+  app sets `websocket_ping_interval` and `websocket_ping_timeout`, and the
+  grace timer runs from the last **pong**, not from the last message.
+- `app.py`: `GET /health`, `GET /api/me`, `GET
+  /api/sessions/<sid>/participants`, `POST /api/sessions/<sid>/share`
+  (owner), `POST …/baton` (`pass` | `take` | `release` — one vocabulary,
+  used in §7 and the UI too), `POST …/notes/<n>/promote`.
+- **The `Host`/`Origin` guard lives in two places and both must change.**
+  `SessionWS` does not inherit `Guard`: it carries its own `prepare()` with
+  the literal `("127.0.0.1", "localhost")` tuple, its own `check_origin` and
+  its own cookie check. Widening only `app.py` gives a collaborator a page
+  whose REST calls all answer and whose WebSocket 403s "bad host", and the
+  View's reconnect backoff then retries for ever with nothing on screen.
+  `auth.origin_ok()` also builds the expected origin as `"http://" + host`,
+  so an `https` `public_origin` — the example value in §5 — can never match:
+  the scheme comes from `public_origin` now. The cookie gains `Secure` when
+  that origin is `https`, decided from the configured value and not from an
+  `X-Forwarded-Proto` header the client may have set.
+- `/health` is the ONE route outside the guard, and that is the point: it is
+  what the external verifier calls. So it must answer with **no session data
+  at all** (`{ok, version, heartbeat}` and nothing else), and §8 must not
+  treat it as proof that the collaborator's path works — it shares no code
+  with a guarded route. A green `/health` through a public hostname says the
+  tunnel is up, not that anyone can join; the verifier says exactly that.
+- `--bind` stays loopback by default: the tunnel or reverse proxy on the
+  same machine is the public face, so the server never listens on a public
+  interface itself. **`--port` must be given a fixed value when exposing**
+  — it defaults to `0` (OS-assigned), and a fixed public hostname pointing
+  at a port that moves on every restart is L3 with extra steps.
 
 **ui/web/** (the bundled View, speaking UI-PROTOCOL)
 - A **participants strip** (top right, beside the account chips): one chip
@@ -207,10 +360,26 @@ concern already lives.
 - Events: `note`, `collab`; `by` on `permission_resolved`,
   `elicitation_resolved`, `message_chunk` with `role: user`, `session_state`
   changes caused by a person. Presence is `collab.change = joined | left`.
-- Commands: `note {text}`, `promote {note_seq}`, `baton {op: request |
-  pass | release, to?}`, and the existing ones, now policy-checked.
-- REST: the routes in §6. `GET /api/sessions` gains `shared`,
-  `participants` (count) and `driver`.
+- Commands: `note {text}`, `promote {note_seq}`, `baton {op: pass | take |
+  release, to?}`, and the existing ones, now policy-checked.
+- REST: **every route, not only the new ones.** All nine existing handlers
+  subclass `BaseHandler(Guard, …)`, whose whole authorization is "the cookie
+  verifies" — which was the owner's token and will become any participant's.
+  Left as they are, an observer could `GET /api/sessions` (every session on
+  the server, with its `cwd`, its agent-written title and the id needed for
+  the attach above), `POST /api/sessions` (spawn a fresh adapter under the
+  owner's credentials in any directory, unshared, with no baton and no
+  approvals policy — a complete escape from this design by not using a
+  shared session), `DELETE /api/sessions/<sid>` (kill the owner's session
+  mid-turn; the shipped View already has that button), `GET /api/dirs`
+  (walk the owner's filesystem by name), or `POST …/archive` (write the
+  conversation anywhere the server can write, and spawn the archiver).
+  So: session creation, deletion, `/api/dirs`, `/api/settings` and archiving
+  are **owner-only**; `GET /api/sessions` returns only sessions the actor
+  may attach to; `/api/profiles` and `/api/drift` are readable by any
+  participant. §9's "a policy engine in front of every command" is true of
+  REST or it is not true.
+- `GET /api/sessions` gains `shared`, `participants` (count) and `driver`.
 - Close code `4403` gains reasons (`revoked`, `unshared`) so a View can say
   why it was dropped.
 
@@ -232,7 +401,20 @@ concern already lives.
   `INDETERMINATE for N minutes` line, not into an action. Runs from the
   scheduler like the watch, and its log filter is documented.
 - Heartbeat: the server logs `alive tick=N participants=M` every
-  `health_heartbeat_seconds` (L6).
+  `health_heartbeat_seconds` (L6). **It needs somewhere durable to go**: the
+  package imports `logging` nowhere and has four `print()` calls in total, so
+  a heartbeat on stdout exists only for as long as someone is watching the
+  console — which is not what L6 was about. Phase 1 gives the server a
+  logging destination (a rotating file beside the records) and the heartbeat
+  is its first user.
+- **`expose.py` and `verify_public.py` cannot live only in `scripts/`.**
+  AGENTS.md: "the wheel is the product", and `scripts/` is not shipped in
+  it, so an installed cockpit would have neither. They belong in the package
+  with console entry points (as `acp-cockpit expose` / `acp-cockpit verify`),
+  with `scripts/` keeping at most the scheduler wrapper. Same for the
+  `invite`/`revoke`/`participants`/`collab check` subcommands: `__main__.py`
+  today parses flags only and has no subcommand dispatch, so Phase 1 adds
+  one.
 - `KEEP/ports.yaml` gets the cockpit's port reserved when it is exposed.
 
 ## 9. Security model (additions to the one in README)
@@ -243,13 +425,41 @@ concern already lives.
   command; approvals owner-only by default; notes never reach the agent);
   a forged identity in text (L1: identity comes from the cookie the
   provider set, names in text mean nothing); cross-origin requests from
-  the public hostname (Origin must equal `public_origin` exactly; cookies
-  `Secure`, `HttpOnly`, `SameSite=Lax` on the public origin because the
-  OIDC redirect needs it, `Strict` on loopback as today); replay of a
-  revoked token (tokens hashed at rest, revocation checked per request).
-- Rate limits on `/join`, `/login` and `note` (a public route gets probed).
-- Records: a shared session's record holds other people's words. The
-  consent text is shown on the join page; `shared_retention_days` applies
+  the public hostname (Origin must equal `public_origin` exactly — **and an
+  ABSENT `Origin` is not a pass on any state-changing route**, which is why
+  `/join` sets no cookie on a GET; `auth.origin_ok()` returns True for a
+  missing header today, which is right for a same-origin `fetch` and wrong
+  for a cross-site navigation); cookies `Secure`, `HttpOnly`, and
+  `SameSite=Lax` **only for the short-lived OIDC state cookie**, which is
+  what the redirect needs — the identity cookie itself stays
+  `SameSite=Strict` on every origin, because nothing navigates into the app
+  carrying it; replay of a revoked token (tokens hashed at rest, revocation
+  checked per request).
+- **Revocation and unsharing sweep live sockets.** "Checked per request" and
+  "`4403 revoked` on the next message" never reach a participant who is only
+  reading: their handler stays in `BufferedSink._handlers`, which is pruned
+  only by `on_close`/`detach` or a failed write, so `emit` keeps streaming
+  prompts, tool calls, file contents and dialogs for as long as their tab is
+  open. `acp-cockpit revoke` and turning `share` off both close that
+  person's sockets at once (`4403 revoked` / `4403 unshared`) — the sweep §4
+  already promises for unsharing, owed equally to revocation. Anything less
+  makes "revocable" a claim about writes only.
+- Rate limits on `/join`, `/login` and `note`. **Keyed on the credential,
+  not the address**: `note` and the other authenticated routes bucket per
+  participant id; `/join` and `/login` bucket per presented token — so
+  trying a different token each time gains nothing — plus a global ceiling
+  per route, because an attack's first request has no identity yet. Per-IP
+  is not available behind a local tunnel (every peer is `127.0.0.1`) and is
+  forgeable when `trust_proxy` is on without `trusted_proxies` (§5).
+- Records: a shared session's record holds other people's words. **The
+  retention this promises does not exist yet and Phase 4 has to build it**:
+  today's `prune()` is directory-wide, keyed on file mtime, runs once at
+  start-up, and defaults to `0 = keep for ever`. Per-session retention needs
+  the record to know it was shared and needs a sweep that runs while the
+  server is up — otherwise a server that stays up for a month never deletes
+  anything, and a `--records-keep-days` set for the owner's own sessions
+  silently applies to other people's too. The consent text is shown on the
+  join page; `shared_retention_days` applies
   to those records only; the archive panel names the participants in the
   transcript header.
 - Not solved here, said plainly: a driver can still ask the agent to do
@@ -259,11 +469,23 @@ concern already lives.
 
 ## 10. Testing
 
-- `CollabPolicy`: table-driven unit tests for every (mode, role, action)
-  cell; the fail-safe timeout is asserted to survive every policy.
-- Identity: invite create/revoke/list round-trips; hashed at rest; a
-  revoked cookie is `4403 revoked` on the next message; OIDC against a
-  stub issuer; shared-link users are `unverified` and denied `prompt`.
+- `CollabPolicy`: a test per cell of the §5 table — every (mode, role,
+  action), `attach` and `set_mode` included, since a table with a missing
+  cell is how the `set_mode` hole survived being written down. **The table
+  is a module-level list the tests loop over, NOT `@pytest.mark.parametrize`:
+  `tests/test_docs_guard.py` fails any test file that uses it, because the
+  README's check count is a static count of `def test_` and parametrize
+  would make it wrong.** The fail-safe timeout is asserted to survive every
+  policy, and a request with a non-empty `outside_boundary` is asserted
+  owner-only in every approvals mode.
+- Identity: invite create/revoke/list round-trips; hashed at rest; a revoked
+  cookie is `4403 revoked` on the next message **and a revoked reader who
+  sends nothing is disconnected too**; a GET to `/join` sets no cookie; a
+  cross-site POST without an `Origin` is refused. OIDC not merely "against a
+  stub issuer" but against tampered, wrong-`aud`, expired, wrong-`nonce` and
+  replayed tokens, and one whose `email_verified` is false — a stub that
+  only ever says yes would pass the naive implementation this design exists
+  to rule out. Shared-link users are `unverified` and denied `prompt`.
 - Engine: `by` on every client-originated record line and event; notes
   never produce an outgoing frame (assert `proc.sent` unchanged).
 - e2e with two browser contexts on one session: presence chips on both;
@@ -272,7 +494,13 @@ concern already lives.
   on both and reaches no adapter; baton pass and grace-timeout hand-back;
   approval dialog read-only on the observer.
 - Encoding: a note and a prompt with accented and non-Latin text round-trip
-  through the record, the replay and the Markdown transcript (L10).
+  through the record, the replay and the Markdown transcript (L10). **That
+  last leg needs `core/transcript.py` to change**, and no section names it:
+  `render_markdown` keeps only prompts, agent text, thinking and tool-call
+  titles, so it drops every note, and it labels every prompt `### You` —
+  which in a shared session is a lie about who spoke. It gains the notes
+  lane and per-participant headings, and the archive header names the
+  participants (§9).
 - Verifier: the tri-state verdict with stubbed DoH and HTTP; two strikes;
   the `None` ceiling; the log filter matches only the lines it should.
 - The docs guard extends to the collaborator-facing strings table and the
@@ -280,24 +508,42 @@ concern already lives.
 
 ## 11. Phases (implementation pinned; this is the order)
 
-- **Phase 0 — today, no code.** A tailnet or an SSH port forward to the
-  owner's machine plus the existing token URL gives a trusted group a live
-  shared view now; everyone is anonymous and anyone can act. Documented as
-  such in the manual, with the warning.
+- **Phase 0 — today, no code, and only half of it works.** An **SSH port
+  forward** to the owner's machine plus the existing token URL gives a
+  trusted group a live shared view now, because it lands every browser back
+  on loopback. **A tailnet address does not**: the server binds `127.0.0.1`
+  with no `--bind` flag, and both the REST guard and `SessionWS`'s own
+  refuse a `Host` that is not loopback — behaviour pinned by
+  `tests/test_security.py`. Everyone is anonymous and anyone can act.
+  Documented as such **in the manual**, with the warning — which the commit
+  that wrote this spec did not do, and `docs/DESIGN.md` and `README.md` must
+  agree (they were reconciled on 2026-09-07).
 - **Phase 1 — identity and attribution.** Invite tokens, `by` on every
-  action and event, participants strip, `/health` + heartbeat, `public_origin`
-  and the proxy trust. Shared sessions are owner-driven, owner-approved
-  (the defaults). This phase alone makes the record honest about who did
-  what.
+  action and event, participants strip, `/health` + heartbeat + a logging
+  destination, `public_origin` and the proxy trust, the CLI subcommand
+  dispatch, and the policy gate on **attach** and on every REST route.
+  Shared sessions are owner-driven, owner-approved (the defaults). This
+  phase alone makes the record honest about who did what.
+  **The join page's consent text ships in Phase 1, not Phase 3.** This is
+  the first phase in which other people's words enter the owner's record,
+  and consent that arrives two releases later is not consent. The
+  plain-language *design* of the page can improve in Phase 3; the sentence
+  saying "this is recorded" cannot wait. `shared_retention_days` still lands
+  in Phase 4, so Phase 1's page says plainly that records are kept
+  indefinitely for now.
 - **Phase 2 — driving and approvals policy.** Baton mode with the grace
   rule, owner-only mode, queue mode; approvals `owner` | `driver`; read-only
   dialogs for non-approvers.
 - **Phase 3 — the notes lane and promotion.** The sixth lane, the second
   composer, promote-to-prompt, the plain-language join page, the strings
   table.
-- **Phase 4 — OIDC and operations.** The OIDC provider, `expose.py`,
-  `verify_public.py` from the scheduler, the admin page for the policy
-  file, retention for shared records.
+- **Phase 4 — OIDC, shared links and operations.** The OIDC provider with
+  the full token validation of §6, **the `shared-link` provider and the
+  `unverified` role** (fully specified in §4 and §5 and built by no earlier
+  phase — until this ships, `providers = ["shared-link"]` must be refused at
+  load rather than silently doing nothing), `expose` and `verify` as
+  packaged subcommands driven from the scheduler, the admin page for the
+  policy file, and per-session retention for shared records.
 
 Each phase is a release with its own CHANGELOG section, manual pages and
 test-plan items; no phase ships with a policy default weaker than the one
@@ -313,4 +559,21 @@ before it.
 - The server never listens on a public interface itself; exposure is a
   tunnel or a tailnet on the owner's machine, with a fixed hostname
   recommended (L3).
-- Implementation is pinned; Phase 0 is available at once.
+- Implementation is pinned; **the SSH-forward half of** Phase 0 is available
+  at once.
+
+Added by the 2026-09-07 review, so they are not re-litigated either:
+
+- `set_mode` is owner-only in every driving mode — it is the switch that
+  turns the approval gate off, not a driving preference.
+- A permission request with a non-empty `outside_boundary` is owner-only in
+  every approvals mode.
+- Attaching is an authorised action, not a consequence of knowing a session
+  id; and every REST route is policy-checked, not only the new ones.
+- `note` and `collab` are emitted by the ENGINE, because `seq` and `raw_ref`
+  exist nowhere else.
+- OIDC is a confidential client with full ID-token validation, and identity
+  is `(iss, sub)` with `email_verified` required — never a bare e-mail claim.
+- `/join` sets no cookie on a GET.
+- Revocation disconnects, it does not only refuse.
+- `trust_proxy` defaults to off, and rate limits key on the credential.
