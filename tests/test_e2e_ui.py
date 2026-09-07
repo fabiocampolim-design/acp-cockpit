@@ -25,6 +25,12 @@ def server():
             'id = "fake"', 'id = "resolving"')
         + "[env_resolve]" + chr(10) + "EXTRA_VAR = " + json.dumps(PY_NAME)
         + chr(10), encoding="utf-8")
+    # an agent that reports neither modes nor config options — both optional
+    # in ACP, and the profile architecture exists so adding one needs no code
+    (profs / "minimal.toml").write_text(
+        FIXTURE_PROFILE.format(python=sys.executable)
+        .replace('id = "fake"', 'id = "minimal"')
+        .replace("basic_turn.json", "minimal_agent.json"), encoding="utf-8")
     # an agent that can list its own sessions, for the resume list
     (profs / "sessions.toml").write_text(
         FIXTURE_PROFILE.format(python=sys.executable)
@@ -137,6 +143,28 @@ def test_a_digit_typed_in_another_dialog_never_answers_the_permission(server):
             "() => document.querySelector('#elicitation').close()")
         page.keyboard.press("1")
         page.wait_for_selector("#permission", state="hidden")
+
+
+def test_closing_a_session_does_not_leave_the_page_locked(server):
+    """Nothing drained permOpen/permQueue/elicOpen/elicQueue when a session
+    went away: closeSession nulled the socket and removed the pane but left
+    #permission showModal'd, so the whole page was inert. Escape is refused by
+    design and the only closer needed an event from the closed socket, so the
+    only way out was a reload (review 2026-09-06)."""
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = start_fake_session(pw, url, tmp)
+        page.fill("#prompt-input", "do the PERMISSION thing")
+        page.click("#send")
+        page.wait_for_selector("#permission[open]")
+        # the modal covers the whole page, so the tab's x cannot even be
+        # clicked while it is up — this is the path the server takes when it
+        # closes the socket (4403/4404) or the session dies
+        page.evaluate("() => closeSession([...sessions.values()][0])")
+        page.wait_for_selector("#permission", state="hidden")
+        # and the page still takes input: the launcher is reachable
+        page.wait_for_selector("#launcher:not([hidden])")
 
 
 def test_permission_reject_path(server):
@@ -309,8 +337,10 @@ def test_lane_toggles_remove_rows_from_the_conversation(server):
         page.reload()
         page.wait_for_selector("#workspace:not([hidden])")
         # events are switched off at this point, so wait for the agent's own
-        # text rather than the turn separator
-        page.wait_for_selector('.pane:not([hidden]) [data-role="agent"]')
+        # text rather than the turn separator — and the subagents lane is off
+        # too, so it must be the MAIN agent's row, not the subagent's
+        page.wait_for_selector(
+            '.pane:not([hidden]) [data-role="agent"]:not([data-lane="subagents"])')
         assert page.locator('.pane:not([hidden]) [data-lane="thinking"]:visible').count() == 0
         page.click('#lanes button[data-lane-toggle="thinking"]')
         assert page.locator('.pane:not([hidden]) [data-lane="thinking"]:visible').count() >= 1
@@ -327,6 +357,52 @@ def test_subagent_rows_are_their_own_lane(server):
         page.click('#lanes button[data-lane-toggle="subagents"]')
         assert page.locator('.pane:not([hidden]) [data-lane="subagents"]:visible').count() == 0
         assert "Read config.toml" in page.inner_text(".pane:not([hidden])")
+
+
+def test_hiding_subagents_never_hides_the_agents_own_answer(server):
+    """addBlock keyed aggregation on kind+role only, while the LANE came from
+    parent_tool_call_id. Subagent text followed by the agent's own answer, with
+    no tool_call between to break the run, merged into one row carrying
+    data-lane="subagents" — so switching that lane off removed the agent's
+    answer, which UI-PROTOCOL.md and the lane help both promise can never
+    happen (review 2026-09-06)."""
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = start_fake_session(pw, url, tmp)
+        lanes_turn(page)
+        assert "subagent says this" in page.inner_text(".pane:not([hidden])")
+        page.click('#lanes button[data-lane-toggle="subagents"]')
+        visible = page.inner_text(".pane:not([hidden])")
+        assert "the plain answer" in visible, \
+            "hiding subagents took the agent's own answer with it"
+        assert "subagent says this" not in visible
+
+
+def test_an_agent_with_no_options_still_gets_the_client_side_controls(server):
+    """`get settled()` re-derived readiness from whether the agent happened to
+    send config options or modes — both OPTIONAL in ACP — instead of the
+    `ready` state the engine already guarantees comes after the early-update
+    replay. An agent reporting neither left #workspace data-settling="1" for
+    ever, and the CSS then hid the five lane switches and the tool-output
+    toggle: controls that have nothing to do with the agent (2026-09-06)."""
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = pw.chromium.launch().new_page()
+        open_launcher(page, url)
+        page.select_option("#profile", "minimal")
+        page.fill("#cwd", str(tmp))
+        page.click("#start")
+        page.wait_for_selector("#workspace:not([hidden])")
+        page.wait_for_selector("#send:not([disabled])")
+        assert page.locator('#lanes button[data-lane-toggle]:visible').count() == 5
+        assert page.is_visible("#expand-tools")
+        # and it is a working session, not just a decorated one
+        page.fill("#prompt-input", "hello")
+        page.click("#send")
+        page.wait_for_selector('.pane:not([hidden]) [data-kind="turn_ended"]')
+        assert "a minimal answer" in page.inner_text(".pane:not([hidden])")
 
 
 def test_jump_to_bottom_appears_when_scrolled_away_and_follows_again(server):

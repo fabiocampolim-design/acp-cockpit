@@ -1,0 +1,41 @@
+[
+ {
+  "on_method": "initialize",
+  "respond": {
+   "protocolVersion": 1,
+   "agentCapabilities": {},
+   "agentInfo": {
+    "name": "Minimal Agent",
+    "version": "1.0"
+   }
+  }
+ },
+ {
+  "on_method": "session/new",
+  "respond": {
+   "sessionId": "$SESSION"
+  }
+ },
+ {
+  "on_method": "session/prompt",
+  "notify": [
+   {
+    "jsonrpc": "2.0",
+    "method": "session/update",
+    "params": {
+     "sessionId": "$SESSION",
+     "update": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+       "type": "text",
+       "text": "a minimal answer"
+      }
+     }
+    }
+   }
+  ],
+  "respond": {
+   "stopReason": "end_turn"
+  }
+ }
+]

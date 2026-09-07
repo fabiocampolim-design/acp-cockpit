@@ -417,6 +417,11 @@ function activate(S) {
 function closeSession(S) {
   S.closing = true;                    // a pending retry must not revive it
   if (active === S) closeArchive();
+  // A dialog belonging to a session that no longer exists can never be
+  // answered: its only closer needs an event from the socket we are about to
+  // drop, and both dialogs refuse Escape by design. The modal then covers the
+  // page and nothing but a reload gets it back (review 2026-09-06).
+  dropDialogsOf(S);
   fetch(`/api/sessions/${S.sid}`, {method: "DELETE"}).catch(() => {});
   if (S.ws) { S.ws.onclose = null; S.ws.close(); }
   S.pane.remove();
@@ -669,12 +674,17 @@ class Session {
             name: hit ? (hit.name || String(hit.value)) : String(opt.currentValue)};
   }
 
-  /* Ready, and the agent has said what it offers. Until then the panel
-     shows one line instead of shuffling its contents into place. */
+  /* The session has left "starting". Until then the panel shows one line
+     instead of shuffling its contents into place.
+
+     This used to ALSO require config options or modes, which ACP makes
+     optional: an agent that reports neither stayed "settling" for ever and
+     the CSS hid the lane switches and the tool-output toggle with the rest —
+     client-side controls that have nothing to do with the agent. The engine
+     emits mode, model, config_option and the early-update replay BEFORE
+     `ready`, so the state is already the readiness signal (2026-09-06). */
   get settled() {
-    return this.state !== "starting" &&
-      (this.config.length > 0 || this.mode.available.length > 0 ||
-       this.state === "failed" || this.state === "closed");
+    return this.state !== "starting";
   }
 
   renderControls() {
@@ -757,8 +767,13 @@ class Session {
   /* ----- conversation blocks ----- */
   /* Which lane a row belongs to; rows with no lane (the agent's answer and
      your own prompts) can never be switched off. */
-  addBlock(kind, role, text, lane) {
-    const key = kind + ":" + (role || "");
+  addBlock(kind, role, text, lane, speaker) {
+    // The key is the whole speaker identity — kind, role, WHOSE work it is,
+    // and the lane that identity puts it in. Keying on kind+role alone let
+    // subagent text and the agent's own answer share a row, and the row kept
+    // the first one's lane: hiding subagents then hid the agent's answer,
+    // which this client promises never happens (review 2026-09-06).
+    const key = [kind, role || "", speaker || "", lane || ""].join(":");
     const rich = kind === "message_chunk" && role === "agent";   // markdown-lite
     if (this.agg.currentKey === key && this.agg.node) {
       if (text) { const m = $(".marker", this.agg.node); if (m) m.remove(); }
@@ -847,7 +862,8 @@ class Session {
       case "message_chunk": {
         const node = this.addBlock("message_chunk", d.role, d.text,
           d.role === "thought" ? "thinking"
-            : d.parent_tool_call_id ? "subagents" : null);
+            : d.parent_tool_call_id ? "subagents" : null,
+          d.parent_tool_call_id);
         if (d.role === "thought" && !$(".text", node).textContent &&
             !$(".marker", node)) {
           const m = document.createElement("span");
@@ -1711,6 +1727,28 @@ function describeAnswer(content, titles = {}) {
   const parts = Object.entries(content || {}).map(([k, v]) =>
     `${titles[k] || k}: ${Array.isArray(v) ? v.join(", ") : v}`);
   return parts.length ? parts.join(" · ") : "(nothing)";
+}
+
+/* Everything a departing session still had waiting for an answer. Both
+   queues and both open dialogs, so a closed session leaves no modal behind
+   (review 2026-09-06). */
+function dropDialogsOf(S) {
+  for (let i = permQueue.length - 1; i >= 0; i--) {
+    if (permQueue[i].S === S) permQueue.splice(i, 1);
+  }
+  for (let i = elicQueue.length - 1; i >= 0; i--) {
+    if (elicQueue[i].S === S) elicQueue.splice(i, 1);
+  }
+  if (permOpen && permOpen.S === S) {
+    $("#permission").close();
+    permOpen = null;
+    showNextPermission();
+  }
+  if (elicOpen && elicOpen.S === S) {
+    $("#elicitation").close();
+    elicOpen = null;
+    showNextElicitation();
+  }
 }
 
 function showNextElicitation() {
