@@ -43,6 +43,11 @@ a failing test before it was fixed.
   belonged to, then wrote their decision into a closed record.
 - **A dead adapter's process group is signalled by the id captured when it
   started**, not by a pid re-read after the kernel was free to reuse it.
+- **Ctrl+C returns the prompt promptly.** The signal handler ran the whole
+  shutdown inline — up to the grace period per open session before the loop
+  was even told to stop, from inside a signal handler that must not do that
+  much. It schedules the teardown now, and a second Ctrl+C does not start a
+  second one.
 - Also: a file request with a malformed path is answered instead of hanging
   the agent's tool call; a session/new result without a session id fails the
   session instead of wedging it; string choice lists and null capabilities are
