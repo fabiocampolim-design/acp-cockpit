@@ -28,7 +28,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
-import os
+import shutil
 import subprocess
 import sys
 import traceback
@@ -53,11 +53,22 @@ def _get(url: str, timeout: int = 30):
         return json.load(r)
 
 
+def npm_executable() -> str | None:
+    """npm itself, resolved. `shell=True` was how this ran on Windows, where
+    `npm` is `npm.cmd` and CreateProcess will not start it — but a shell joins
+    the argv list back into a command line and re-parses it, so a package name
+    read from a profile file ended up inside a cmd.exe line (review
+    2026-09-06). Resolving the executable needs no shell."""
+    return shutil.which("npm")
+
+
 def installed_version(npm_package: str) -> str | None:
+    npm = npm_executable()
+    if not npm:
+        return None
     try:
-        ls = subprocess.run(["npm", "ls", "-g", npm_package, "--json"],
-                            capture_output=True, text=True, timeout=60,
-                            shell=(os.name == "nt"))
+        ls = subprocess.run([npm, "ls", "-g", npm_package, "--json"],
+                            capture_output=True, text=True, timeout=60)
         deps = json.loads(ls.stdout or "{}").get("dependencies", {})
         return deps.get(npm_package, {}).get("version")
     except (OSError, subprocess.SubprocessError, json.JSONDecodeError):

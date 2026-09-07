@@ -119,16 +119,16 @@ class OptionsTest(tornado.testing.AsyncHTTPTestCase):
     def test_settings_start_empty_and_round_trip(self):
         empty = json.loads(self.fetch("/api/settings",
                                       headers=self._headers()).body)
-        assert empty == {"profile": None, "cwd": None, "thinking": None}
+        assert empty == {"profile": None, "cwd": None, "choices": {}}
         saved = json.loads(self.fetch(
             "/api/settings", method="POST", headers=self._headers(),
             body=json.dumps({"profile": "fake", "cwd": str(self.tmpdir),
-                             "thinking": "omitted"})).body)
+                             "choices": {"thinking": "omitted"}})).body)
         assert saved["profile"] == "fake"
         again = json.loads(self.fetch("/api/settings",
                                       headers=self._headers()).body)
         assert again == {"profile": "fake", "cwd": str(self.tmpdir),
-                         "thinking": "omitted"}
+                         "choices": {"thinking": "omitted"}}
 
     def test_settings_ignore_what_they_do_not_understand(self):
         self.fetch("/api/settings", method="POST", headers=self._headers(),
@@ -136,7 +136,7 @@ class OptionsTest(tornado.testing.AsyncHTTPTestCase):
                                     "cwd": 42}))
         kept = json.loads(self.fetch("/api/settings",
                                      headers=self._headers()).body)
-        assert kept == {"profile": "fake", "cwd": None, "thinking": None}
+        assert kept == {"profile": "fake", "cwd": None, "choices": {}}
 
     def test_a_settings_file_that_is_not_json_is_not_fatal(self):
         # preferences, not state: a corrupt file costs three dropdowns
@@ -145,7 +145,7 @@ class OptionsTest(tornado.testing.AsyncHTTPTestCase):
             "{not json", encoding="utf-8")
         assert json.loads(self.fetch("/api/settings",
                                      headers=self._headers()).body) == \
-            {"profile": None, "cwd": None, "thinking": None}
+            {"profile": None, "cwd": None, "choices": {}}
 
     # ---- archiving --------------------------------------------------------
     def test_archive_hands_the_agent_session_id_to_the_archiver(self):
@@ -182,6 +182,27 @@ async def _until(loop, done, tries=300):
             return
         await asyncio.sleep(0.05)
     raise AssertionError("condition never became true")
+
+
+    def test_a_launch_choice_cannot_overwrite_the_project_directory(self):
+        """The launcher posted `{profile, cwd, ...choices}`, so a profile whose
+        launch choice was called `cwd` (or `profile`) clobbered the real one
+        and the next browser opened on the wrong project. Choices are their own
+        object now — and `thinking`, a profile-defined choice id, is no longer
+        hardcoded in the server's field list (review 2026-09-06)."""
+        body = json.dumps({"profile": "fake", "cwd": "C:\\real",
+                           "choices": {"cwd": "C:\\evil", "thinking": "on",
+                                       "effort": "high"}})
+        resp = self.fetch("/api/settings", method="POST",
+                          headers=self._headers(), body=body)
+        assert resp.code == 200, resp.body
+        saved = json.loads(self.fetch("/api/settings",
+                                      headers=self._headers()).body)
+        assert saved["cwd"] == "C:\\real"
+        assert saved["profile"] == "fake"
+        # any profile-defined choice is kept, under its own key
+        assert saved["choices"] == {"cwd": "C:\\evil", "thinking": "on",
+                                    "effort": "high"}
 
 
 def test_an_agent_session_id_is_never_parsed_as_an_archiver_flag():

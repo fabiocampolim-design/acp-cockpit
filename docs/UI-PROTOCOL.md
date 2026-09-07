@@ -71,9 +71,13 @@ spawned for `session/list` and closed. `{"sessions": [{"sessionId",
 
 ### `GET /api/settings` · `POST /api/settings`
 
-The launcher's last-used choices — `{"profile", "cwd", "thinking"}`, any of
-them null — kept beside the records so a browser that has never been here
-opens on the right project instead of an empty form. Preferences, not state:
+The launcher's last-used choices — `{"profile", "cwd", "choices"}`, the first
+two possibly null and `choices` an object of the PROFILE's own launch-choice
+ids (`thinking` in the shipped profile) — kept beside the records so a browser
+that has never been here opens on the right project instead of an empty form.
+The choices have their own object because they are the profile's namespace,
+not this client's: flat, a choice called `cwd` overwrote the project
+directory. Preferences, not state:
 a View should prefer its own memory when it has one, and treat a corrupt or
 missing store as empty. POST keeps only those three keys, and only strings.
 

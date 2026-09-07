@@ -122,3 +122,27 @@ def test_the_scheduler_wrapper_runs_daily_and_keeps_the_output():
     assert ">>" in ps1 and "2>&1" in ps1
     assert "--daily" in ps1
     assert "Get-ScheduledTaskInfo" in ps1            # verification is part of it
+
+
+def test_the_npm_lookup_never_goes_through_a_shell(monkeypatch):
+    """`shell=(os.name == "nt")` handed the argv LIST to cmd.exe, which joins
+    and re-parses it — so `npm_package`, a value read from a profile file, was
+    interpolated into a command line. npm is resolved as an executable now
+    (npm.cmd on Windows) and run directly (review 2026-09-06)."""
+    seen = {}
+
+    class Done:
+        stdout = "{}"
+
+    def fake_run(cmd, **kw):
+        seen["cmd"] = cmd
+        seen["kw"] = kw
+        return Done()
+
+    monkeypatch.setattr(w.subprocess, "run", fake_run)
+    monkeypatch.setattr(w.shutil, "which", lambda name: "C:\n\npm.cmd")
+    w.installed_version("@scope/pkg & calc.exe")
+    assert not seen["kw"].get("shell")
+    # the package is one argument, whatever it contains
+    assert "@scope/pkg & calc.exe" in seen["cmd"]
+    assert seen["cmd"][0] == "C:\n\npm.cmd"

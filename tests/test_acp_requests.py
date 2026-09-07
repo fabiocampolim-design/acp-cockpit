@@ -151,6 +151,23 @@ def test_load_reaches_ready(tmp_path):
     assert session.acp_session_id == "acp-old"
 
 
+def test_answering_a_permission_with_an_option_that_was_not_offered_raises(
+        tmp_path):
+    """`answer_permission` forwarded any optionId to the agent, though its
+    fail-safe sibling only ever picks from the options actually offered. The
+    approval dialog is the one control over an unconfined shell command, so
+    the answer must be one of the answers this request asked for (2026-09-06)."""
+    session, proc, sink = make_session(tmp_path)
+    do_handshake(session, proc)
+    feed(session, PERM_FRAME)
+    with pytest.raises(StateError):
+        session.answer_permission(44, "allow-everything-for-ever")
+    assert session.pending_permissions() == [44], "the request was consumed"
+    assert not [f for f in sent_frames(proc) if f.get("id") == 44]
+    session.answer_permission(44, "allow")          # a real one still works
+    assert session.pending_permissions() == []
+
+
 def test_a_resumed_session_gets_its_model_selector_too(tmp_path):
     """The session/load epilogue was a divergent copy of the session/new one
     and had lost the `models` emit, so a RESUMED session never showed a model

@@ -687,22 +687,43 @@ class SettingsHandler(BaseHandler):
     dropdowns.
     """
 
-    FIELDS = ("profile", "cwd", "thinking")
+    # `profile` and `cwd` are this client's own; everything else the launcher
+    # offers is a PROFILE-defined launch choice and lives under `choices`.
+    # They used to share one flat object with `thinking` hardcoded here, so a
+    # profile with a launch choice called `cwd` overwrote the project
+    # directory for the next browser (review 2026-09-06).
+    FIELDS = ("profile", "cwd")
 
     def _path(self) -> Path:
         return self.manager.records_dir / "launcher.json"
 
-    def get(self):
+    def _read(self) -> dict:
         try:
             saved = json.loads(self._path().read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             saved = {}
-        self.write_json({k: saved.get(k) for k in self.FIELDS})
+        return saved if isinstance(saved, dict) else {}
+
+    def get(self):
+        saved = self._read()
+        out = {k: saved.get(k) for k in self.FIELDS}
+        choices = saved.get("choices")
+        if not isinstance(choices, dict):
+            # a file written before choices had their own object: everything
+            # that is not one of ours was a launch choice
+            choices = {k: v for k, v in saved.items()
+                       if k not in self.FIELDS and isinstance(v, str)}
+        out["choices"] = choices
+        self.write_json(out)
 
     def post(self):
         body = self.json_body()
         keep = {k: body[k] for k in self.FIELDS
                 if isinstance(body.get(k), str) and body[k]}
+        choices = body.get("choices")
+        keep["choices"] = {k: v for k, v in choices.items()
+                           if isinstance(v, str)} \
+            if isinstance(choices, dict) else {}
         path = self._path()
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -765,7 +786,6 @@ def _latest_versions(npm_package: str | None = None) -> dict:
     generically: a GitHub releases URL and the npm registry, both plain
     HTTPS JSON — no vendor SDKs. `npm_package` comes from the profile."""
     import json as _json
-    import os as _os
     import subprocess as _sp
     import urllib.request as _rq
     out: dict = {"adapter_latest": None, "adapter_installed": None}
@@ -779,9 +799,16 @@ def _latest_versions(npm_package: str | None = None) -> dict:
                      timeout=10) as r:
         out["adapter_latest"] = _json.load(r).get("version")
     try:
-        ls = _sp.run(["npm", "ls", "-g", npm_package, "--json"],
-                     capture_output=True, text=True, timeout=30,
-                     shell=(_os.name == "nt"))
+        # `npm` is `npm.cmd` on Windows, which CreateProcess will not start —
+        # that is why this ran with shell=True. But a shell joins the argv
+        # list back into a command line and re-parses it, so `npm_package`,
+        # read from a profile file, ended up inside a cmd.exe line (review
+        # 2026-09-06). Resolve the executable and run it directly instead.
+        npm = shutil.which("npm")
+        if not npm:
+            raise OSError("npm not on PATH")
+        ls = _sp.run([npm, "ls", "-g", npm_package, "--json"],
+                     capture_output=True, text=True, timeout=30)
         deps = _json.loads(ls.stdout or "{}").get("dependencies", {})
         out["adapter_installed"] = deps.get(npm_package, {}).get("version")
     except Exception:

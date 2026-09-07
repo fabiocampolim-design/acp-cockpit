@@ -610,6 +610,16 @@ class AcpSession:
         self._flush()
 
     def answer_permission(self, request_id: int, option_id: str) -> None:
+        # Only an answer this request actually offered. The dialog is the one
+        # control over a shell command the client cannot confine, and the
+        # fail-safe path has always picked from the offered options — this one
+        # forwarded whatever it was given (review 2026-09-06).
+        offered = self._pending_perms.get(request_id)
+        if offered is not None and not any(
+                o.get("optionId") == option_id for o in offered):
+            raise StateError(
+                f"{option_id!r} is not one of the options offered for "
+                f"permission {request_id}")
         self._resolve_permission(
             request_id, {"outcome": "selected", "optionId": option_id},
             option_id, "user")

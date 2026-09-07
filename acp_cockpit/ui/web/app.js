@@ -114,7 +114,7 @@ async function restoreLauncherSettings() {
   } catch (e) {}
   let remote = {};
   try { remote = await api("/api/settings"); } catch (e) {}
-  launcherMemory = remote || {};
+  launcherMemory = (remote && remote.choices) || {};
   const pick = (k) => local[k] || remote[k] || "";
   const sel = $("#profile");
   const wanted = pick("profile");
@@ -132,8 +132,11 @@ function rememberLauncherSettings(profile, cwd, choices) {
     for (const [id, v] of Object.entries(choices)) localStorage.setItem(choiceKey(id), v);
   } catch (e) {}
   // and on the server, for the next browser that has never been here
+  // choices are the PROFILE's, in their own object: spread flat they shared a
+  // namespace with cwd and profile, so a launch choice called `cwd`
+  // overwrote the project directory (review 2026-09-06)
   api("/api/settings", {method: "POST",
-                        body: JSON.stringify({profile, cwd, ...choices})})
+                        body: JSON.stringify({profile, cwd, choices})})
     .catch(() => {});
 }
 
