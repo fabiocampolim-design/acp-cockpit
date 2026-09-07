@@ -170,7 +170,15 @@ class AcpSession:
 
     def _flush(self):
         for line in self._conn.take_outgoing():
-            self.recorder.append({"dir": "out", "frame": json.loads(line)})
+            frame = json.loads(line)
+            ref = self.recorder.append({"dir": "out", "frame": frame})
+            # Our OWN frames are checked too. The sentinel has always had an
+            # outbound direction and nothing ever called it, so a client
+            # sending a method the pinned registry does not know said nothing
+            # (review 2026-09-06).
+            flags = self.sentinel.check_frame("out", frame)
+            if flags:
+                self._emit("drift", {"flags": flags}, ref)
             self.proc.send_line(line)
 
     def on_line(self, line: str) -> None:

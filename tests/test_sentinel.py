@@ -77,3 +77,20 @@ def test_the_registry_maps_each_vendor_notification_to_its_event():
     assert s.vendor_notifications["_auth/status_update"] == {
         "event": "auth_status", "field": "authStatus"}
     assert all(v["event"] in KINDS for v in s.vendor_notifications.values())
+
+
+def test_the_clients_own_frames_are_checked_and_its_vendor_request_is_known():
+    """The outbound direction was dead in production — `check_frame` was only
+    ever called with "in" — and `_known_out` omitted
+    `vendor_to_agent_requests`, so switching it on would have flagged the
+    client's own `session/set_model` as drift (review 2026-09-06)."""
+    s = Sentinel.load_default()
+    assert s.check_frame("out", {"jsonrpc": "2.0", "id": 1,
+                                 "method": "session/set_model",
+                                 "params": {}}) == []
+    assert s.check_frame("out", {"jsonrpc": "2.0", "id": 2,
+                                 "method": "session/prompt",
+                                 "params": {}}) == []
+    flags = s.check_frame("out", {"jsonrpc": "2.0", "id": 3,
+                                  "method": "session/invented", "params": {}})
+    assert flags == ["unknown-to-agent-method:session/invented"]

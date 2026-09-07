@@ -186,6 +186,20 @@ def test_the_early_update_buffer_is_bounded(tmp_path):
                for e in sink.events)
 
 
+def test_the_client_flags_drift_in_its_own_outbound_frames(tmp_path):
+    """The sentinel has always had an outbound direction and it was never
+    called: only `on_line` checked frames, so a client sending a method the
+    pinned registry does not know said nothing (review 2026-09-06)."""
+    session, proc, sink = make_session(tmp_path)
+    do_handshake(session, proc)
+    before = len([e for e in sink.events if e.kind == "drift"])
+    session._conn.request("session/invented", {}, lambda r, e: None)
+    session._flush()
+    drift = [e for e in sink.events if e.kind == "drift"][before:]
+    assert drift, [e.kind for e in sink.events]
+    assert any("session/invented" in f for f in drift[0].data["flags"])
+
+
 def test_version_mismatch_fails_closed(tmp_path):
     session, proc, sink = make_session(tmp_path)
     session.start(cwd="C:\\w")

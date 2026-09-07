@@ -25,8 +25,13 @@ class Sentinel:
         self.vendor_notifications = (dict(raw) if isinstance(raw, dict)
                                      else {m: {} for m in raw})
         self._known_in |= set(self.vendor_notifications)
+        # The client's own vendor requests count as known too — the registry
+        # has always listed them and this set omitted them, so the outbound
+        # check would have flagged our own `session/set_model` the moment it
+        # was switched on (review 2026-09-06).
         self._known_out = set(registry["to_agent_requests"]) | \
-            set(registry["to_agent_notifications"])
+            set(registry["to_agent_notifications"]) | \
+            set(registry.get("vendor_to_agent_requests", []))
         self._root = set(registry["root_keys"])
         # Schema kinds plus the kinds a known adapter emits outside the schema
         # (claude-agent-acp's subagent/async-task updates, read from its dist

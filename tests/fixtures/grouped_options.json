@@ -1,0 +1,75 @@
+[
+ {
+  "on_method": "initialize",
+  "respond": {
+   "protocolVersion": 1,
+   "agentCapabilities": {},
+   "agentInfo": {
+    "name": "Grouped Agent",
+    "version": "1.0"
+   }
+  }
+ },
+ {
+  "on_method": "session/new",
+  "respond": {
+   "sessionId": "$SESSION",
+   "configOptions": [
+    {
+     "id": "model",
+     "name": "Model",
+     "type": "select",
+     "currentValue": "opus",
+     "options": [
+      {
+       "group": "fast",
+       "name": "Fast",
+       "options": [
+        {
+         "value": "haiku",
+         "name": "Haiku"
+        }
+       ]
+      },
+      {
+       "group": "deep",
+       "name": "Deep",
+       "options": [
+        {
+         "value": "opus",
+         "name": "Opus"
+        },
+        {
+         "value": "fable",
+         "name": "Fable"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ },
+ {
+  "on_method": "session/prompt",
+  "notify": [
+   {
+    "jsonrpc": "2.0",
+    "method": "session/update",
+    "params": {
+     "sessionId": "$SESSION",
+     "update": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+       "type": "text",
+       "text": "grouped ok"
+      }
+     }
+    }
+   }
+  ],
+  "respond": {
+   "stopReason": "end_turn"
+  }
+ }
+]

@@ -728,11 +728,25 @@ class Session {
       } else {
         const sel = document.createElement("select");
         sel.dataset.config = opt.id;
-        for (const o of opt.options || []) {
+        // SessionConfigSelectOptions has two variants: a flat list, and a
+        // list of {group, name, options} GROUPS. Every element was treated as
+        // a flat option, so each group became one entry whose value was the
+        // string "undefined" (review 2026-09-06).
+        const addOption = (o, into) => {
           const el = document.createElement("option");
           el.value = o.value; el.textContent = o.name || o.value;
           if (o.description) el.title = o.description;
-          sel.append(el);
+          into.append(el);
+        };
+        for (const o of opt.options || []) {
+          if (o && Array.isArray(o.options)) {
+            const g = document.createElement("optgroup");
+            g.label = o.name || o.group || "";
+            for (const inner of o.options) addOption(inner, g);
+            sel.append(g);
+          } else {
+            addOption(o, sel);
+          }
         }
         sel.value = opt.currentValue;
         sel.onchange = () => this.send({cmd: "set_config_option",

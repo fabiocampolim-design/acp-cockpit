@@ -31,6 +31,12 @@ def server():
         FIXTURE_PROFILE.format(python=sys.executable)
         .replace('id = "fake"', 'id = "minimal"')
         .replace("basic_turn.json", "minimal_agent.json"), encoding="utf-8")
+    # an agent whose select options arrive in GROUPS (the schema's Grouped
+    # variant of SessionConfigSelectOptions)
+    (profs / "grouped.toml").write_text(
+        FIXTURE_PROFILE.format(python=sys.executable)
+        .replace('id = "fake"', 'id = "grouped"')
+        .replace("basic_turn.json", "grouped_options.json"), encoding="utf-8")
     # an agent that can list its own sessions, for the resume list
     (profs / "sessions.toml").write_text(
         FIXTURE_PROFILE.format(python=sys.executable)
@@ -417,6 +423,34 @@ def test_a_launcher_that_cannot_load_says_so(server):
         page.goto(url)
         page.wait_for_selector("#launcher-error:not([hidden])")
         assert "agent" in page.inner_text("#launcher-error").lower()
+
+
+def test_grouped_select_options_are_real_options(server):
+    """`SessionConfigSelectOptions` has a Grouped variant — a list of
+    `{group, name, options}` — and the View treated every element as a flat
+    option, so each group became one entry whose value was the string
+    "undefined" and whose label was the group's name. Choosing one sent
+    `value: "undefined"` to the agent (review 2026-09-06)."""
+    url, tmp = server
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = pw.chromium.launch().new_page()
+        open_launcher(page, url)
+        page.select_option("#profile", "grouped")
+        page.fill("#cwd", str(tmp))
+        page.click("#start")
+        page.wait_for_selector("#workspace:not([hidden])")
+        page.wait_for_selector('#config-options select[data-config="model"]')
+        values = page.eval_on_selector(
+            '#config-options select[data-config="model"]',
+            "el => [...el.options].map(o => o.value)")
+        assert values == ["haiku", "opus", "fable"], values
+        groups = page.eval_on_selector(
+            '#config-options select[data-config="model"]',
+            "el => [...el.querySelectorAll('optgroup')].map(g => g.label)")
+        assert groups == ["Fast", "Deep"], groups
+        assert page.input_value(
+            '#config-options select[data-config="model"]') == "opus"
 
 
 def test_jump_to_bottom_appears_when_scrolled_away_and_follows_again(server):

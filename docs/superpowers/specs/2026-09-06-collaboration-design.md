@@ -32,10 +32,11 @@ adapter process, one account, one ACP session per shared session.
 In the first week of September 2026 a three-way team chat (two people and
 one Claude session) was run on this machine: a local Python server, a
 public tunnel, a watchdog, and a monitor inside the Claude session. Six
-incidents in six days. Its lessons file is kept outside this repository
-(`docs/external/`, ignored) because it belongs to a private project; what
-generalises is written here, and each item below is a requirement of this
-design, not a remark.
+incidents in six days. Its lessons file is untracked and unpublished
+(`docs/external/`, gitignored) because it belongs to a private project — it
+sits in the working tree, so never `git add -f` it and never quote it. Only
+what generalises is written here, in general terms, and each item below is a
+requirement of this design, not a remark.
 
 | # | Lesson | Requirement in this design |
 |---|---|---|
