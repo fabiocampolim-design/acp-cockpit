@@ -193,3 +193,46 @@ def test_a_real_adapter_records_its_process_group(tmp_path):
         on_line=lines.append, on_stderr=lines.append, on_exit=lambda c: None)
     assert proc._pgid == proc.pid
     proc.kill()
+
+
+class FakeLoop:
+    def __init__(self):
+        self.scheduled = []
+        self.stopped = False
+
+    def add_callback_from_signal(self, fn, *a):
+        self.scheduled.append(lambda: fn(*a))
+
+    def stop(self):
+        self.stopped = True
+
+
+class FakeManager:
+    def __init__(self):
+        self.closed = []
+
+    def close_all(self, wait=False):
+        self.closed.append(wait)
+
+
+def test_a_signal_schedules_the_teardown_instead_of_running_it():
+    """The SIGINT/SIGTERM handler ran the whole teardown inline. A signal
+    handler runs between bytecodes on the main thread, so that re-entered the
+    IOLoop's timeout heap and wrote to WebSockets from inside it, and blocked
+    for up to the grace period PER SESSION before the loop was told to stop
+    (review 2026-09-06). The handler schedules; the loop does the work."""
+    from acp_cockpit.__main__ import make_shutdown
+    loop, mgr = FakeLoop(), FakeManager()
+    handler = make_shutdown(mgr, loop)
+
+    handler(2, None)                     # as the signal module calls it
+    assert mgr.closed == [], "the teardown ran inside the signal handler"
+    assert len(loop.scheduled) == 1
+
+    loop.scheduled[0]()
+    assert mgr.closed == [True], mgr.closed
+    assert loop.stopped
+
+    # a second Ctrl+C must not queue a second teardown on top of the first
+    handler(2, None)
+    assert len(loop.scheduled) == 1

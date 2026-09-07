@@ -7,6 +7,7 @@ import warnings
 from pathlib import Path
 
 from acp_cockpit.core.transcript import write_markdown
+from acp_cockpit.server.app import LocalFiles
 
 
 def _record(path):
@@ -32,7 +33,8 @@ def test_writing_the_transcript_leaves_no_handle_on_the_live_record(tmp_path):
     gc.collect()          # other tests' garbage is not this test's evidence
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        written = write_markdown(record, tmp_path / "out", "agent-1", "T")
+        written = write_markdown(record, tmp_path / "out", "agent-1", "T",
+                                 files=LocalFiles())
         gc.collect()
     # only a handle on THIS test's record counts (the fixture helpers leave
     # Recorders open in other tests, and their file is also called s1.jsonl)
@@ -54,7 +56,8 @@ def test_the_agents_session_id_cannot_escape_the_destination(tmp_path):
     outside the directory the user picked (review 2026-09-06)."""
     record = _record(tmp_path / "s1.jsonl")
     dest = tmp_path / "dest" / "sub"
-    written = write_markdown(record, dest, "../../../pwned", "T")
+    written = write_markdown(record, dest, "../../../pwned", "T",
+                             files=LocalFiles())
     assert Path(written).parent == dest, written
     assert not (tmp_path / "dest" / "pwned.md").exists()
     assert not (tmp_path / "pwned.md").exists()
@@ -66,6 +69,42 @@ def test_a_hostile_session_id_still_produces_a_readable_transcript(tmp_path):
     record = _record(tmp_path / "s1.jsonl")
     dest = tmp_path / "dest"
     for hostile in ("../../etc/passwd", "a/b/c", "..", "", "  ", "/abs/path"):
-        written = write_markdown(record, dest, hostile, "T")
+        written = write_markdown(record, dest, hostile, "T",
+                                 files=LocalFiles())
         assert Path(written).parent == dest, (hostile, written)
         assert "hello world" in Path(written).read_text(encoding="utf-8")
+
+
+def test_the_transcript_writer_goes_through_the_file_port(tmp_path):
+    """AGENTS.md: core does no real I/O of its own — the outside world comes
+    through core/ports.py. `write_markdown` read the record and wrote the
+    destination itself, which is exactly the session-path I/O the rule is
+    about (review 2026-09-06)."""
+    record = _record(tmp_path / "s1.jsonl")
+
+    class RecordingFiles:
+        def __init__(self):
+            self.made, self.written, self.read = [], {}, []
+
+        def read_text(self, path):
+            self.read.append(str(path))
+            return Path(path).read_text(encoding="utf-8")
+
+        def write_text(self, path, content):
+            self.written[str(path)] = content
+
+        def make_dir(self, path):
+            self.made.append(str(path))
+
+        def is_dir(self, path):
+            return Path(path).is_dir()
+
+    files = RecordingFiles()
+    dest = tmp_path / "out" / "deep"
+    written = write_markdown(record, dest, "agent-1", "T", files=files)
+    assert files.read == [str(record)]
+    assert files.made == [str(dest)]
+    assert list(files.written) == [written]
+    assert "hello world" in files.written[written]
+    # nothing was actually created: core touched no filesystem of its own
+    assert not dest.exists()

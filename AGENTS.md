@@ -37,8 +37,14 @@ thing that works (2026-09-05).
 ## Layer rules (enforce these in review)
 
 - `acp_cockpit/core/` imports **stdlib only** and does no real I/O except
-  `record.py` writing its own files; the outside world comes through
-  `core/ports.py`. Never import tornado in core.
+  two carve-outs: `record.py` writing its own files, and the read-only
+  loading of resources that SHIP INSIDE THE PACKAGE — `acp_cockpit/agents/*.toml`
+  (`profiles.py`), `acp_cockpit/uiname.toml` (`branding.py`) and
+  `acp_cockpit/vendor/acp/registry.json` (`sentinel.py`). Those are read once at
+  start-up and cannot vary at run time, so a port would buy nothing.
+  Everything else — anything on a path the user or the agent chose —
+  goes through `core/ports.py`; `transcript.py` takes a `FileAccess`
+  for exactly that reason (review 2026-09-06). Never import tornado in core.
 - `acp_cockpit/ui/web/` consumes **only** `docs/UI-PROTOCOL.md`. If the UI
   needs something new, extend the doc and `tests/test_docs_sync.py` first.
 - Everything agent-specific lives in `acp_cockpit/agents/*.toml`

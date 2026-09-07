@@ -102,16 +102,21 @@ def safe_stem(session_id: str) -> str:
 
 
 def write_markdown(record_path, dest_dir, session_id: str,
-                   title: str | None = None) -> str:
-    """Render `record_path` into `dest_dir`; returns the path written."""
+                   title: str | None = None, *, files) -> str:
+    """Render `record_path` into `dest_dir`; returns the path written.
+
+    `files` is a `core.ports.FileAccess`. Core does its own I/O nowhere but
+    `record.py`: this function used to open both files itself, which is
+    precisely the session-path I/O the layer rule is about (review
+    2026-09-06). Reading through the port also keeps the promise that no
+    handle is left on the live record — a Recorder opens it for APPEND and
+    the first version of this never closed it.
+    """
     dest = Path(dest_dir)
-    dest.mkdir(parents=True, exist_ok=True)
-    # Read, never a Recorder: a Recorder opens the file for APPEND and this
-    # one was never closed — a leaked handle on the live record per archive
-    # (review 2026-09-06).
-    with open(record_path, encoding="utf-8") as f:
-        entries = [(i, json.loads(line)) for i, line in enumerate(f, 1)
-                   if line.strip()]
+    files.make_dir(str(dest))
+    text = files.read_text(str(record_path))
+    entries = [(i, json.loads(line))
+               for i, line in enumerate(text.splitlines(), 1) if line.strip()]
     target = dest / f"acp-cockpit-{safe_stem(session_id)}.md"
-    target.write_text(render_markdown(entries, title), encoding="utf-8")
+    files.write_text(str(target), render_markdown(entries, title))
     return str(target)

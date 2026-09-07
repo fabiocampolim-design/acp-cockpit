@@ -40,6 +40,30 @@ def default_records() -> Path:
     return new
 
 
+def make_shutdown(manager, loop):
+    """The SIGINT/SIGTERM handler: schedule the teardown, never run it here.
+
+    A signal handler runs between bytecodes on the main thread. Doing the whole
+    of `close_all(wait=True)` inside it re-entered the IOLoop's timeout heap and
+    wrote to WebSockets from within a handler, and blocked for up to the grace
+    period PER SESSION before the loop was even told to stop (review
+    2026-09-06). Scheduling costs one loop iteration and makes the teardown
+    ordinary code. Idempotent: a second Ctrl+C must not queue a second one.
+    """
+    state = {"asked": False}
+
+    def teardown():
+        manager.close_all(wait=True)
+        loop.stop()
+
+    def shutdown(*_):
+        if state["asked"]:
+            return
+        state["asked"] = True
+        loop.add_callback_from_signal(teardown)
+    return shutdown
+
+
 def main():
     ap = argparse.ArgumentParser(prog="acp-cockpit")
     ap.add_argument("--port", type=int, default=0,
@@ -96,9 +120,7 @@ def main():
 
     loop = tornado.ioloop.IOLoop.current()
 
-    def shutdown(*_):
-        app.manager.close_all(wait=True)
-        loop.add_callback_from_signal(loop.stop)
+    shutdown = make_shutdown(app.manager, loop)
     # Ctrl+C, a polite SIGTERM (POSIX) and an ordinary interpreter exit all
     # end the adapters; a hard kill on Windows is covered by the job object
     # each adapter runs in (server/procs.py). Ten orphaned adapter CLIs from

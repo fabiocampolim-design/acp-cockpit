@@ -52,6 +52,9 @@ class LocalFiles:
     def is_dir(self, path: str) -> bool:
         return os.path.isdir(path)
 
+    def make_dir(self, path: str) -> None:
+        Path(path).mkdir(parents=True, exist_ok=True)
+
 
 class AgentSessionBusy(Exception):
     """Another live session is already attached to that agent session."""
@@ -623,7 +626,8 @@ class ArchiveHandler(BaseHandler):
                                              "a transcript from"})
         try:
             written = await tornado.ioloop.IOLoop.current().run_in_executor(
-                None, write_markdown, record, dest, agent_session, entry.title)
+                None, _write_transcript, record, dest, agent_session,
+                entry.title)
         except OSError as exc:
             self.set_status(502)
             return self.write_json({"ok": False, "output": [],
@@ -635,6 +639,12 @@ class ArchiveHandler(BaseHandler):
                        "answers, thinking and tool-call titles. The full "
                        "document needs --archiver.",
             "command": None, "detail": None})
+
+
+def _write_transcript(record, dest, session_id, title):
+    """The built-in Markdown archive, with the host's file access supplied —
+    core writes nothing on its own (AGENTS.md layer rule)."""
+    return write_markdown(record, dest, session_id, title, files=LocalFiles())
 
 
 def archiver_cmd(archiver: str, session_id: str, fmt: str,
