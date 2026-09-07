@@ -298,6 +298,15 @@ class AcpSession:
         self._set_state("failed", detail)
         self.proc.kill()
 
+    def fail_to_start(self, detail: str) -> None:
+        """Give up on an agent that launched but never finished starting.
+        The server arms this; only a session still in `starting` is affected."""
+        if self.state != "starting":
+            return
+        self._emit("anomaly", {"category": "startup-timeout", "detail": detail})
+        self._conn.fail_all({"message": detail})
+        self._fail(detail)
+
     def close(self) -> None:
         if self.state not in ("failed", "closed"):
             self._set_state("closed")
@@ -318,6 +327,10 @@ class AcpSession:
         detail = f"adapter exited with code {code}"
         recoverable = self.state == "turn"
         self._emit("anomaly", {"category": "adapter-exit", "detail": detail})
+        # Nothing is coming back down a dead pipe. Answer every request that
+        # was still waiting — above all the open turn, which otherwise never
+        # ended for any View that reattached (review 2026-09-06).
+        self._conn.fail_all({"message": detail})
         self._set_state("failed", "recoverable: " + detail if recoverable
                         else detail)
 
@@ -353,7 +366,10 @@ class AcpSession:
             self._emit("turn_ended", {"stop_reason": "error",
                                       "error": {"code": err.get("code"),
                                                 "message": message}})
-            self._set_state("ready")
+            if not self._exited:
+                # a turn failed by the adapter's death does not return the
+                # session to `ready`; on_exit sets the final state
+                self._set_state("ready")
             return
         self._emit("turn_ended",
                    {"stop_reason": (result or {}).get("stopReason")})

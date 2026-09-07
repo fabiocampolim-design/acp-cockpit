@@ -133,6 +133,21 @@ def test_a_boolean_config_option_carries_its_type_discriminator(tmp_path):
     assert "type" not in frame["params"]
 
 
+def test_an_adapter_that_dies_mid_turn_still_ends_the_turn(tmp_path):
+    """No client request had a timeout and `_pending` was never failed when
+    the transport died, so an adapter killed mid-turn never invoked
+    `_on_turn_end`: no turn_ended was emitted and a View that reattached
+    replayed a turn that opened and never closed (review 2026-09-06)."""
+    session, proc, sink = make_session(tmp_path)
+    do_handshake(session, proc)
+    session.prompt("go")
+    assert session.state == "turn"
+    session.on_exit(137)                       # OOM-killed, say
+    ended = [e for e in sink.events if e.kind == "turn_ended"]
+    assert ended, [e.kind for e in sink.events]
+    assert ended[0].data["stop_reason"] == "error"
+
+
 def test_version_mismatch_fails_closed(tmp_path):
     session, proc, sink = make_session(tmp_path)
     session.start(cwd="C:\\w")

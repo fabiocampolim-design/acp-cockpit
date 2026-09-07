@@ -62,6 +62,20 @@ class JsonRpcConn:
         else:
             self._on_anomaly("malformed", "neither method nor id", frame)
 
+    def fail_all(self, error: dict) -> int:
+        """Answer every request still waiting, with `error`.
+
+        The transport can die — the adapter is OOM-killed, the pipe breaks —
+        and then no response is ever coming. Left alone, `_pending` simply
+        held the callbacks: a turn that was open when the adapter died never
+        ended, so a View that reattached replayed a turn with no separator and
+        no stop reason (review 2026-09-06). Returns how many were failed.
+        """
+        pending, self._pending = self._pending, {}
+        for cb in pending.values():
+            cb(None, error)
+        return len(pending)
+
     def take_outgoing(self) -> list[str]:
         out, self._out = self._out, []
         return out

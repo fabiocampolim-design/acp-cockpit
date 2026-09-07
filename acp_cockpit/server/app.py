@@ -7,7 +7,7 @@ import os
 import shutil
 import string
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import tornado.concurrent
@@ -69,6 +69,11 @@ class Entry:
     cwd: str
     title: str | None = None
     resume_of: str | None = None      # agent session this one attached to
+    # armed fail-safe timeouts, keyed (event kind, request id), and the loop
+    # that owns them — so closing the session can cancel them (review
+    # 2026-09-06)
+    timers: dict = field(default_factory=dict)
+    loop: object = None
 
     @property
     def agent_session(self) -> str | None:
@@ -97,7 +102,8 @@ class SessionManager:
 
     def __init__(self, profiles_dir: Path, records_dir: Path,
                  permission_timeout: float = 3600.0,
-                 dead_ttl: float = 600.0):
+                 dead_ttl: float = 600.0,
+                 startup_timeout: float = 180.0):
         dirs = ([profiles_dir] if isinstance(profiles_dir, (str, Path))
                 else list(profiles_dir))
         self.profiles = load_profiles(*dirs)
@@ -108,7 +114,18 @@ class SessionManager:
         # kept for the life of the process and every reload re-created a
         # dead tab for each (audit 2026-09-04 R2, review 2026-09-05).
         self.dead_ttl = dead_ttl
+        # How long a session may stay in "starting". An adapter that launches
+        # and then hangs — an auth prompt on stdin, a wedged CLI — never
+        # reached a failed state, and `evict` only arms from one, so the
+        # entry, its record and its process tree lived for the life of the
+        # server (review 2026-09-06).
+        self.startup_timeout = startup_timeout
         self._entries: dict[str, Entry] = {}
+        # Probe adapters: real processes, not sessions. They were reachable
+        # only from a closure and a 30 s timer, so a shutdown inside that
+        # window left the tree running — close_all() iterates `_entries`
+        # alone (review 2026-09-06).
+        self._probes: dict[str, object] = {}
 
     def _spawn(self, profile, cwd, sid, sink, client_options=None,
                ephemeral=False):
@@ -125,20 +142,29 @@ class SessionManager:
             on_line=marshal(lambda ln: holder["s"].on_line(ln)),
             on_stderr=marshal(lambda ln: holder["s"].on_stderr(ln)),
             on_exit=marshal(lambda code: holder["s"].on_exit(code)))
-        recorder = Recorder(self.records_dir / f"{sid}.jsonl",
-                            ephemeral=ephemeral)
-        # First record of every session: what was launched and which
-        # runtime it was pointed at — the answer to "which CLI ran this?".
-        recorder.append({"dir": "client", "action": "spawn",
-                         "command": list(profile.command),
-                         "env_resolved": proc.resolved_env,
-                         "tree_guard": proc.tree_guard})
-        session = AcpSession(
-            sid=sid, profile=profile, proc=proc, sink=sink,
-            recorder=recorder,
-            sentinel=Sentinel.load_default(),
-            policy=PathPolicy(cwd), files=LocalFiles(),
-            client_options=client_options)
+        # Everything from here on can fail — a read-only records directory, a
+        # full disk, a broken install — and the adapter is ALREADY running.
+        # Without this guard the entry never reached `_entries`, so close_all
+        # could not see the tree and no reference to kill() survived: the
+        # ten-orphans incident through the error path (review 2026-09-06).
+        try:
+            recorder = Recorder(self.records_dir / f"{sid}.jsonl",
+                                ephemeral=ephemeral)
+            # First record of every session: what was launched and which
+            # runtime it was pointed at — "which CLI ran this?".
+            recorder.append({"dir": "client", "action": "spawn",
+                             "command": list(profile.command),
+                             "env_resolved": proc.resolved_env,
+                             "tree_guard": proc.tree_guard})
+            session = AcpSession(
+                sid=sid, profile=profile, proc=proc, sink=sink,
+                recorder=recorder,
+                sentinel=Sentinel.load_default(),
+                policy=PathPolicy(cwd), files=LocalFiles(),
+                client_options=client_options)
+        except BaseException:
+            proc.kill()
+            raise
         holder["s"] = session
         return session, loop
 
@@ -169,6 +195,15 @@ class SessionManager:
             session.load(resume, cwd)
         else:
             session.start(cwd)
+
+        def give_up():
+            if session.state == "starting" and \
+                    self._entries.get(sid) is entry:
+                session.fail_to_start(
+                    f"the agent did not finish starting within "
+                    f"{self.startup_timeout:g}s")
+        if self.startup_timeout:
+            loop.call_later(self.startup_timeout, give_up)
         return sid
 
     def list_agent_sessions(self, profile_id: str, cwd: str):
@@ -178,10 +213,12 @@ class SessionManager:
         sid = "probe-" + uuid.uuid4().hex[:8]
         sink = BufferedSink(sid)
         session, loop = self._spawn(profile, cwd, sid, sink, ephemeral=True)
+        self._probes[sid] = session
         future = tornado.concurrent.Future()
 
         def done(sessions, error):
             session.close()
+            self._probes.pop(sid, None)
             if not future.done():
                 future.set_result({"sessions": sessions,
                                    "error": (error or {}).get("message")
@@ -193,7 +230,13 @@ class SessionManager:
 
     def _watch_events(self, entry, loop):
         session, sink = entry.session, entry.sink
-        timers: dict[tuple, object] = {}
+        # On the ENTRY, not in the closure: an armed fail-safe (an hour by
+        # default) kept the session, its recorder, its sink and its adapter
+        # reachable long after a close or an eviction, then fired against a
+        # torn-down session — writing its decision into a closed record, which
+        # silently dropped it (review 2026-09-06). `close` cancels them.
+        timers: dict[tuple, object] = entry.timers
+        entry.loop = loop
         asked_by = {resolved: asked
                     for asked, (resolved, _, _) in self.PENDING_KINDS.items()}
         original_emit = sink.emit
@@ -239,7 +282,22 @@ class SessionManager:
     def close(self, sid):
         entry = self._entries.pop(sid, None)
         if entry:
+            self._cancel_timers(entry)
             entry.session.close()
+
+    @staticmethod
+    def _cancel_timers(entry):
+        loop = entry.loop
+        while entry.timers:
+            _, timer = entry.timers.popitem()
+            if loop is not None:
+                loop.remove_timeout(timer)
+
+    def pending_timers(self, sid) -> dict:
+        """The fail-safe timeouts still armed for a session (tests, and the
+        guarantee that closing one cancels them)."""
+        entry = self._entries.get(sid)
+        return dict(entry.timers) if entry else {}
 
     def close_all(self, wait: bool = False):
         """`wait=True` on the shutdown paths: kill() escalates on a daemon
@@ -247,8 +305,11 @@ class SessionManager:
         grace period ends — a SIGTERM-resistant tree survived exactly the
         way the job object was meant to prevent (review 2026-09-05)."""
         procs = [e.session.proc for e in self._entries.values()]
+        procs += [s.proc for s in self._probes.values()]
         for sid in list(self._entries):
             self.close(sid)
+        for sid in list(self._probes):
+            self._probes.pop(sid).close()
         if wait:
             for proc in procs:
                 finish = getattr(proc, "finish", None)

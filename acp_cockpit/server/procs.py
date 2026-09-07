@@ -145,6 +145,13 @@ class SubprocessAgentProcess:
             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.PIPE, text=True, encoding="utf-8",
             errors="replace", bufsize=1, **popen_kwargs)
+        # The process group to signal when the adapter dies, captured NOW.
+        # `_reap` used to read `self._proc.pid` on the line after wait() had
+        # reaped the leader, by which time the kernel may have handed that
+        # pid to somebody else and the SIGKILL landed on an unrelated group
+        # (review 2026-09-06). start_new_session makes the adapter the leader,
+        # so its pid is the pgid.
+        self._pgid = self._proc.pid if os.name != "nt" else None
         self._job = _job_for(self._proc._handle) if os.name == "nt" else None
         # Whether the tree is protected against a hard kill of this server:
         # a job object on Windows, PDEATHSIG on Linux. Recorded with the
@@ -181,13 +188,14 @@ class SubprocessAgentProcess:
                 # the adapter is gone; closing the job takes any stragglers
                 _close_job(self._job)
                 self._job = None
-        if os.name != "nt":
+        if os.name != "nt" and self._pgid:
             # The adapter died — by our kill or by itself. Its process group
-            # (its pid, since it started the session) may still hold the
-            # CLI it spawned: nothing else reaps that on POSIX (review
-            # 2026-09-06). ProcessLookupError = the group is already empty.
+            # may still hold the CLI it spawned: nothing else reaps that on
+            # POSIX (review 2026-09-06). The pgid is the one captured at
+            # spawn, never a pid re-read after wait() freed it.
+            # ProcessLookupError = the group is already empty.
             try:
-                os.killpg(self._proc.pid, signal.SIGKILL)
+                os.killpg(self._pgid, signal.SIGKILL)
             except (OSError, ProcessLookupError):
                 pass
         self._on_exit(code)
