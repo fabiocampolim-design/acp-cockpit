@@ -42,6 +42,17 @@ def test_version_compare():
     assert len(flags) == 2 and any("schema" in f for f in flags)
 
 
+def test_an_unresolvable_installed_version_is_flagged_unknown_not_silently_current():
+    # /api/drift's own npm ls -g lookup can fail the same way the daily watch
+    # script's did (2026-09-16): adapter comes back None while latest_adapter
+    # is known. Silence here means the UI's drift chip stays hidden and its
+    # Help text says "Nothing is behind" -- false, not "confirmed current".
+    s = Sentinel(REG)
+    flags = s.compare_versions("v1.0.0", "v1.0.0", None, "1.9.9")
+    assert flags and any("unknown" in f for f in flags)
+    assert not any("behind" in f for f in flags)      # not knowing != behind
+
+
 def test_vendor_update_kinds_the_adapter_is_known_to_send_are_not_drift():
     # claude-agent-acp 0.73/0.75 can emit these outside the pinned schema
     # (read from its dist, review 2026-09-05); known is not drift.

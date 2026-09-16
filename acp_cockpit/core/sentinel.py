@@ -80,4 +80,6 @@ class Sentinel:
             flags.append(f"schema-behind:pinned={pinned_schema},latest={latest_schema}")
         if latest_adapter and adapter and latest_adapter != adapter:
             flags.append(f"adapter-behind:installed={adapter},latest={latest_adapter}")
+        elif latest_adapter and not adapter:
+            flags.append(f"adapter-unknown:latest={latest_adapter}")
         return flags

@@ -380,6 +380,28 @@ class DriftCacheTest(tornado.testing.AsyncHTTPTestCase):
         assert first["flags"] and first["flags"] == second["flags"]
         assert calls == ["some-adapter"], calls
 
+    def test_an_unresolvable_installed_version_flags_unknown_not_silently_current(self):
+        # Same class of failure the daily watch script hit on 2026-09-16:
+        # the npm lookup behind adapter_installed can come back None while
+        # adapter_latest is known. That must not read as "nothing is
+        # behind" to whoever is checking the drift chip after an upgrade.
+        from acp_cockpit.server import app as appmod
+
+        def fake_latest(pkg):
+            return {"schema": "schema-v1.21.0", "adapter_latest": "9.9.9",
+                    "adapter_installed": None}
+        appmod._DRIFT_CACHE.clear()
+        original = appmod._latest_versions
+        appmod._latest_versions = fake_latest
+        try:
+            h = {"Cookie": f"acp_cockpit_token={self.auth.token}"}
+            result = json.loads(self.fetch("/api/drift", headers=h).body)
+        finally:
+            appmod._latest_versions = original
+            appmod._DRIFT_CACHE.clear()
+        assert any("unknown" in f for f in result["flags"])
+        assert not any("-behind" in f for f in result["flags"])
+
 
 class ProfilesCarryLaunchChoicesTest(ServerTest):
     def test_profiles_route_carries_the_launch_choices(self):

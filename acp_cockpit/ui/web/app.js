@@ -183,10 +183,13 @@ async function checkVersions() {
   try { driftInfo = await api("/api/drift"); } catch (e) { driftInfo = {error: e.message}; }
   const chip = $("#update-chip");
   const flags = (driftInfo && driftInfo.flags) || [];
-  chip.hidden = flags.length === 0;
-  if (flags.length) {
+  // "adapter-unknown" means the lookup couldn't tell, not that an update is
+  // due -- the chip only fires for a confirmed "-behind" (schema or adapter).
+  const behind = flags.filter(f => f.includes("-behind"));
+  chip.hidden = behind.length === 0;
+  if (behind.length) {
     chip.textContent = "update";
-    chip.title = "behind the latest published version:\n" + flags.join("\n") +
+    chip.title = "behind the latest published version:\n" + behind.join("\n") +
       "\n(details in Help)";
   }
 }
@@ -206,9 +209,16 @@ function describeVersions() {
                  `${d.latest.adapter_installed || "unknown"}, latest ` +
                  `${d.latest.adapter_latest || "?"}.`);
     }
-    lines.push((d.flags || []).length
-      ? "Behind: " + d.flags.join("; ") + "."
-      : "Nothing is behind.");
+    const flags = d.flags || [];
+    const behind = flags.filter(f => f.includes("-behind"));
+    const unknown = flags.filter(f => f.startsWith("adapter-unknown"));
+    // "Nothing is behind" asserts a confirmed match; not knowing the
+    // installed version is a different state and must not read as that one
+    // -- and neither may silently drop the other when both are present.
+    const parts = [];
+    if (behind.length) parts.push("Behind: " + behind.join("; "));
+    if (unknown.length) parts.push("Could not confirm: " + unknown.join("; "));
+    lines.push(parts.length ? parts.join(" ") + "." : "Nothing is behind.");
   } else if ((d.flags || []).length) {
     lines.push(d.flags.join("; "));
   }

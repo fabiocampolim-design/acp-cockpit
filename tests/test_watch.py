@@ -131,13 +131,10 @@ def test_the_npm_lookup_never_goes_through_a_shell(monkeypatch):
     (npm.cmd on Windows) and run directly (review 2026-09-06)."""
     seen = {}
 
-    class Done:
-        stdout = "{}"
-
     def fake_run(cmd, **kw):
         seen["cmd"] = cmd
         seen["kw"] = kw
-        return Done()
+        return w.subprocess.CompletedProcess(cmd, 0, "{}", "")
 
     monkeypatch.setattr(w.subprocess, "run", fake_run)
     monkeypatch.setattr(w.shutil, "which", lambda name: "C:\n\npm.cmd")
@@ -189,3 +186,56 @@ def test_a_not_installed_reason_reaches_the_audit_log(env, monkeypatch):
     assert run(env) == 0
     logs = list(env["logs"].glob("watch-*.log"))
     assert "npm not found on PATH" in logs[0].read_text(encoding="utf-8")
+
+
+def test_npm_ran_but_the_package_is_not_in_its_output_gives_a_reason(monkeypatch):
+    """The likeliest real cause behind the 2026-09-16 run: npm ls -g succeeds
+    (valid JSON, exit 0) but resolves a different global prefix than the one
+    the package was installed under (a Task Scheduler run's S4U token can
+    differ from an interactive login's) -- so the package is simply absent
+    from ITS output. That is not a crash and not caught by any except above;
+    it needs its own reason, which should hint at the actual cause."""
+    monkeypatch.setattr(w.shutil, "which", lambda name: "npm.cmd")
+
+    def fake_run(cmd, **kw):
+        return w.subprocess.CompletedProcess(cmd, 0, "{}", "")
+    monkeypatch.setattr(w.subprocess, "run", fake_run)
+    version, reason = w.installed_version("@agentclientprotocol/claude-agent-acp")
+    assert version is None
+    assert "prefix" in reason.lower()
+
+
+def test_npm_ls_timeout_gives_a_reason(monkeypatch):
+    monkeypatch.setattr(w.shutil, "which", lambda name: "npm.cmd")
+
+    def timeout(cmd, **kw):
+        raise w.subprocess.TimeoutExpired(cmd, kw.get("timeout", 60))
+    monkeypatch.setattr(w.subprocess, "run", timeout)
+    version, reason = w.installed_version("@agentclientprotocol/claude-agent-acp")
+    assert version is None
+    assert "timed out" in reason
+
+
+def test_npm_ls_bad_json_gives_a_reason(monkeypatch):
+    monkeypatch.setattr(w.shutil, "which", lambda name: "npm.cmd")
+
+    def fake_run(cmd, **kw):
+        return w.subprocess.CompletedProcess(cmd, 0, "not json", "")
+    monkeypatch.setattr(w.subprocess, "run", fake_run)
+    version, reason = w.installed_version("@agentclientprotocol/claude-agent-acp")
+    assert version is None
+    assert "JSON" in reason
+
+
+def test_an_unresolvable_install_reports_unknown_not_up_to_date(env, monkeypatch):
+    """2026-09-16's real report said 'installed not installed ... up to date'
+    -- False: not knowing the installed version is not the same as knowing it
+    matches latest. render() must not claim a state it cannot support."""
+    monkeypatch.setattr(w, "installed_version",
+                        lambda pkg: (None, "npm not found on PATH"))
+    assert run(env) == 0
+    report = (env["outdir"] / "2026-09-05.md").read_text(encoding="utf-8")
+    adapter_line = report.split("## Adapter")[1].split("##")[0]
+    assert "UNKNOWN" in adapter_line
+    assert "up to date" not in adapter_line.lower()
+    assert "BEHIND" not in adapter_line

@@ -92,8 +92,12 @@ def installed_version(npm_package: str) -> tuple[str | None, str | None]:
         deps = json.loads(ls.stdout or "{}").get("dependencies", {})
         version = deps.get(npm_package, {}).get("version")
         if version is None:
-            detail = (getattr(ls, "stderr", "") or getattr(ls, "stdout", "") or "").strip()[:300]
-            return None, f"npm ls -g exit {getattr(ls, 'returncode', '?')}: {detail}"
+            detail = (ls.stderr or ls.stdout or "no dependencies listed").strip()[:300]
+            return None, (f"npm ls -g exit {ls.returncode}: {detail} -- npm ran and "
+                          f"returned valid JSON but the package wasn't in it; the "
+                          f"likeliest cause is a global prefix mismatch (`npm config "
+                          f"get prefix`), since a scheduled run's token can resolve a "
+                          f"different one than an interactive login")
         return version, None
     except subprocess.TimeoutExpired:
         return None, "npm ls -g timed out after 60s"
@@ -170,15 +174,24 @@ def delta(now: dict, before: dict | None) -> dict:
 def render(today: str, target: dict, now: dict, new: dict) -> str:
     inst, latest = now["adapter_installed"], now["adapter_latest"]
     behind = inst is not None and latest is not None and inst != latest
+    if inst is None:
+        # Not knowing the installed version is not the same as knowing it
+        # matches latest -- a 2026-09-16 run said "not installed ... up to
+        # date" for exactly this case, which is false either way.
+        adapter_status = ("**UNKNOWN** — could not determine the installed "
+                          "version; see the audit log for why")
+    elif behind:
+        adapter_status = ("**BEHIND** — upgrade, then run the contract tier "
+                          "and recreate any patched copy")
+    else:
+        adapter_status = "up to date"
     schema_behind = now["schema_latest"] and now["schema_latest"] != target["pinned_schema"]
     lines = [f"# Upstream watch — {today}", "",
              f"*acp-cockpit {__version__}; profile `{target['profile']}`; "
              f"written by `scripts/watch_upstream.py`.*", "",
              "## Adapter", "",
              f"- `{target['npm_package']}`: installed {inst or 'not installed'}, "
-             f"latest {latest or '?'} — "
-             + ("**BEHIND** — upgrade, then run the contract tier and recreate "
-                "any patched copy" if behind else "up to date"),
+             f"latest {latest or '?'} — " + adapter_status,
              ]
     if now["adapter_versions"]:
         recent = sorted(now["adapter_versions"].items(), key=lambda kv: kv[1])[-5:]
