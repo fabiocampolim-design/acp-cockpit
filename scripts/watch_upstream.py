@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -53,26 +54,53 @@ def _get(url: str, timeout: int = 30):
         return json.load(r)
 
 
+def _npm_fallback_paths() -> list[Path]:
+    """Where npm lives when it is not on PATH. A Task Scheduler run does not
+    inherit an interactive shell's PATH the way a login session does; the
+    Node.js MSI's own install directory is a steadier source of truth."""
+    return [Path(base) / "nodejs" / "npm.cmd"
+            for base in (os.environ.get("ProgramFiles"),
+                         os.environ.get("ProgramFiles(x86)")) if base]
+
+
 def npm_executable() -> str | None:
     """npm itself, resolved. `shell=True` was how this ran on Windows, where
     `npm` is `npm.cmd` and CreateProcess will not start it — but a shell joins
     the argv list back into a command line and re-parses it, so a package name
     read from a profile file ended up inside a cmd.exe line (review
     2026-09-06). Resolving the executable needs no shell."""
-    return shutil.which("npm")
+    which = shutil.which("npm")
+    if which:
+        return which
+    for candidate in _npm_fallback_paths():
+        if candidate.is_file():
+            return str(candidate)
+    return None
 
 
-def installed_version(npm_package: str) -> str | None:
+def installed_version(npm_package: str) -> tuple[str | None, str | None]:
+    """(version, reason). reason is set only when version is None -- a
+    scheduled run once reported 'not installed' with no exception and no way
+    to tell PATH-missing, npm-failed and bad-JSON apart (2026-09-16); this is
+    the audit trail that should have existed for it."""
     npm = npm_executable()
     if not npm:
-        return None
+        return None, "npm not found on PATH or the standard install location"
     try:
         ls = subprocess.run([npm, "ls", "-g", npm_package, "--json"],
                             capture_output=True, text=True, timeout=60)
         deps = json.loads(ls.stdout or "{}").get("dependencies", {})
-        return deps.get(npm_package, {}).get("version")
-    except (OSError, subprocess.SubprocessError, json.JSONDecodeError):
-        return None
+        version = deps.get(npm_package, {}).get("version")
+        if version is None:
+            detail = (getattr(ls, "stderr", "") or getattr(ls, "stdout", "") or "").strip()[:300]
+            return None, f"npm ls -g exit {getattr(ls, 'returncode', '?')}: {detail}"
+        return version, None
+    except subprocess.TimeoutExpired:
+        return None, "npm ls -g timed out after 60s"
+    except (OSError, subprocess.SubprocessError) as exc:
+        return None, f"npm ls -g failed to run: {exc}"
+    except json.JSONDecodeError as exc:
+        return None, f"npm ls -g output was not JSON: {exc}"
 
 
 def watch_target(profile_id: str | None = None) -> dict:
@@ -96,10 +124,12 @@ def fetch(target: dict) -> dict:
     npm = _get(f"https://registry.npmjs.org/{target['npm_package']}")
     times = {k: v for k, v in (npm.get("time") or {}).items()
              if k not in ("created", "modified")}
+    inst_version, inst_reason = installed_version(target["npm_package"])
     out = {
         "adapter_latest": (npm.get("dist-tags") or {}).get("latest"),
         "adapter_versions": times,                # version -> published
-        "adapter_installed": installed_version(target["npm_package"]),
+        "adapter_installed": inst_version,
+        "adapter_installed_reason": inst_reason,   # set only when the above is None
         "schema_latest": _get(f"https://api.github.com/repos/{SCHEMA_REPO}"
                               "/releases/latest").get("tag_name"),
         "releases": [], "issues": [],
@@ -248,6 +278,8 @@ def main(argv=None) -> int:
                    f"schema pinned {target['pinned_schema']} latest "
                    f"{now['schema_latest']}; new: {len(new['versions'])} versions, "
                    f"{len(new['releases'])} releases, {len(new['issues'])} issues")
+        if now["adapter_installed"] is None and now.get("adapter_installed_reason"):
+            summary += f"\nadapter_installed_reason: {now['adapter_installed_reason']}"
         audit(log_dir, argv, "ok", note + "\n" + summary)
         if not args.quiet:
             print(note)

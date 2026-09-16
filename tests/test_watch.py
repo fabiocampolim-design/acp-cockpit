@@ -40,7 +40,7 @@ def fake_get(url, timeout=30):
 @pytest.fixture
 def env(tmp_path, monkeypatch):
     monkeypatch.setattr(w, "_get", fake_get)
-    monkeypatch.setattr(w, "installed_version", lambda pkg: "0.73.0")
+    monkeypatch.setattr(w, "installed_version", lambda pkg: ("0.73.0", None))
     return {"outdir": tmp_path / "watch", "state": tmp_path / "state",
             "logs": tmp_path / "logs"}
 
@@ -146,3 +146,46 @@ def test_the_npm_lookup_never_goes_through_a_shell(monkeypatch):
     # the package is one argument, whatever it contains
     assert "@scope/pkg & calc.exe" in seen["cmd"]
     assert seen["cmd"][0] == "C:\n\npm.cmd"
+
+
+def test_npm_not_on_path_gives_a_reason_not_a_silent_none(monkeypatch):
+    """2026-09-16: a scheduled run reported 'installed not installed' with
+    outcome 'ok' -- installed_version() swallowed whatever went wrong and left
+    no way to tell PATH-missing from npm-failed from bad-JSON apart. version
+    is None either way; the reason is what a human needs."""
+    monkeypatch.setattr(w.shutil, "which", lambda name: None)
+    monkeypatch.setattr(w, "_npm_fallback_paths", lambda: [])
+    version, reason = w.installed_version("@agentclientprotocol/claude-agent-acp")
+    assert version is None
+    assert "PATH" in reason
+
+
+def test_npm_ls_failure_gives_a_reason(monkeypatch):
+    monkeypatch.setattr(w.shutil, "which", lambda name: "npm.cmd")
+
+    def boom(cmd, **kw):
+        raise OSError("access is denied")
+    monkeypatch.setattr(w.subprocess, "run", boom)
+    version, reason = w.installed_version("@agentclientprotocol/claude-agent-acp")
+    assert version is None
+    assert "access is denied" in reason
+
+
+def test_npm_executable_falls_back_to_the_programfiles_install_when_path_lookup_fails(monkeypatch, tmp_path):
+    """Task Scheduler runs outside the interactive shell's PATH; the standard
+    Node.js MSI install location is a steadier source of truth than PATH."""
+    monkeypatch.setattr(w.shutil, "which", lambda name: None)
+    nodejs = tmp_path / "nodejs"
+    nodejs.mkdir()
+    npm_cmd = nodejs / "npm.cmd"
+    npm_cmd.write_text("", encoding="utf-8")
+    monkeypatch.setenv("ProgramFiles", str(tmp_path))
+    monkeypatch.delenv("ProgramFiles(x86)", raising=False)
+    assert w.npm_executable() == str(npm_cmd)
+
+
+def test_a_not_installed_reason_reaches_the_audit_log(env, monkeypatch):
+    monkeypatch.setattr(w, "installed_version", lambda pkg: (None, "npm not found on PATH"))
+    assert run(env) == 0
+    logs = list(env["logs"].glob("watch-*.log"))
+    assert "npm not found on PATH" in logs[0].read_text(encoding="utf-8")
