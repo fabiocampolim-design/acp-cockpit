@@ -343,6 +343,43 @@ class ElicitationTimeoutTest(tornado.testing.AsyncHTTPTestCase):
         self.io_loop.run_sync(drive, timeout=30)
 
 
+# Direct, offline coverage of _installed_adapter_version() -- the same
+# silent-swallow bug a 2026-09-16 review found in the daily watch script
+# existed here too (except Exception: adapter_installed = None hid PATH-
+# missing, npm-failed, timed-out and bad-JSON alike).
+
+def test_npm_not_on_path_gives_a_reason(monkeypatch):
+    import acp_cockpit.server.app as appmod
+    monkeypatch.setattr(appmod.shutil, "which", lambda name: None)
+    version, reason = appmod._installed_adapter_version("some-adapter")
+    assert version is None and "PATH" in reason
+
+
+def test_npm_ls_failure_gives_a_reason(monkeypatch):
+    import acp_cockpit.server.app as appmod
+    import subprocess as sp
+    monkeypatch.setattr(appmod.shutil, "which", lambda name: "npm.cmd")
+
+    def boom(cmd, **kw):
+        raise OSError("access is denied")
+    monkeypatch.setattr(sp, "run", boom)
+    version, reason = appmod._installed_adapter_version("some-adapter")
+    assert version is None and "access is denied" in reason
+
+
+def test_a_resolved_version_carries_no_reason(monkeypatch):
+    import acp_cockpit.server.app as appmod
+    import subprocess as sp
+    monkeypatch.setattr(appmod.shutil, "which", lambda name: "npm.cmd")
+
+    def fake_run(cmd, **kw):
+        return sp.CompletedProcess(
+            cmd, 0, '{"dependencies": {"some-adapter": {"version": "1.2.3"}}}', "")
+    monkeypatch.setattr(sp, "run", fake_run)
+    version, reason = appmod._installed_adapter_version("some-adapter")
+    assert version == "1.2.3" and reason is None
+
+
 class DriftCacheTest(tornado.testing.AsyncHTTPTestCase):
     """The page asks /api/drift on every load; the two HTTPS lookups and the
     `npm ls -g` subprocess behind it run once per process per hour, not once

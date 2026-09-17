@@ -791,38 +791,57 @@ def _latest_versions_cached(npm_package: str | None = None) -> dict:
     return result
 
 
+def _installed_adapter_version(npm_package: str) -> tuple[str | None, str | None]:
+    """(version, reason) for the npm-installed adapter -- mirrors
+    scripts/watch_upstream.py's installed_version(). The same bug a 2026-09-16
+    review found there existed here too: `except Exception: adapter_installed
+    = None` made every failure (PATH-missing, npm-failed, timed-out, bad-JSON)
+    look identical to 'not installed', which reaches compare_versions() and,
+    through it, the drift chip a real session reads to verify an upgrade."""
+    import subprocess as _sp
+    # `npm` is `npm.cmd` on Windows, which CreateProcess will not start —
+    # that is why this ran with shell=True. But a shell joins the argv
+    # list back into a command line and re-parses it, so `npm_package`,
+    # read from a profile file, ended up inside a cmd.exe line (review
+    # 2026-09-06). Resolve the executable and run it directly instead.
+    npm = shutil.which("npm")
+    if not npm:
+        return None, "npm not found on PATH"
+    try:
+        ls = _sp.run([npm, "ls", "-g", npm_package, "--json"],
+                     capture_output=True, text=True, timeout=30)
+        deps = json.loads(ls.stdout or "{}").get("dependencies", {})
+        version = deps.get(npm_package, {}).get("version")
+        if version is None:
+            detail = (ls.stderr or ls.stdout or "no dependencies listed").strip()[:300]
+            return None, f"npm ls -g exit {ls.returncode}: {detail}"
+        return version, None
+    except _sp.TimeoutExpired:
+        return None, "npm ls -g timed out after 30s"
+    except (OSError, _sp.SubprocessError) as exc:
+        return None, f"npm ls -g failed to run: {exc}"
+    except json.JSONDecodeError as exc:
+        return None, f"npm ls -g output was not JSON: {exc}"
+
+
 def _latest_versions(npm_package: str | None = None) -> dict:
     """Blocking lookups, run in an executor. External systems addressed
     generically: a GitHub releases URL and the npm registry, both plain
     HTTPS JSON — no vendor SDKs. `npm_package` comes from the profile."""
-    import json as _json
-    import subprocess as _sp
     import urllib.request as _rq
-    out: dict = {"adapter_latest": None, "adapter_installed": None}
+    out: dict = {"adapter_latest": None, "adapter_installed": None,
+                 "adapter_installed_reason": None}
     with _rq.urlopen("https://api.github.com/repos/agentclientprotocol/"
                      "agent-client-protocol/releases/latest",
                      timeout=10) as r:
-        out["schema"] = _json.load(r).get("tag_name")
+        out["schema"] = json.load(r).get("tag_name")
     if not npm_package:
         return out
     with _rq.urlopen(f"https://registry.npmjs.org/{npm_package}/latest",
                      timeout=10) as r:
-        out["adapter_latest"] = _json.load(r).get("version")
-    try:
-        # `npm` is `npm.cmd` on Windows, which CreateProcess will not start —
-        # that is why this ran with shell=True. But a shell joins the argv
-        # list back into a command line and re-parses it, so `npm_package`,
-        # read from a profile file, ended up inside a cmd.exe line (review
-        # 2026-09-06). Resolve the executable and run it directly instead.
-        npm = shutil.which("npm")
-        if not npm:
-            raise OSError("npm not on PATH")
-        ls = _sp.run([npm, "ls", "-g", npm_package, "--json"],
-                     capture_output=True, text=True, timeout=30)
-        deps = _json.loads(ls.stdout or "{}").get("dependencies", {})
-        out["adapter_installed"] = deps.get(npm_package, {}).get("version")
-    except Exception:
-        out["adapter_installed"] = None
+        out["adapter_latest"] = json.load(r).get("version")
+    out["adapter_installed"], out["adapter_installed_reason"] = \
+        _installed_adapter_version(npm_package)
     return out
 
 
