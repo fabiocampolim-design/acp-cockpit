@@ -948,10 +948,17 @@ def test_each_tab_keeps_its_own_scroll_position(server):
         page.click("#start")
         page.wait_for_selector("#send:not([disabled])")
         pane = page.locator("#conversation")
-        for _ in range(12):
+        for _ in range(30):
             lanes_turn(page)
             if pane.evaluate("el => el.scrollHeight > el.clientHeight + 200"):
                 break
+        # Font metrics vary enough across platforms (a fixed run of turns
+        # rendered shorter on a Linux CI runner than in local Windows
+        # development) that a hard iteration cap can undershoot the needed
+        # overflow. Fail here, clearly, rather than 30s later at an unrelated
+        # selector that only times out because there is nothing to scroll.
+        assert pane.evaluate("el => el.scrollHeight > el.clientHeight + 200"), \
+            "conversation never grew tall enough to overflow -- raise the loop cap"
         page.evaluate("document.querySelector('#conversation').scrollTop = 0")
         page.wait_for_selector("#jump-bottom:visible")
         # a second session, then back to the first
