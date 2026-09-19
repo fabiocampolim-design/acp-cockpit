@@ -58,15 +58,28 @@ class Sentinel:
             side = "from-agent" if direction == "in" else "to-agent"
             if method not in known:
                 flags.append(f"unknown-{side}-method:{method}")
-        params = frame.get("params") or {}
+        raw_params = frame.get("params")
+        if isinstance(raw_params, dict):
+            params = raw_params
+        else:
+            params = {}
+            if raw_params is not None:
+                flags.append(f"malformed-params:{raw_params!r}")
         if method == "session/update":
-            kind = (params.get("update") or {}).get("sessionUpdate")
-            if kind not in self._kinds:
-                flags.append(f"unknown-update-kind:{kind}")
+            update = params.get("update")
+            if update is None or isinstance(update, dict):
+                kind = (update or {}).get("sessionUpdate")
+                if kind not in self._kinds:
+                    flags.append(f"unknown-update-kind:{kind}")
+            else:
+                flags.append(f"malformed-update:{update!r}")
         if method == "session/request_permission":
             for opt in params.get("options") or []:
-                if opt.get("kind") not in self._perms:
-                    flags.append(f"unknown-permission-kind:{opt.get('kind')}")
+                if isinstance(opt, dict):
+                    if opt.get("kind") not in self._perms:
+                        flags.append(f"unknown-permission-kind:{opt.get('kind')}")
+                else:
+                    flags.append(f"malformed-permission-option:{opt!r}")
         result = frame.get("result")
         if isinstance(result, dict) and "stopReason" in result:
             if result["stopReason"] not in self._stops:
@@ -76,7 +89,12 @@ class Sentinel:
     def compare_versions(self, pinned_schema, latest_schema,
                          adapter, latest_adapter) -> list[str]:
         flags = []
-        if latest_schema and latest_schema != pinned_schema:
+        if latest_schema is None:
+            # Same silence bug the adapter branch below had until 2026-09-16:
+            # a failed lookup must not read as "confirmed current" (review
+            # 2026-09-19).
+            flags.append("schema-unknown")
+        elif latest_schema != pinned_schema:
             flags.append(f"schema-behind:pinned={pinned_schema},latest={latest_schema}")
         if latest_adapter and adapter and latest_adapter != adapter:
             flags.append(f"adapter-behind:installed={adapter},latest={latest_adapter}")

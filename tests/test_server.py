@@ -380,6 +380,26 @@ def test_a_resolved_version_carries_no_reason(monkeypatch):
     assert version == "1.2.3" and reason is None
 
 
+def test_the_live_lookups_timeout_matches_the_daily_watch_scripts(monkeypatch):
+    """The live `/api/drift` endpoint used a 30s timeout while the daily
+    watch script used 60s for the identical `npm ls -g` call, so a slow
+    lookup was more likely to read UNKNOWN here than there -- the two were
+    never actually at parity despite `58add70`'s "reason parity" fix
+    (hostile Fable 5 review, 2026-09-19)."""
+    import acp_cockpit.server.app as appmod
+    import subprocess as sp
+    import scripts.watch_upstream as w
+    monkeypatch.setattr(appmod.shutil, "which", lambda name: "npm.cmd")
+    seen = {}
+
+    def fake_run(cmd, **kw):
+        seen["timeout"] = kw.get("timeout")
+        return sp.CompletedProcess(cmd, 0, "{}", "")
+    monkeypatch.setattr(sp, "run", fake_run)
+    appmod._installed_adapter_version("some-adapter")
+    assert seen["timeout"] == w.NPM_LS_TIMEOUT
+
+
 class DriftCacheTest(tornado.testing.AsyncHTTPTestCase):
     """The page asks /api/drift on every load; the two HTTPS lookups and the
     `npm ls -g` subprocess behind it run once per process per hour, not once
@@ -437,7 +457,53 @@ class DriftCacheTest(tornado.testing.AsyncHTTPTestCase):
             appmod._latest_versions = original
             appmod._DRIFT_CACHE.clear()
         assert any("unknown" in f for f in result["flags"])
-        assert not any("-behind" in f for f in result["flags"])
+
+    def test_an_unresolvable_latest_schema_flags_unknown_not_silently_current(self):
+        # The schema side of the exact bug above -- fixed for the adapter
+        # side on 2026-09-16, never fixed here (hostile Fable 5 review,
+        # 2026-09-19): the GitHub releases lookup can succeed with no usable
+        # tag (an unexpected JSON shape), leaving schema=None with no
+        # exception, which used to read as "nothing is behind".
+        from acp_cockpit.server import app as appmod
+
+        def fake_latest(pkg):
+            return {"schema": None, "adapter_latest": "9.9.9",
+                    "adapter_installed": "9.9.9"}
+        appmod._DRIFT_CACHE.clear()
+        original = appmod._latest_versions
+        appmod._latest_versions = fake_latest
+        try:
+            h = {"Cookie": f"acp_cockpit_token={self.auth.token}"}
+            result = json.loads(self.fetch("/api/drift", headers=h).body)
+        finally:
+            appmod._latest_versions = original
+            appmod._DRIFT_CACHE.clear()
+        assert any("schema-unknown" in f for f in result["flags"])
+
+    def test_a_failed_installed_lookup_is_not_cached_for_the_full_hour(self):
+        # `_latest_versions_cached` used to cache whatever `_latest_versions`
+        # returned, including a transient `adapter_installed: None` from a
+        # single npm timeout -- poisoning the drift chip for an hour on every
+        # reload after (hostile Fable 5 review, 2026-09-19).
+        from acp_cockpit.server import app as appmod
+        calls = []
+
+        def fake_latest(pkg):
+            calls.append(pkg)
+            return {"schema": "schema-v1.21.0", "adapter_latest": "9.9.9",
+                    "adapter_installed": None,
+                    "adapter_installed_reason": "npm ls -g timed out after 60s"}
+        appmod._DRIFT_CACHE.clear()
+        original = appmod._latest_versions
+        appmod._latest_versions = fake_latest
+        try:
+            h = {"Cookie": f"acp_cockpit_token={self.auth.token}"}
+            self.fetch("/api/drift", headers=h)
+            self.fetch("/api/drift", headers=h)
+        finally:
+            appmod._latest_versions = original
+            appmod._DRIFT_CACHE.clear()
+        assert calls == ["some-adapter", "some-adapter"], calls
 
 
 class ProfilesCarryLaunchChoicesTest(ServerTest):

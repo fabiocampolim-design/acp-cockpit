@@ -53,6 +53,18 @@ def test_an_unresolvable_installed_version_is_flagged_unknown_not_silently_curre
     assert not any("behind" in f for f in flags)      # not knowing != behind
 
 
+def test_an_unresolvable_latest_schema_is_flagged_unknown_not_silently_current():
+    # The adapter side of this exact bug was fixed 2026-09-16; the schema
+    # side never got the same treatment (hostile Fable 5 review, 2026-09-19):
+    # a failed GitHub releases lookup returns latest_schema=None, which read
+    # as falsy and produced no flag at all -- "nothing is behind" is false,
+    # not "confirmed pinned == latest".
+    s = Sentinel(REG)
+    flags = s.compare_versions("v1.0.0", None, "1.2.3", "1.2.3")
+    assert flags and any("schema-unknown" in f for f in flags)
+    assert not any("schema-behind" in f for f in flags)
+
+
 def test_vendor_update_kinds_the_adapter_is_known_to_send_are_not_drift():
     # claude-agent-acp 0.73/0.75 can emit these outside the pinned schema
     # (read from its dist, review 2026-09-05); known is not drift.
@@ -88,6 +100,36 @@ def test_the_registry_maps_each_vendor_notification_to_its_event():
     assert s.vendor_notifications["_auth/status_update"] == {
         "event": "auth_status", "field": "authStatus"}
     assert all(v["event"] in KINDS for v in s.vendor_notifications.values())
+
+
+def test_a_non_dict_update_is_flagged_not_crashed():
+    """`(params.get("update") or {}).get("sessionUpdate")` assumed `update`,
+    when present, is always a dict. An adapter sending `"update": "x"` raised
+    AttributeError inside check_frame, which on_line never caught: the frame
+    was recorded but never fed, so a permission request shaped this way hung
+    forever with no fail-safe armed (hostile Fable 5 review, 2026-09-19)."""
+    s = Sentinel(REG)
+    flags = s.check_frame("in", {"jsonrpc": "2.0", "method": "session/update",
+        "params": {"sessionId": "x", "update": "not-an-object"}})
+    assert any("malformed-update" in f for f in flags)
+
+
+def test_a_non_dict_permission_option_is_flagged_not_crashed():
+    """`opt.get("kind")` assumed every element of `options` is a dict. An
+    adapter sending `"options": ["allow_once"]` raised AttributeError the
+    same way as the update case above (hostile Fable 5 review, 2026-09-19)."""
+    s = Sentinel(REG)
+    flags = s.check_frame("in", {"jsonrpc": "2.0",
+        "method": "session/request_permission",
+        "params": {"sessionId": "x", "options": ["allow_once"]}})
+    assert any("malformed-permission-option" in f for f in flags)
+
+
+def test_non_dict_params_is_flagged_not_crashed():
+    s = Sentinel(REG)
+    flags = s.check_frame("in", {"jsonrpc": "2.0", "method": "session/update",
+        "params": "not-an-object"})
+    assert any("malformed-params" in f for f in flags)
 
 
 def test_the_clients_own_frames_are_checked_and_its_vendor_request_is_known():

@@ -11,12 +11,28 @@ def test_every_event_kind_documented():
 
 
 def test_every_ws_command_documented():
-    for cmd in ("prompt", "cancel", "set_mode", "permission",
-                "elicitation"):
+    # ws.py handles seven: set_model and set_config_option were missing from
+    # this list, so a drift between the two could pass unnoticed (hostile
+    # Fable 5 review, 2026-09-19 -- they happened to already be documented,
+    # but nothing was checking that).
+    for cmd in ("prompt", "cancel", "set_mode", "set_model",
+                "set_config_option", "permission", "elicitation"):
         assert f'"cmd": "{cmd}"' in DOC
 
 
 def test_every_rest_route_documented():
     for route in ("/api/profiles", "/api/sessions", "/api/drift",
-                  "/api/dirs", "/ws/sessions/", "/archive"):
+                  "/api/dirs", "/api/settings", "/ws/sessions/", "/archive"):
         assert route in DOC
+
+
+def test_every_drift_flag_shape_documented():
+    """`app.js` branches on these exact substrings (`checkVersions`,
+    `describeVersions`). None of them appeared in the doc that is supposed
+    to be the sole contract the View consumes (hostile Fable 5 review,
+    2026-09-19)."""
+    section = DOC.split("### `GET /api/drift`")[1].split("## 3.")[0]
+    for flag in ("adapter-behind", "schema-behind", "adapter-unknown",
+                "schema-unknown", "drift-check-failed"):
+        assert flag in section, f"{flag} missing from the /api/drift doc"
+    assert "adapter_installed_reason" in section

@@ -787,7 +787,12 @@ def _latest_versions_cached(npm_package: str | None = None) -> dict:
     if hit and _time.monotonic() - hit[0] < DRIFT_TTL:
         return hit[1]
     result = _latest_versions(npm_package)
-    _DRIFT_CACHE[npm_package] = (_time.monotonic(), result)
+    # A transient npm failure (timeout, PATH, bad JSON) must not poison the
+    # drift chip for a full hour on every reload after -- only a resolved
+    # installed version (or no package to check at all) is worth remembering
+    # that long (hostile Fable 5 review, 2026-09-19).
+    if npm_package is None or result.get("adapter_installed") is not None:
+        _DRIFT_CACHE[npm_package] = (_time.monotonic(), result)
     return result
 
 
@@ -808,8 +813,14 @@ def _installed_adapter_version(npm_package: str) -> tuple[str | None, str | None
     if not npm:
         return None, "npm not found on PATH"
     try:
+        # Kept equal to scripts/watch_upstream.py's NPM_LS_TIMEOUT by hand --
+        # this copy ships in the wheel and cannot import that dev-only
+        # script. The two drifted to 30s vs 60s after each was fixed for the
+        # same silent-failure bug on its own schedule, so a slow lookup was
+        # more likely to read UNKNOWN here than in the daily watch (hostile
+        # Fable 5 review, 2026-09-19).
         ls = _sp.run([npm, "ls", "-g", npm_package, "--json"],
-                     capture_output=True, text=True, timeout=30)
+                     capture_output=True, text=True, timeout=60)
         deps = json.loads(ls.stdout or "{}").get("dependencies", {})
         version = deps.get(npm_package, {}).get("version")
         if version is None:
@@ -817,7 +828,7 @@ def _installed_adapter_version(npm_package: str) -> tuple[str | None, str | None
             return None, f"npm ls -g exit {ls.returncode}: {detail}"
         return version, None
     except _sp.TimeoutExpired:
-        return None, "npm ls -g timed out after 30s"
+        return None, "npm ls -g timed out after 60s"
     except (OSError, _sp.SubprocessError) as exc:
         return None, f"npm ls -g failed to run: {exc}"
     except json.JSONDecodeError as exc:

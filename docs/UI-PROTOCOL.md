@@ -124,15 +124,26 @@ the writer itself fails.
 {"pinned_schema": "schema-v1.21.0", "flags": [], "online": true,
  "adapter_package": "@agentclientprotocol/claude-agent-acp",
  "latest": {"schema": "schema-v1.21.0", "adapter_latest": "x.y.z",
-            "adapter_installed": "x.y.z"}}
+            "adapter_installed": "x.y.z", "adapter_installed_reason": null}}
 ```
-`flags` non-empty means the pinned protocol schema or the installed adapter
-is behind the latest published version — surface it. A View asks this route
-once per page load (the bundled View: an `update` chip at the top right when
-`flags` is non-empty, and a *Versions* entry in Help either way; with
+`flags` is a list of strings, each one of:
+- `schema-behind:pinned=…,latest=…` / `adapter-behind:installed=…,latest=…`
+  — a confirmed mismatch. Surface it.
+- `schema-unknown` / `adapter-unknown:latest=…` — the lookup could not tell
+  (a timeout, PATH miss, or bad response), **not** a confirmed match. Keep
+  this visually distinct from "nothing is behind"; `adapter_installed_reason`
+  (in `latest`) says why, when it's the adapter side that failed.
+- `drift-check-failed:<exception>` — the online check itself errored (e.g. a
+  GitHub rate limit) before any lookup ran.
+
+A View asks this route once per page load (the bundled View: an `update`
+chip at the top right only for a confirmed `…-behind`, and a *Versions*
+entry in Help that reports "Behind: …" and "Could not confirm: …" as
+separate lines, never folding one into the other or into silence; with
 `online: false` it says the check is off). A route nobody calls is not a
-feature (2026-09-05). The server caches the two lookups behind it for an
-hour, so reloading the page is free of network and of `npm ls`. `adapter_package` is
+feature (2026-09-05). The server caches a **successful** lookup for an hour;
+a failed one is retried on the very next request rather than cached, so one
+`npm ls` timeout does not poison the chip for an hour. `adapter_package` is
 the checked profile's `npm_package` (`?profile=<id>` picks the profile;
 default: the first profile that declares one; `null` = no adapter check).
 

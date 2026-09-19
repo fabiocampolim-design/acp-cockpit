@@ -42,6 +42,26 @@ def test_permission_failsafe_prefers_reject(tmp_path):
     assert resolved.data["source"] == "failsafe"
 
 
+def test_a_malformed_permission_option_still_gets_a_permission_request(tmp_path):
+    """`Sentinel.check_frame` called `.get("kind")` on every element of
+    `options` without a type check. An adapter sending a bare string there
+    raised AttributeError inside `check_frame`, which `on_line` never caught:
+    `_conn.feed` was skipped, so the frame was recorded but never turned into
+    a `permission_request`, and the tool call hung forever with no fail-safe
+    armed (hostile Fable 5 review, 2026-09-19)."""
+    session, proc, sink = make_session(tmp_path)
+    do_handshake(session, proc)
+    frame = {"jsonrpc": "2.0", "id": 45,
+             "method": "session/request_permission", "params": {
+                 "sessionId": "acp-123",
+                 "toolCall": {"toolCallId": "t1", "title": "Write file"},
+                 "options": ["allow_once"]}}
+    feed(session, frame)
+    req = [e for e in sink.events if e.kind == "permission_request"]
+    assert req, [e.kind for e in sink.events]
+    assert session.pending_permissions() == [45]
+
+
 def test_fs_read_inside_boundary_served(tmp_path):
     files = FakeFiles()
     inside = str(tmp_path / "a.txt")

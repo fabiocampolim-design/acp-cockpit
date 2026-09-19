@@ -168,6 +168,23 @@ class AcpSession:
         initialize) so a View can say which agent, which version."""
         self._set_state("ready", agent_info=getattr(self, "agent_info", None))
 
+    def _check_frame_safe(self, direction: str, frame: dict, ref) -> None:
+        """The sentinel inspects untrusted (or, outbound, our own) frame
+        shapes it hasn't necessarily seen before. A bug in `check_frame`
+        itself must never take the frame down with it — that is the one
+        thing this engine promises never to do (hostile Fable 5 review,
+        2026-09-19: a malformed permission option crashed `check_frame`,
+        which `on_line` did not catch, so the frame was recorded but never
+        fed and the tool call hung forever)."""
+        try:
+            flags = self.sentinel.check_frame(direction, frame)
+        except Exception as exc:
+            self._emit("anomaly", {"category": "sentinel-error",
+                                   "detail": str(exc)}, ref)
+            return
+        if flags:
+            self._emit("drift", {"flags": flags}, ref)
+
     def _flush(self):
         for line in self._conn.take_outgoing():
             frame = json.loads(line)
@@ -176,9 +193,7 @@ class AcpSession:
             # outbound direction and nothing ever called it, so a client
             # sending a method the pinned registry does not know said nothing
             # (review 2026-09-06).
-            flags = self.sentinel.check_frame("out", frame)
-            if flags:
-                self._emit("drift", {"flags": flags}, ref)
+            self._check_frame_safe("out", frame, ref)
             self.proc.send_line(line)
 
     def on_line(self, line: str) -> None:
@@ -188,9 +203,7 @@ class AcpSession:
             frame = None
         if isinstance(frame, dict):
             raw_ref = self.recorder.append({"dir": "in", "frame": frame})
-            flags = self.sentinel.check_frame("in", frame)
-            if flags:
-                self._emit("drift", {"flags": flags}, raw_ref)
+            self._check_frame_safe("in", frame, raw_ref)
         else:
             raw_ref = self.recorder.append({"dir": "in", "raw": line})
         self._last_raw_ref = raw_ref

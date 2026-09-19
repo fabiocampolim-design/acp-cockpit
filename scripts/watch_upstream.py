@@ -45,6 +45,12 @@ from acp_cockpit import __version__                       # noqa: E402  (no deps
 USER_AGENT = f"acp-cockpit-watch/{__version__} (+https://github.com/fabiocampolim-design/acp-cockpit)"
 SCHEMA_REPO = "agentclientprotocol/agent-client-protocol"
 FIRST_SNAPSHOT_CAP = 15          # a first run lists at most this many per bucket
+# Kept equal to acp_cockpit/server/app.py's `_installed_adapter_version` by
+# hand (that copy cannot import this dev-only script -- it ships in the
+# wheel, this does not) after the two silently drifted apart, 60s vs 30s,
+# despite both being fixed for the same silent-failure bug on their own
+# schedule (hostile Fable 5 review, 2026-09-19).
+NPM_LS_TIMEOUT = 60
 
 
 def _get(url: str, timeout: int = 30):
@@ -88,19 +94,20 @@ def installed_version(npm_package: str) -> tuple[str | None, str | None]:
         return None, "npm not found on PATH or the standard install location"
     try:
         ls = subprocess.run([npm, "ls", "-g", npm_package, "--json"],
-                            capture_output=True, text=True, timeout=60)
+                            capture_output=True, text=True, timeout=NPM_LS_TIMEOUT)
         deps = json.loads(ls.stdout or "{}").get("dependencies", {})
         version = deps.get(npm_package, {}).get("version")
         if version is None:
             detail = (ls.stderr or ls.stdout or "no dependencies listed").strip()[:300]
             return None, (f"npm ls -g exit {ls.returncode}: {detail} -- npm ran and "
-                          f"returned valid JSON but the package wasn't in it; the "
-                          f"likeliest cause is a global prefix mismatch (`npm config "
+                          f"returned valid JSON but the package wasn't in it; a "
+                          f"possible cause is a global prefix mismatch (`npm config "
                           f"get prefix`), since a scheduled run's token can resolve a "
-                          f"different one than an interactive login")
+                          f"different one than an interactive login -- unconfirmed: "
+                          f"every failure seen here so far has been a timeout instead")
         return version, None
     except subprocess.TimeoutExpired:
-        return None, "npm ls -g timed out after 60s"
+        return None, f"npm ls -g timed out after {NPM_LS_TIMEOUT}s"
     except (OSError, subprocess.SubprocessError) as exc:
         return None, f"npm ls -g failed to run: {exc}"
     except json.JSONDecodeError as exc:
@@ -185,7 +192,18 @@ def render(today: str, target: dict, now: dict, new: dict) -> str:
                           "and recreate any patched copy")
     else:
         adapter_status = "up to date"
-    schema_behind = now["schema_latest"] and now["schema_latest"] != target["pinned_schema"]
+    schema_latest = now["schema_latest"]
+    if schema_latest is None:
+        # Same silence bug the adapter branch above had until 2026-09-16:
+        # a failed lookup must not read as "confirmed current" (review
+        # 2026-09-19).
+        schema_status = ("**UNKNOWN** — could not determine the latest "
+                         "schema release; see the audit log for why")
+    elif schema_latest != target["pinned_schema"]:
+        schema_status = ("**BEHIND** — re-run `tools/check_schema_drift.py` "
+                         "against the new schema and extend the registry")
+    else:
+        schema_status = "up to date"
     lines = [f"# Upstream watch — {today}", "",
              f"*acp-cockpit {__version__}; profile `{target['profile']}`; "
              f"written by `scripts/watch_upstream.py`.*", "",
@@ -198,9 +216,8 @@ def render(today: str, target: dict, now: dict, new: dict) -> str:
         lines.append("- recent versions: " + ", ".join(
             f"{v} ({t[:10]})" for v, t in recent))
     lines += ["", "## Protocol schema", "",
-              f"- pinned {target['pinned_schema']}, latest {now['schema_latest'] or '?'} — "
-              + ("**BEHIND** — re-run `tools/check_schema_drift.py` against the new "
-                 "schema and extend the registry" if schema_behind else "up to date"),
+              f"- pinned {target['pinned_schema']}, latest {schema_latest or '?'} — "
+              + schema_status,
               ""]
     lines += ["## New since the last run" if not new["first"]
               else "## First snapshot (capped)", ""]
@@ -277,13 +294,22 @@ def main(argv=None) -> int:
             before = json.loads(snapshot.read_text(encoding="utf-8"))
         new = delta(now, before)
         if report.exists() and not args.force:
+            # Do NOT advance the snapshot here: the delta computed above is
+            # discarded (never written to any report), so leaving it as
+            # "seen" would make it vanish for good -- neither today's report
+            # (skipped) nor tomorrow's (whose delta is computed against
+            # whatever the snapshot says now) would ever show it. Not
+            # advancing means the next report that actually gets written
+            # -- tomorrow's, or a --force rerun of today's -- still sees the
+            # full delta since the last one that did (hostile Fable 5
+            # review, 2026-09-19).
             note = f"{report} exists; not overwritten (--force to redo)"
         else:
             outdir.mkdir(parents=True, exist_ok=True)
             report.write_text(render(today, target, now, new), encoding="utf-8")
             note = f"wrote {report}"
-        state.mkdir(parents=True, exist_ok=True)
-        snapshot.write_text(json.dumps(now, indent=1), encoding="utf-8")
+            state.mkdir(parents=True, exist_ok=True)
+            snapshot.write_text(json.dumps(now, indent=1), encoding="utf-8")
         behind = (now["adapter_installed"] and now["adapter_latest"]
                   and now["adapter_installed"] != now["adapter_latest"])
         summary = (f"adapter installed {now['adapter_installed']} latest "

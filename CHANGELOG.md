@@ -4,6 +4,67 @@ All notable changes to acp-cockpit are documented in this file.
 
 ## Unreleased
 
+### review 2026-09-19 — hostile review (Fable 5), all findings fixed
+
+An independent adversarial review, on top of the ones below, over the code,
+docs, and the daily upstream watch's own drift-detection tooling. Nine
+findings, every one reproduced with a failing test before it was fixed.
+
+- **A malformed frame from the adapter can no longer hang a tool call
+  forever.** `Sentinel.check_frame` assumed every `session/update.update`
+  and every `session/request_permission` option was a dict; a differently
+  shaped one raised `AttributeError` inside `on_line`, which skipped
+  `_conn.feed` entirely — the frame was recorded but never turned into a
+  `permission_request`, with no fail-safe timer ever armed. `check_frame`
+  now flags malformed shapes instead of crashing, and `on_line`/`_flush`
+  catch any future surprise there too, surfacing it as an anomaly rather
+  than silently dropping the frame — the one thing this engine promises
+  never to do.
+- **`tools/check_schema_drift.py` can now see a new stop reason or a
+  bare-word update kind.** Its novelty filter matched method-shaped strings
+  or ones ending `_chunk`/`_update`/starting `allow_`/`reject_`; `plan`,
+  `tool_call` and every `StopReason` value matched none of those and were
+  silently dropped from the report. It now reads `StopReason`,
+  `PermissionOptionKind` and `SessionUpdate`'s discriminator directly out of
+  their schema `$defs` instead of guessing from string shape, and has its
+  first tests.
+- **The daily watch no longer loses a delta on a same-day rerun.** The
+  snapshot used to be overwritten every run regardless of whether the day's
+  report was; a rerun's unreported delta landed in neither that day's report
+  nor the next day's, whose delta was computed against the already-advanced
+  snapshot. The snapshot now only advances when a report is actually
+  (re)written.
+- **The pinned protocol schema gets the same "unknown ≠ up to date"
+  treatment the installed adapter got on 2026-09-16.** A failed GitHub
+  releases lookup left `schema_latest` as `None`, which read as falsy and
+  rendered "up to date" in both the daily watch report and `Sentinel.
+  compare_versions` — indistinguishable from a confirmed match. Both now
+  say UNKNOWN; `app.js` treats `schema-unknown` the same as `adapter-unknown`.
+- **A single `npm ls` timeout no longer poisons `/api/drift` for an hour.**
+  The one-hour cache stored whatever the lookup returned, including a failed
+  `adapter_installed: None`; a failed lookup is retried on the next request
+  instead.
+- **The live `/api/drift` endpoint and the daily watch script agree again.**
+  `58add70`'s "reason parity" fix left the two `npm ls -g` timeouts at 30s
+  and 60s, so a slow lookup was more likely to read UNKNOWN on the live page
+  than in the scheduled report. Both are 60s now.
+- `docs/UI-PROTOCOL.md`'s `/api/drift` section documented none of the flag
+  strings `app.js` actually branches on (`adapter-unknown`, `adapter-behind`,
+  `schema-behind`, `schema-unknown`, `drift-check-failed`) or the
+  `adapter_installed_reason` field; `test_docs_sync.py` didn't check any of
+  them, nor two of the seven WebSocket commands or the `/api/settings`
+  route. All documented and checked now.
+- README's check count bumped for the tests this review added.
+
+### review 2026-09-16/17 — unlogged at the time, recorded here retroactively
+
+`dcb79fd` and `58add70` (2026-09-16/17) fixed the drift-chip silence bug for
+real (an unresolvable adapter version used to read as "up to date" in both
+the daily watch report and the live `/api/drift` chip) but were never
+written up here. `c5601e9` (2026-09-17) fixed a fixed-turn-count e2e loop
+that undershot an overflow scenario on the Ubuntu CI runner by waiting for
+the state it actually needed instead of a turn count.
+
 ### review 2026-09-06 — a full review of the product, all findings fixed
 
 An independent `/code-review max` over the whole shipped package, on top of

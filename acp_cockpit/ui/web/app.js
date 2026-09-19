@@ -183,8 +183,9 @@ async function checkVersions() {
   try { driftInfo = await api("/api/drift"); } catch (e) { driftInfo = {error: e.message}; }
   const chip = $("#update-chip");
   const flags = (driftInfo && driftInfo.flags) || [];
-  // "adapter-unknown" means the lookup couldn't tell, not that an update is
-  // due -- the chip only fires for a confirmed "-behind" (schema or adapter).
+  // "adapter-unknown"/"schema-unknown" mean the lookup couldn't tell, not
+  // that an update is due -- the chip only fires for a confirmed "-behind"
+  // (schema or adapter).
   const behind = flags.filter(f => f.includes("-behind"));
   chip.hidden = behind.length === 0;
   if (behind.length) {
@@ -211,7 +212,11 @@ function describeVersions() {
     }
     const flags = d.flags || [];
     const behind = flags.filter(f => f.includes("-behind"));
-    const unknown = flags.filter(f => f.startsWith("adapter-unknown"));
+    // "adapter-unknown" and "schema-unknown" both mean the same thing for
+    // their side: the lookup couldn't tell, not that it confirmed current
+    // (2026-09-19: the schema side used to have no flag at all here, so a
+    // failed GitHub lookup silently read as "nothing is behind").
+    const unknown = flags.filter(f => f.includes("-unknown"));
     // "Nothing is behind" asserts a confirmed match; not knowing the
     // installed version is a different state and must not read as that one
     // -- and neither may silently drop the other when both are present.

@@ -92,6 +92,36 @@ def test_a_second_run_on_the_same_day_does_not_overwrite_the_report(env):
     assert run(env, "--force") == 0
 
 
+def test_a_same_day_rerun_does_not_lose_the_delta_it_saw(env):
+    """The snapshot used to be overwritten every run regardless of whether
+    the report was, so anything new between two same-day runs landed in
+    neither that day's report (skipped: already exists) nor the next day's
+    (its delta is computed against the just-overwritten snapshot). Not
+    advancing the snapshot when the report isn't (re)written means the next
+    written report still sees the full delta (hostile Fable 5 review,
+    2026-09-19)."""
+    run(env)                                          # writes 2026-09-05.md
+    NPM["dist-tags"]["latest"] = "0.76.0"
+    NPM["time"]["0.76.0"] = "2026-09-05T20:00:00Z"
+    try:
+        assert run(env) == 0                          # same day, not --force
+        report = (env["outdir"] / "2026-09-05.md").read_text(encoding="utf-8")
+        assert "0.76.0" not in report                 # unchanged, as before
+        # the NEXT day's run must still see 0.76.0 as new -- the unreported
+        # rerun above must not have advanced the snapshot past it. Checked in
+        # the delta section specifically: "recent versions" lists it either
+        # way, so a bare substring check on the whole report would pass even
+        # with the bug (the section a delta bug actually breaks) still there.
+        assert run(env, "--today", "2026-09-06") == 0
+        next_report = (env["outdir"] / "2026-09-06.md").read_text(encoding="utf-8")
+        assert "New since the last run" in next_report
+        new_section = next_report.split("New since the last run")[1].split("##")[0]
+        assert "0.76.0" in new_section, next_report
+    finally:
+        NPM["dist-tags"]["latest"] = "0.75.0"
+        del NPM["time"]["0.76.0"]
+
+
 def test_every_run_writes_an_audit_log_including_a_failed_one(env, monkeypatch):
     run(env)
     logs = list(env["logs"].glob("watch-*.log"))
@@ -225,6 +255,24 @@ def test_npm_ls_bad_json_gives_a_reason(monkeypatch):
     version, reason = w.installed_version("@agentclientprotocol/claude-agent-acp")
     assert version is None
     assert "JSON" in reason
+
+
+def test_an_unresolvable_latest_schema_reports_unknown_not_up_to_date(env, monkeypatch):
+    """The adapter side of this got fixed on 2026-09-16; the schema side
+    never did (hostile Fable 5 review, 2026-09-19): `schema_latest is None`
+    made `schema_behind` falsy, which rendered as plain "up to date" --
+    indistinguishable from a confirmed match."""
+    def flaky_get(url, timeout=30):
+        if "agent-client-protocol/releases/latest" in url:
+            return {"tag_name": None}          # GitHub answered, no usable tag
+        return fake_get(url, timeout)
+    monkeypatch.setattr(w, "_get", flaky_get)
+    assert run(env) == 0
+    report = (env["outdir"] / "2026-09-05.md").read_text(encoding="utf-8")
+    schema_line = report.split("## Protocol schema")[1].split("##")[0]
+    assert "UNKNOWN" in schema_line
+    assert "up to date" not in schema_line.lower()
+    assert "BEHIND" not in schema_line
 
 
 def test_an_unresolvable_install_reports_unknown_not_up_to_date(env, monkeypatch):
