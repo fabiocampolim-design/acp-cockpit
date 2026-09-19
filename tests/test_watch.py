@@ -154,107 +154,14 @@ def test_the_scheduler_wrapper_runs_daily_and_keeps_the_output():
     assert "Get-ScheduledTaskInfo" in ps1            # verification is part of it
 
 
-def test_the_npm_lookup_never_goes_through_a_shell(monkeypatch):
-    """`shell=(os.name == "nt")` handed the argv LIST to cmd.exe, which joins
-    and re-parses it — so `npm_package`, a value read from a profile file, was
-    interpolated into a command line. npm is resolved as an executable now
-    (npm.cmd on Windows) and run directly (review 2026-09-06)."""
-    seen = {}
-
-    def fake_run(cmd, **kw):
-        seen["cmd"] = cmd
-        seen["kw"] = kw
-        return w.subprocess.CompletedProcess(cmd, 0, "{}", "")
-
-    monkeypatch.setattr(w.subprocess, "run", fake_run)
-    monkeypatch.setattr(w.shutil, "which", lambda name: "C:\n\npm.cmd")
-    w.installed_version("@scope/pkg & calc.exe")
-    assert not seen["kw"].get("shell")
-    # the package is one argument, whatever it contains
-    assert "@scope/pkg & calc.exe" in seen["cmd"]
-    assert seen["cmd"][0] == "C:\n\npm.cmd"
-
-
-def test_npm_not_on_path_gives_a_reason_not_a_silent_none(monkeypatch):
-    """2026-09-16: a scheduled run reported 'installed not installed' with
-    outcome 'ok' -- installed_version() swallowed whatever went wrong and left
-    no way to tell PATH-missing from npm-failed from bad-JSON apart. version
-    is None either way; the reason is what a human needs."""
-    monkeypatch.setattr(w.shutil, "which", lambda name: None)
-    monkeypatch.setattr(w, "_npm_fallback_paths", lambda: [])
-    version, reason = w.installed_version("@agentclientprotocol/claude-agent-acp")
-    assert version is None
-    assert "PATH" in reason
-
-
-def test_npm_ls_failure_gives_a_reason(monkeypatch):
-    monkeypatch.setattr(w.shutil, "which", lambda name: "npm.cmd")
-
-    def boom(cmd, **kw):
-        raise OSError("access is denied")
-    monkeypatch.setattr(w.subprocess, "run", boom)
-    version, reason = w.installed_version("@agentclientprotocol/claude-agent-acp")
-    assert version is None
-    assert "access is denied" in reason
-
-
-def test_npm_executable_falls_back_to_the_programfiles_install_when_path_lookup_fails(monkeypatch, tmp_path):
-    """Task Scheduler runs outside the interactive shell's PATH; the standard
-    Node.js MSI install location is a steadier source of truth than PATH."""
-    monkeypatch.setattr(w.shutil, "which", lambda name: None)
-    nodejs = tmp_path / "nodejs"
-    nodejs.mkdir()
-    npm_cmd = nodejs / "npm.cmd"
-    npm_cmd.write_text("", encoding="utf-8")
-    monkeypatch.setenv("ProgramFiles", str(tmp_path))
-    monkeypatch.delenv("ProgramFiles(x86)", raising=False)
-    assert w.npm_executable() == str(npm_cmd)
-
-
 def test_a_not_installed_reason_reaches_the_audit_log(env, monkeypatch):
+    # installed_version() itself (PATH-missing, npm-ls failure, timeout,
+    # bad-JSON, the ProgramFiles fallback) is tested once, at its own
+    # canonical location, tests/test_npm_lookup.py -- not duplicated here.
     monkeypatch.setattr(w, "installed_version", lambda pkg: (None, "npm not found on PATH"))
     assert run(env) == 0
     logs = list(env["logs"].glob("watch-*.log"))
     assert "npm not found on PATH" in logs[0].read_text(encoding="utf-8")
-
-
-def test_npm_ran_but_the_package_is_not_in_its_output_gives_a_reason(monkeypatch):
-    """The likeliest real cause behind the 2026-09-16 run: npm ls -g succeeds
-    (valid JSON, exit 0) but resolves a different global prefix than the one
-    the package was installed under (a Task Scheduler run's S4U token can
-    differ from an interactive login's) -- so the package is simply absent
-    from ITS output. That is not a crash and not caught by any except above;
-    it needs its own reason, which should hint at the actual cause."""
-    monkeypatch.setattr(w.shutil, "which", lambda name: "npm.cmd")
-
-    def fake_run(cmd, **kw):
-        return w.subprocess.CompletedProcess(cmd, 0, "{}", "")
-    monkeypatch.setattr(w.subprocess, "run", fake_run)
-    version, reason = w.installed_version("@agentclientprotocol/claude-agent-acp")
-    assert version is None
-    assert "prefix" in reason.lower()
-
-
-def test_npm_ls_timeout_gives_a_reason(monkeypatch):
-    monkeypatch.setattr(w.shutil, "which", lambda name: "npm.cmd")
-
-    def timeout(cmd, **kw):
-        raise w.subprocess.TimeoutExpired(cmd, kw.get("timeout", 60))
-    monkeypatch.setattr(w.subprocess, "run", timeout)
-    version, reason = w.installed_version("@agentclientprotocol/claude-agent-acp")
-    assert version is None
-    assert "timed out" in reason
-
-
-def test_npm_ls_bad_json_gives_a_reason(monkeypatch):
-    monkeypatch.setattr(w.shutil, "which", lambda name: "npm.cmd")
-
-    def fake_run(cmd, **kw):
-        return w.subprocess.CompletedProcess(cmd, 0, "not json", "")
-    monkeypatch.setattr(w.subprocess, "run", fake_run)
-    version, reason = w.installed_version("@agentclientprotocol/claude-agent-acp")
-    assert version is None
-    assert "JSON" in reason
 
 
 def test_an_unresolvable_latest_schema_reports_unknown_not_up_to_date(env, monkeypatch):

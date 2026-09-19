@@ -15,6 +15,7 @@ import tornado.ioloop
 import tornado.escape
 import tornado.web
 
+from .. import npm_lookup
 from ..core.acp import AcpSession
 from ..core.policy import PathPolicy
 from ..core.profiles import load_profiles
@@ -796,43 +797,13 @@ def _latest_versions_cached(npm_package: str | None = None) -> dict:
     return result
 
 
-def _installed_adapter_version(npm_package: str) -> tuple[str | None, str | None]:
-    """(version, reason) for the npm-installed adapter -- mirrors
-    scripts/watch_upstream.py's installed_version(). The same bug a 2026-09-16
-    review found there existed here too: `except Exception: adapter_installed
-    = None` made every failure (PATH-missing, npm-failed, timed-out, bad-JSON)
-    look identical to 'not installed', which reaches compare_versions() and,
-    through it, the drift chip a real session reads to verify an upgrade."""
-    import subprocess as _sp
-    # `npm` is `npm.cmd` on Windows, which CreateProcess will not start —
-    # that is why this ran with shell=True. But a shell joins the argv
-    # list back into a command line and re-parses it, so `npm_package`,
-    # read from a profile file, ended up inside a cmd.exe line (review
-    # 2026-09-06). Resolve the executable and run it directly instead.
-    npm = shutil.which("npm")
-    if not npm:
-        return None, "npm not found on PATH"
-    try:
-        # Kept equal to scripts/watch_upstream.py's NPM_LS_TIMEOUT by hand --
-        # this copy ships in the wheel and cannot import that dev-only
-        # script. The two drifted to 30s vs 60s after each was fixed for the
-        # same silent-failure bug on its own schedule, so a slow lookup was
-        # more likely to read UNKNOWN here than in the daily watch (hostile
-        # Fable 5 review, 2026-09-19).
-        ls = _sp.run([npm, "ls", "-g", npm_package, "--json"],
-                     capture_output=True, text=True, timeout=60)
-        deps = json.loads(ls.stdout or "{}").get("dependencies", {})
-        version = deps.get(npm_package, {}).get("version")
-        if version is None:
-            detail = (ls.stderr or ls.stdout or "no dependencies listed").strip()[:300]
-            return None, f"npm ls -g exit {ls.returncode}: {detail}"
-        return version, None
-    except _sp.TimeoutExpired:
-        return None, "npm ls -g timed out after 60s"
-    except (OSError, _sp.SubprocessError) as exc:
-        return None, f"npm ls -g failed to run: {exc}"
-    except json.JSONDecodeError as exc:
-        return None, f"npm ls -g output was not JSON: {exc}"
+# The npm-installed-version lookup used to be a second copy of
+# scripts/watch_upstream.py's -- they drifted apart (30s vs 60s timeout, a
+# ProgramFiles fallback only the script had) after each was fixed for the
+# same silent-failure bug on its own schedule. One implementation now,
+# imported by both -- this copy lives inside the package, so it ships in the
+# wheel the same as this module does (hostile Fable 5 review, 2026-09-19).
+_installed_adapter_version = npm_lookup.installed_version
 
 
 def _latest_versions(npm_package: str | None = None) -> dict:

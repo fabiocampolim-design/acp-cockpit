@@ -343,61 +343,12 @@ class ElicitationTimeoutTest(tornado.testing.AsyncHTTPTestCase):
         self.io_loop.run_sync(drive, timeout=30)
 
 
-# Direct, offline coverage of _installed_adapter_version() -- the same
-# silent-swallow bug a 2026-09-16 review found in the daily watch script
-# existed here too (except Exception: adapter_installed = None hid PATH-
-# missing, npm-failed, timed-out and bad-JSON alike).
-
-def test_npm_not_on_path_gives_a_reason(monkeypatch):
-    import acp_cockpit.server.app as appmod
-    monkeypatch.setattr(appmod.shutil, "which", lambda name: None)
-    version, reason = appmod._installed_adapter_version("some-adapter")
-    assert version is None and "PATH" in reason
-
-
-def test_npm_ls_failure_gives_a_reason(monkeypatch):
-    import acp_cockpit.server.app as appmod
-    import subprocess as sp
-    monkeypatch.setattr(appmod.shutil, "which", lambda name: "npm.cmd")
-
-    def boom(cmd, **kw):
-        raise OSError("access is denied")
-    monkeypatch.setattr(sp, "run", boom)
-    version, reason = appmod._installed_adapter_version("some-adapter")
-    assert version is None and "access is denied" in reason
-
-
-def test_a_resolved_version_carries_no_reason(monkeypatch):
-    import acp_cockpit.server.app as appmod
-    import subprocess as sp
-    monkeypatch.setattr(appmod.shutil, "which", lambda name: "npm.cmd")
-
-    def fake_run(cmd, **kw):
-        return sp.CompletedProcess(
-            cmd, 0, '{"dependencies": {"some-adapter": {"version": "1.2.3"}}}', "")
-    monkeypatch.setattr(sp, "run", fake_run)
-    version, reason = appmod._installed_adapter_version("some-adapter")
-    assert version == "1.2.3" and reason is None
-
-
-def test_the_live_lookups_timeout_matches_the_daily_watch_scripts(monkeypatch):
-    """The live `/api/drift` endpoint used a 30s timeout while the daily
-    watch script used 60s for the identical `npm ls -g` call, so a slow
-    lookup was more likely to read UNKNOWN here than there -- the two were
-    never actually at parity despite `58add70`'s "reason parity" fix
-    (hostile Fable 5 review, 2026-09-19)."""
-    import acp_cockpit.server.app as appmod
-    import subprocess as sp
-    import scripts.watch_upstream as w
-    monkeypatch.setattr(appmod.shutil, "which", lambda name: "npm.cmd")
-    seen = {}
-
-    def fake_run(cmd, **kw):
-        seen["timeout"] = kw.get("timeout")
-        return sp.CompletedProcess(cmd, 0, "{}", "")
-    monkeypatch.setattr(sp, "run", fake_run)
-    appmod._installed_adapter_version("some-adapter")
-    assert seen["timeout"] == w.NPM_LS_TIMEOUT
+# _installed_adapter_version is acp_cockpit.npm_lookup.installed_version
+# (hostile Fable 5 review, 2026-09-19: it used to be a second copy of
+# scripts/watch_upstream.py's, and they drifted apart). Its own behavior --
+# PATH-missing, npm-ls failure, timeout, bad-JSON, timeout value -- is
+# tested once, at its canonical location, tests/test_npm_lookup.py, which
+# also asserts this identity directly. Not duplicated here.
 
 
 class DriftCacheTest(tornado.testing.AsyncHTTPTestCase):

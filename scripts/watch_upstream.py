@@ -28,9 +28,6 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
-import os
-import shutil
-import subprocess
 import sys
 import traceback
 import urllib.request
@@ -41,16 +38,26 @@ ROOT = HERE.parent
 sys.path.insert(0, str(ROOT))
 
 from acp_cockpit import __version__                       # noqa: E402  (no deps)
+# The npm-installed-version lookup used to be a second copy of
+# acp_cockpit/server/app.py's -- they drifted apart (30s vs 60s timeout, a
+# ProgramFiles fallback only this one had) after each was fixed for the same
+# silent-failure bug on its own schedule. One implementation now, imported
+# by both (hostile Fable 5 review, 2026-09-19: "unify the two copies into
+# one helper"). Kept as a top-level import, not deferred like the profile
+# loader below: acp_cockpit.npm_lookup has no tornado dependency either, so
+# nothing here needs the lazy-import trick that protects against a missing
+# one.
+from acp_cockpit.npm_lookup import (                        # noqa: E402
+    DEFAULT_TIMEOUT as NPM_LS_TIMEOUT, installed_version, npm_executable)
+# NPM_LS_TIMEOUT and npm_executable are not called from this file any more --
+# kept as re-exports (hence __all__, so pyflakes does not call them dead)
+# because tests, and anyone at a REPL, reach them as w.NPM_LS_TIMEOUT /
+# w.npm_executable.
+__all__ = ["NPM_LS_TIMEOUT", "installed_version", "npm_executable", "main"]
 
 USER_AGENT = f"acp-cockpit-watch/{__version__} (+https://github.com/fabiocampolim-design/acp-cockpit)"
 SCHEMA_REPO = "agentclientprotocol/agent-client-protocol"
 FIRST_SNAPSHOT_CAP = 15          # a first run lists at most this many per bucket
-# Kept equal to acp_cockpit/server/app.py's `_installed_adapter_version` by
-# hand (that copy cannot import this dev-only script -- it ships in the
-# wheel, this does not) after the two silently drifted apart, 60s vs 30s,
-# despite both being fixed for the same silent-failure bug on their own
-# schedule (hostile Fable 5 review, 2026-09-19).
-NPM_LS_TIMEOUT = 60
 
 
 def _get(url: str, timeout: int = 30):
@@ -58,60 +65,6 @@ def _get(url: str, timeout: int = 30):
                                                "Accept": "application/json"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.load(r)
-
-
-def _npm_fallback_paths() -> list[Path]:
-    """Where npm lives when it is not on PATH. A Task Scheduler run does not
-    inherit an interactive shell's PATH the way a login session does; the
-    Node.js MSI's own install directory is a steadier source of truth."""
-    return [Path(base) / "nodejs" / "npm.cmd"
-            for base in (os.environ.get("ProgramFiles"),
-                         os.environ.get("ProgramFiles(x86)")) if base]
-
-
-def npm_executable() -> str | None:
-    """npm itself, resolved. `shell=True` was how this ran on Windows, where
-    `npm` is `npm.cmd` and CreateProcess will not start it — but a shell joins
-    the argv list back into a command line and re-parses it, so a package name
-    read from a profile file ended up inside a cmd.exe line (review
-    2026-09-06). Resolving the executable needs no shell."""
-    which = shutil.which("npm")
-    if which:
-        return which
-    for candidate in _npm_fallback_paths():
-        if candidate.is_file():
-            return str(candidate)
-    return None
-
-
-def installed_version(npm_package: str) -> tuple[str | None, str | None]:
-    """(version, reason). reason is set only when version is None -- a
-    scheduled run once reported 'not installed' with no exception and no way
-    to tell PATH-missing, npm-failed and bad-JSON apart (2026-09-16); this is
-    the audit trail that should have existed for it."""
-    npm = npm_executable()
-    if not npm:
-        return None, "npm not found on PATH or the standard install location"
-    try:
-        ls = subprocess.run([npm, "ls", "-g", npm_package, "--json"],
-                            capture_output=True, text=True, timeout=NPM_LS_TIMEOUT)
-        deps = json.loads(ls.stdout or "{}").get("dependencies", {})
-        version = deps.get(npm_package, {}).get("version")
-        if version is None:
-            detail = (ls.stderr or ls.stdout or "no dependencies listed").strip()[:300]
-            return None, (f"npm ls -g exit {ls.returncode}: {detail} -- npm ran and "
-                          f"returned valid JSON but the package wasn't in it; a "
-                          f"possible cause is a global prefix mismatch (`npm config "
-                          f"get prefix`), since a scheduled run's token can resolve a "
-                          f"different one than an interactive login -- unconfirmed: "
-                          f"every failure seen here so far has been a timeout instead")
-        return version, None
-    except subprocess.TimeoutExpired:
-        return None, f"npm ls -g timed out after {NPM_LS_TIMEOUT}s"
-    except (OSError, subprocess.SubprocessError) as exc:
-        return None, f"npm ls -g failed to run: {exc}"
-    except json.JSONDecodeError as exc:
-        return None, f"npm ls -g output was not JSON: {exc}"
 
 
 def watch_target(profile_id: str | None = None) -> dict:
