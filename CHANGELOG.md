@@ -4,6 +4,34 @@ All notable changes to acp-cockpit are documented in this file.
 
 ## Unreleased
 
+### 2026-09-19 — pinned protocol schema bumped to schema-v1.23.0
+
+Downloaded the real `schema-v1.23.0` release asset and diffed it against
+the vendored `schema-v1.21.0`: the only change across two releases is
+`ToolCall.name` / `ToolCallUpdate.name` (optional, nullable) — no new
+methods, enums, `$defs` or stop reasons. `tools/check_schema_drift.py`
+confirms the registry needs no changes; the new `name` field already
+reaches a View through the existing `session/update` passthrough with no
+code change. The npm-installed adapter itself stays at 0.75.1 for now — a
+global install, not a repo file, and Fabio wants that done once other live
+sessions using it are logged off.
+
+### npm-lookup dedup — one shared implementation, not two that drift
+
+`scripts/watch_upstream.py` and `acp_cockpit/server/app.py` each had their
+own copy of the `npm ls -g` lookup; they had already drifted apart once
+(30s vs 60s timeout, a ProgramFiles fallback only one had). Unified into
+`acp_cockpit/npm_lookup.py`, with an identity test so they cannot drift
+apart silently again.
+
+### docs: verified the "0.73 through 0.75.1" adapter caveats against 0.79.0
+
+Downloaded and inspected the published `claude-agent-acp@0.79.0` tarball
+directly rather than assume. Both caveats' substance holds — prompt
+suggestions are still neither requested from the SDK nor forwarded — but
+the version range implied the gap stopped mattering at 0.75.1, when it in
+fact persists six releases further.
+
 ### review 2026-09-19 — hostile review (Fable 5), all findings fixed
 
 An independent adversarial review, on top of the ones below, over the code,

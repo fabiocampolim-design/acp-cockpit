@@ -373,7 +373,7 @@ class DriftCacheTest(tornado.testing.AsyncHTTPTestCase):
 
         def fake_latest(pkg):
             calls.append(pkg)
-            return {"schema": "schema-v1.21.0", "adapter_latest": "9.9.9",
+            return {"schema": "schema-v1.23.0", "adapter_latest": "9.9.9",
                     "adapter_installed": "9.9.8"}
         appmod._DRIFT_CACHE.clear()
         original = appmod._latest_versions
@@ -396,7 +396,7 @@ class DriftCacheTest(tornado.testing.AsyncHTTPTestCase):
         from acp_cockpit.server import app as appmod
 
         def fake_latest(pkg):
-            return {"schema": "schema-v1.21.0", "adapter_latest": "9.9.9",
+            return {"schema": "schema-v1.23.0", "adapter_latest": "9.9.9",
                     "adapter_installed": None}
         appmod._DRIFT_CACHE.clear()
         original = appmod._latest_versions
@@ -441,7 +441,7 @@ class DriftCacheTest(tornado.testing.AsyncHTTPTestCase):
 
         def fake_latest(pkg):
             calls.append(pkg)
-            return {"schema": "schema-v1.21.0", "adapter_latest": "9.9.9",
+            return {"schema": "schema-v1.23.0", "adapter_latest": "9.9.9",
                     "adapter_installed": None,
                     "adapter_installed_reason": "npm ls -g timed out after 60s"}
         appmod._DRIFT_CACHE.clear()

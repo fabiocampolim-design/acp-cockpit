@@ -121,9 +121,9 @@ the writer itself fails.
 
 ### `GET /api/drift`
 ```json
-{"pinned_schema": "schema-v1.21.0", "flags": [], "online": true,
+{"pinned_schema": "schema-v1.23.0", "flags": [], "online": true,
  "adapter_package": "@agentclientprotocol/claude-agent-acp",
- "latest": {"schema": "schema-v1.21.0", "adapter_latest": "x.y.z",
+ "latest": {"schema": "schema-v1.23.0", "adapter_latest": "x.y.z",
             "adapter_installed": "x.y.z", "adapter_installed_reason": null}}
 ```
 `flags` is a list of strings, each one of:

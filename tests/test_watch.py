@@ -14,7 +14,7 @@ NPM = {"dist-tags": {"latest": "0.75.0"},
        "time": {"created": "2026-01-01T00:00:00Z", "modified": "2026-09-05T08:56:12Z",
                 "0.73.0": "2026-09-01T20:27:00Z", "0.74.0": "2026-09-04T10:00:00Z",
                 "0.75.0": "2026-09-05T08:56:12Z"}}
-SCHEMA_LATEST = {"tag_name": "schema-v1.21.0", "published_at": "2026-08-20T19:43:13Z"}
+SCHEMA_LATEST = {"tag_name": "schema-v1.23.0", "published_at": "2026-08-20T19:43:13Z"}
 RELEASES = [{"tag_name": "v0.75.0", "name": "v0.75.0", "published_at": "2026-09-05T08:55:00Z",
              "html_url": "https://github.com/x/y/releases/tag/v0.75.0"},
             {"tag_name": "v0.74.0", "name": "v0.74.0", "published_at": "2026-09-04T10:00:00Z",
@@ -56,7 +56,7 @@ def test_a_daily_report_names_versions_releases_and_issues(env):
     report = (env["outdir"] / "2026-09-05.md").read_text(encoding="utf-8")
     assert "installed 0.73.0" in report and "latest 0.75.0" in report
     assert "BEHIND" in report                        # 0.73 < 0.75, said loudly
-    assert "schema-v1.21.0" in report                 # pinned == latest
+    assert "schema-v1.23.0" in report                 # pinned == latest
     assert "v0.75.0" in report and "v0.74.0" in report
     assert "#1030" in report
     assert "#1099" not in report                      # PRs are not issues
