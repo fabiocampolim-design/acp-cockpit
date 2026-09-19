@@ -180,8 +180,10 @@ acp_cockpit/agents/*.toml Data        everything agent-specific (PROFILE-SCHEMA.
   dropped.
 
 **Where the limit actually is.** acp-cockpit can only render what the *adapter*
-forwards, and `claude-agent-acp` (0.73 through 0.75.1) discards some of what the Agent SDK
-produces — prompt suggestions, among others. That is not hidden: each agent
+forwards, and `claude-agent-acp` (0.73 through at least 0.79.0, the newest
+checked — verified 2026-09-19 by inspecting the published `dist/`, not just
+assumed) discards some of what the Agent SDK produces — prompt suggestions,
+among others. That is not hidden: each agent
 profile carries `caveats` which the launcher shows before you start a
 session, so you know what this client cannot see and why.
 
