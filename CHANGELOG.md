@@ -4,6 +4,24 @@ All notable changes to acp-cockpit are documented in this file.
 
 ## Unreleased
 
+### 0.79.0's compaction kinds registered -- known, not drift
+
+The upgraded adapter runs a context-compaction lifecycle and emits two
+`session/update` kinds the pinned schema-v1.23.0 does not define:
+`compaction_update` (20 sites) and `compaction_summary_chunk`
+(`dist/context-compaction.js`). Unregistered, every compaction would have
+produced an `unrecognized` row and a drift chip for a frame the client can
+place perfectly well. Both are in `vendor_update_kinds` now, documented in
+`docs/UI-PROTOCOL.md` (the `events` lane, like the other non-subagent vendor
+kinds), with a sentinel test per kind. A second guard
+(`test_every_registered_vendor_update_kind_is_named_in_the_doc`) fails when a
+kind is registered without telling the View about it, since the View may read
+nothing but that document.
+
+Not registered, deliberately: the adapter's `_session/steering`,
+`_session/goal` and `_session/async_task/stop` are extension *requests a
+client may send*, and this client does not send them.
+
 ### the guard that was supposed to stop this was decorative, and missed a fifth copy
 
 An adversarial review of the fix above (Fable 5.1, KEEP rules/14) mutated

@@ -147,3 +147,19 @@ def test_the_clients_own_frames_are_checked_and_its_vendor_request_is_known():
     flags = s.check_frame("out", {"jsonrpc": "2.0", "id": 3,
                                   "method": "session/invented", "params": {}})
     assert flags == ["unknown-to-agent-method:session/invented"]
+
+
+def test_compaction_kinds_the_0_79_0_adapter_emits_are_known():
+    # claude-agent-acp 0.79.0 runs a context-compaction lifecycle and emits
+    # `sessionUpdate: "compaction_update"` (20 sites) and
+    # `"compaction_summary_chunk"` (dist/context-compaction.js:133/158/192/256,
+    # read from the INSTALLED adapter after the 2026-09-20 upgrade). Neither
+    # is in the pinned schema-v1.23.0, so before they were registered every
+    # compaction produced an `unrecognized` row and a drift chip on a frame
+    # the client understands perfectly well (AGENTS.md: a kind the installed
+    # adapter emits outside the schema goes in vendor_update_kinds).
+    s = Sentinel(REG)
+    for kind in ("compaction_update", "compaction_summary_chunk"):
+        flags = s.check_frame("in", {"jsonrpc": "2.0", "method": "session/update",
+            "params": {"sessionId": "x", "update": {"sessionUpdate": kind}}})
+        assert flags == [], (kind, flags)

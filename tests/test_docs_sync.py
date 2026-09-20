@@ -113,3 +113,20 @@ def test_what_the_adapter_discards_says_one_version_and_one_date():
                              f" -- {sentence[:90]}")
     assert not wrong, ("the adapter-discards claim disagrees with the shipped "
                        "profile:\n  " + "\n  ".join(wrong))
+
+
+def test_every_registered_vendor_update_kind_is_named_in_the_doc():
+    """`vendor_update_kinds` is the list of non-schema kinds this client
+    claims to KNOW; the View may only learn about them from UI-PROTOCOL.md
+    (the layer rule). Registering a kind and not documenting it leaves the
+    View with a `vendor_update` it cannot place in a lane -- caught when
+    0.79.0's compaction kinds were registered (2026-09-20)."""
+    import json
+    registry = json.loads(
+        Path("acp_cockpit/vendor/acp/registry.json").read_text(encoding="utf-8"))
+    for kind in registry["vendor_update_kinds"]:
+        # the doc may group a family behind a `prefix_*` wildcard, which a
+        # View implementer can still act on; anything else must be spelled out
+        covered = kind in DOC or any(
+            kind.startswith(stem) for stem in re.findall(r"`(\w+)_\*`", DOC))
+        assert covered, f"{kind} is registered but absent from UI-PROTOCOL.md"
