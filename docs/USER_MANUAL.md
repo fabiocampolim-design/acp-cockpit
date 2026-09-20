@@ -145,7 +145,8 @@ might ask next. It appears as a dashed strip over the composer: click it to
 put the text in the box — **it is never sent for you** — or dismiss it with
 the ×. It disappears when a turn starts, and when you send anything. Most
 adapters never send one: `claude-agent-acp` (0.73 through at least 0.79.0,
-the newest checked — verified 2026-09-19 against the published `dist/`)
+the newest checked — verified 2026-09-20 against the `dist/` of the
+installed adapter)
 neither asks the SDK for suggestions nor forwards the message, so with the
 stock adapter
 the strip simply never appears. A patched adapter that forwards them puts

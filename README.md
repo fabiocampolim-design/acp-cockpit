@@ -181,8 +181,8 @@ acp_cockpit/agents/*.toml Data        everything agent-specific (PROFILE-SCHEMA.
 
 **Where the limit actually is.** acp-cockpit can only render what the *adapter*
 forwards, and `claude-agent-acp` (0.73 through at least 0.79.0, the newest
-checked — verified 2026-09-19 by inspecting the published `dist/`, not just
-assumed) discards some of what the Agent SDK produces — prompt suggestions,
+checked — verified 2026-09-20 by inspecting the `dist/` of the installed
+adapter, not just assumed) discards some of what the Agent SDK produces — prompt suggestions,
 among others. That is not hidden: each agent
 profile carries `caveats` which the launcher shows before you start a
 session, so you know what this client cannot see and why.
@@ -219,7 +219,7 @@ python -m pyflakes acp_cockpit tools scripts tests docs
 python tools/check_schema_drift.py
 ```
 
-Verified by 350 checks (plus the opt-in real-adapter contract test), on
+Verified by 351 checks (plus the opt-in real-adapter contract test), on
 Linux, Windows and macOS. See `AGENTS.md` for the working rules,
 `docs/DESIGN.md` for the reasoning and `docs/superpowers/specs/` for the
 design history — the research notes and the approved specifications the

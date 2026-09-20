@@ -36,3 +36,26 @@ def test_every_drift_flag_shape_documented():
                 "schema-unknown", "drift-check-failed"):
         assert flag in section, f"{flag} missing from the /api/drift doc"
     assert "adapter_installed_reason" in section
+
+
+def test_the_adapter_version_range_agrees_everywhere():
+    """The prompt-suggestion caveat names a version range in three places:
+    README, the user manual and the shipped profile that carries it into the
+    UI. `8a1c9df` re-verified the range and updated the two documents but not
+    the profile, which went on telling the user "0.73 through 0.75.1" while
+    the docs said 0.79.0 -- the kind of drift only a check catches (found on
+    the 0.79.0 upgrade, 2026-09-20)."""
+    import re
+
+    sources = [Path("README.md"), Path("docs/USER_MANUAL.md")]
+    sources += sorted(Path("acp_cockpit/agents").glob("*.toml"))
+    found = {}
+    for path in sources:
+        text = " ".join(path.read_text(encoding="utf-8").split())
+        for match in re.finditer(r"0\.73 through (?:at least )?(\d+\.\d+\.\d+)",
+                                 text):
+            found.setdefault(match.group(1), []).append(path.as_posix())
+    assert found, "no adapter version range found -- has the wording changed?"
+    assert len(found) == 1, (
+        "the adapter caveat names different upper versions: "
+        + "; ".join(f"{v} in {', '.join(w)}" for v, w in sorted(found.items())))

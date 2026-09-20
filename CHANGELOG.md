@@ -2,6 +2,23 @@
 
 All notable changes to acp-cockpit are documented in this file.
 
+## Unreleased
+
+### the shipped profile's adapter caveat said 0.75.1 while the docs said 0.79.0
+
+Verifying the caveats against the 0.79.0 tarball (0.5.1) updated the README
+and the user manual but not `acp_cockpit/agents/claude.toml`, whose
+`no-prompt-suggestions` caveat — the text a user actually reads in the
+launcher before starting a session — still named "0.73 through 0.75.1,
+re-checked 2026-09-05". All three now name 0.79.0, and a new check
+(`test_the_adapter_version_range_agrees_everywhere`) fails if they ever
+disagree again.
+
+The range is now verified against the adapter *installed on this machine*,
+not a downloaded tarball: 0.79.0 is what runs here since 2026-09-20, and its
+`dist/acp-agent.js` still neither passes `promptSuggestions` to the SDK nor
+forwards the `prompt_suggestion` message (`case "prompt_suggestion": break`).
+
 ## 0.5.1 - 2026-09-20 - a hostile review, the drift tooling fixed, the schema caught up
 
 ### 2026-09-19 — pinned protocol schema bumped to schema-v1.23.0
