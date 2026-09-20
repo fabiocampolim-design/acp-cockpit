@@ -69,7 +69,9 @@ misread.**
   issue #1030). This client cannot show what never reaches it; the options are
   upstream requests or a patched fork of the adapter (Apache-2.0). The
   sibling project ACPUPSTREAM holds seven graded findings against the
-  adapter (re-checked against 0.75.1 on 2026-09-05: all unchanged), the
+  adapter (re-checked against 0.75.1 on 2026-09-05: all unchanged; the
+  prompt-suggestion one re-verified against the installed 0.79.0 on
+  2026-09-20), the
   reproduction, and the issues drafted for upstream.
 - **Thinking text — answered (2026-09-04).** The empty chunks were not
   redaction by the adapter: recent models return *summarized* thinking or

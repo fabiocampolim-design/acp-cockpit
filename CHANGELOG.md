@@ -4,6 +4,31 @@ All notable changes to acp-cockpit are documented in this file.
 
 ## Unreleased
 
+### the guard that was supposed to stop this was decorative, and missed a fifth copy
+
+An adversarial review of the fix above (Fable 5.1, KEEP rules/14) mutated
+the tree five ways and found `test_the_adapter_version_range_agrees_everywhere`
+green on four of them: a reworded range ("up to and including 0.80.0"), an
+en-dash range, a range not starting at "0.73", and a stale re-check *date*
+all passed, because the check matched the literal phrase "0.73 through" and
+compared no dates. It also found a fifth copy of the claim the fix had not
+touched: `docs/UI-PROTOCOL.md` -- the one document the View is allowed to
+consume -- still said "claude-agent-acp 0.73-0.75.1 discards the SDK
+message".
+
+Replaced by `test_what_the_adapter_discards_says_one_version_and_one_date`,
+which matches no phrase: it reads every sentence in README, the manual,
+UI-PROTOCOL, DESIGN and the View's own files that claims the adapter
+discards, drops or does not forward something, and requires every adapter
+version and every date in it to agree with the shipped profile's caveat --
+the copy the user reads in the launcher, now the single source of truth.
+All four escapes above are red under it (verified by mutation, each
+reverted). UI-PROTOCOL now names 0.79.0.
+
+`docs/DESIGN.md` was corrected the other way, to claim *less*: the seven
+ACPUPSTREAM findings were re-checked against 0.75.1 on 2026-09-05 and that
+stands; only the prompt-suggestion one has been re-verified against 0.79.0.
+
 ### the shipped profile's adapter caveat said 0.75.1 while the docs said 0.79.0
 
 Verifying the caveats against the 0.79.0 tarball (0.5.1) updated the README
