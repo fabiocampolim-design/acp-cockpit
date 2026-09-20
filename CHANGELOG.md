@@ -2,7 +2,7 @@
 
 All notable changes to acp-cockpit are documented in this file.
 
-## Unreleased
+## 0.5.1 - 2026-09-20 - a hostile review, the drift tooling fixed, the schema caught up
 
 ### 2026-09-19 — pinned protocol schema bumped to schema-v1.23.0
 

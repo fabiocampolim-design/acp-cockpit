@@ -200,11 +200,13 @@ a guess at what you might ask next. It appears as a dashed strip over
 the composer: click it to put the text in the box — <strong>it is never
 sent for you</strong> — or dismiss it with the ×. It disappears when a
 turn starts, and when you send anything. Most adapters never send one:
-<code>claude-agent-acp</code> (0.73 through 0.75.1) neither asks the SDK
-for suggestions nor forwards the message, so with the stock adapter the
-strip simply never appears. A patched adapter that forwards them puts
-the prediction on <code>_meta._claude/promptSuggestion</code> of an
-otherwise empty message chunk, and this client renders that.</p>
+<code>claude-agent-acp</code> (0.73 through at least 0.79.0, the newest
+checked — verified 2026-09-19 against the published <code>dist/</code>)
+neither asks the SDK for suggestions nor forwards the message, so with
+the stock adapter the strip simply never appears. A patched adapter that
+forwards them puts the prediction on
+<code>_meta._claude/promptSuggestion</code> of an otherwise empty
+message chunk, and this client renders that.</p>
 <h2 id="the-panel-under-the-prompt">The panel under the prompt</h2>
 <p>One panel holds every session control:</p>
 <ul>
